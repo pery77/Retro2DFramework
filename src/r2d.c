@@ -30,7 +30,7 @@ R2D_Config R2D_DefaultConfig(void)
 {
     return (R2D_Config) {
         320,
-        180,
+        200,
         4,
         "Retro2DFramework",
         BLACK
@@ -45,7 +45,7 @@ bool R2D_Init(R2D_Context *ctx, R2D_Config config)
 
     if (config.virtual_width <= 0 || config.virtual_height <= 0) {
         config.virtual_width = 320;
-        config.virtual_height = 180;
+        config.virtual_height = 200;
     }
 
     if (config.window_scale <= 0) {
@@ -144,7 +144,7 @@ void R2D_EndFrame(R2D_Context *ctx)
 
     if (ctx->crt != 0 && ctx->crt->enabled && ctx->crt->is_ready) {
         const Vector2 resolution = { ctx->destination.width, ctx->destination.height };
-        const float random = (float)GetRandomValue(0, 10000) / 10000.0f;
+        const float random = (float)GetRandomValue(1, 100) + (float)GetRandomValue(1, 99) / 100.0f;
 
         SetShaderValue(ctx->crt->shader, ctx->crt->resolution_loc, &resolution, SHADER_UNIFORM_VEC2);
         SetShaderValue(ctx->crt->shader, ctx->crt->random_loc, &random, SHADER_UNIFORM_FLOAT);
