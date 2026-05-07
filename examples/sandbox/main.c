@@ -5,6 +5,7 @@ typedef struct Sandbox {
     float blink_timer;
     float reload_message_timer;
     bool reload_ok;
+    R2D_Context *context;
     R2D_Crt *crt;
 } Sandbox;
 
@@ -54,16 +55,18 @@ static void Sandbox_Update(float dt, void *user_data)
     sandbox->blink_timer += dt;
 }
 
-static void Sandbox_DrawGrid(void)
+static void Sandbox_DrawGrid(const R2D_Context *context)
 {
     const Color grid = R2D_ColorFromHex(0x2a2a3aff);
+    const int width = R2D_VirtualWidth(context);
+    const int height = R2D_VirtualHeight(context);
 
-    for (int x = 0; x <= 320; x += 16) {
-        DrawLine(x, 0, x, 180, grid);
+    for (int x = 0; x <= width; x += 16) {
+        DrawLine(x, 0, x, height, grid);
     }
 
-    for (int y = 0; y <= 180; y += 16) {
-        DrawLine(0, y, 320, y, grid);
+    for (int y = 0; y <= height; y += 16) {
+        DrawLine(0, y, width, y, grid);
     }
 }
 
@@ -72,7 +75,7 @@ static void Sandbox_Draw(void *user_data)
     const Sandbox *sandbox = (const Sandbox *)user_data;
     const bool blink = ((int)(sandbox->blink_timer * 4.0f) % 2) == 0;
 
-    Sandbox_DrawGrid();
+    Sandbox_DrawGrid(sandbox->context);
     DrawText("Retro2DFramework XXXX", 8, 8, 10, R2D_ColorFromHex(0xf8f8f2ff));
     DrawText("WASD / Arrows", 8, 22, 8, R2D_ColorFromHex(0x8be9fdff));
     if (sandbox->crt != 0) {
@@ -114,6 +117,7 @@ int main(void)
 
     R2D_CrtInit(&crt);
     R2D_SetCrt(&context, &crt);
+    sandbox.context = &context;
     sandbox.crt = &crt;
 
     R2D_Run(&context, (R2D_App) {

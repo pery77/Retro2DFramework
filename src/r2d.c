@@ -29,9 +29,9 @@ static Rectangle R2D_CalculateDestination(int virtual_width, int virtual_height)
 R2D_Config R2D_DefaultConfig(void)
 {
     return (R2D_Config) {
-        320,
-        200,
-        4,
+        R2D_DEFAULT_VIRTUAL_WIDTH,
+        R2D_DEFAULT_VIRTUAL_HEIGHT,
+        R2D_DEFAULT_WINDOW_SCALE,
         "Retro2DFramework",
         BLACK
     };
@@ -44,12 +44,12 @@ bool R2D_Init(R2D_Context *ctx, R2D_Config config)
     }
 
     if (config.virtual_width <= 0 || config.virtual_height <= 0) {
-        config.virtual_width = 320;
-        config.virtual_height = 200;
+        config.virtual_width = R2D_DEFAULT_VIRTUAL_WIDTH;
+        config.virtual_height = R2D_DEFAULT_VIRTUAL_HEIGHT;
     }
 
     if (config.window_scale <= 0) {
-        config.window_scale = 4;
+        config.window_scale = R2D_DEFAULT_WINDOW_SCALE;
     }
 
     if (config.title == 0) {
@@ -144,13 +144,14 @@ void R2D_EndFrame(R2D_Context *ctx)
 
     if (ctx->crt != 0 && ctx->crt->enabled && ctx->crt->is_ready) {
         const Vector2 resolution = { ctx->destination.width, ctx->destination.height };
+        const Vector2 virtual_resolution = R2D_VirtualSize(ctx);
         const float random = (float)GetRandomValue(1, 100) + (float)GetRandomValue(1, 99) / 100.0f;
 
+        BeginShaderMode(ctx->crt->shader);
         SetShaderValue(ctx->crt->shader, ctx->crt->resolution_loc, &resolution, SHADER_UNIFORM_VEC2);
+        SetShaderValue(ctx->crt->shader, ctx->crt->virtual_resolution_loc, &virtual_resolution, SHADER_UNIFORM_VEC2);
         SetShaderValue(ctx->crt->shader, ctx->crt->random_loc, &random, SHADER_UNIFORM_FLOAT);
         SetShaderValueTexture(ctx->crt->shader, ctx->crt->noise_loc, ctx->crt->noise);
-
-        BeginShaderMode(ctx->crt->shader);
         DrawTexturePro(ctx->target.texture, ctx->source, ctx->destination, ctx->origin, 0.0f, WHITE);
         EndShaderMode();
     } else {
@@ -177,6 +178,24 @@ const char *R2D_AssetPath(const char *relative_path)
 
     snprintf(path, sizeof(path), "%sassets/%s", GetApplicationDirectory(), relative_path);
     return path;
+}
+
+int R2D_VirtualWidth(const R2D_Context *ctx)
+{
+    return ctx != 0 ? ctx->config.virtual_width : R2D_DEFAULT_VIRTUAL_WIDTH;
+}
+
+int R2D_VirtualHeight(const R2D_Context *ctx)
+{
+    return ctx != 0 ? ctx->config.virtual_height : R2D_DEFAULT_VIRTUAL_HEIGHT;
+}
+
+Vector2 R2D_VirtualSize(const R2D_Context *ctx)
+{
+    return (Vector2) {
+        (float)R2D_VirtualWidth(ctx),
+        (float)R2D_VirtualHeight(ctx)
+    };
 }
 
 Vector2 R2D_MouseVirtualPosition(const R2D_Context *ctx)

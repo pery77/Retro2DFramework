@@ -2,9 +2,11 @@
 
 static bool R2D_CrtLoadShader(R2D_Crt *crt)
 {
-    Shader shader = LoadShader(0, R2D_AssetPath("shaders/crt.fs"));
+    const char *shader_path = R2D_AssetPath("shaders/crt.fs");
+    Shader shader = LoadShader(0, shader_path);
 
     if (!IsShaderValid(shader)) {
+        TraceLog(LOG_WARNING, "R2D: Failed to load CRT shader: %s", shader_path);
         return false;
     }
 
@@ -14,9 +16,19 @@ static bool R2D_CrtLoadShader(R2D_Crt *crt)
 
     crt->shader = shader;
     crt->resolution_loc = GetShaderLocation(crt->shader, "resolution");
+    crt->virtual_resolution_loc = GetShaderLocation(crt->shader, "virtualResolution");
     crt->noise_loc = GetShaderLocation(crt->shader, "noiseTexture");
     crt->random_loc = GetShaderLocation(crt->shader, "rnd");
     crt->is_ready = IsTextureValid(crt->noise);
+
+    TraceLog(
+        LOG_INFO,
+        "R2D: CRT shader loaded: %s noiseLoc=%d virtualResolutionLoc=%d textureId=%u",
+        shader_path,
+        crt->noise_loc,
+        crt->virtual_resolution_loc,
+        crt->noise.id
+    );
 
     return crt->is_ready;
 }
@@ -27,10 +39,17 @@ bool R2D_CrtInit(R2D_Crt *crt)
         return false;
     }
 
-    Image noise_image = GenImageWhiteNoise(128, 128, 0.5f);
+    const char *noise_path = R2D_AssetPath("textures/noise.png");
+    crt->noise = LoadTexture(noise_path);
 
-    crt->noise = LoadTextureFromImage(noise_image);
-    UnloadImage(noise_image);
+    if (!IsTextureValid(crt->noise)) {
+        TraceLog(LOG_WARNING, "R2D: Failed to load CRT noise texture: %s", noise_path);
+        Image noise_image = GenImageWhiteNoise(128, 128, 0.3f);
+        crt->noise = LoadTextureFromImage(noise_image);
+        UnloadImage(noise_image);
+    } else {
+        TraceLog(LOG_INFO, "R2D: CRT noise texture loaded: %s id=%u", noise_path, crt->noise.id);
+    }
 
     crt->enabled = true;
     crt->is_ready = false;

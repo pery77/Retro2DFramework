@@ -17,7 +17,7 @@ out vec4 finalColor;
 #define blurQuality    4.0
 #define blurSize       6.0
 
-vec2 virtualResolution = vec2(320.0, 200.0);
+uniform vec2 virtualResolution;
 float blurFactor = 0.98;
 float blurBlink = 0.05;
 float blurPower = 0.36;
@@ -185,6 +185,7 @@ void main()
 
     vec2 noiseOffset = vec2(rnd1, rnd2);
     vec3 noise = texture(noiseTexture, ((uv + noiseOffset) * (rnd1 * 0.2 + 1.5))).rgb;
+
     color += noise * vec3(0.8, 0.7, 0.9) * noiseAmount;
 
     color *= mix(vec3(1.0), grille(uv), mask);

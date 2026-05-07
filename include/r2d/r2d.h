@@ -3,6 +3,10 @@
 
 #include "raylib.h"
 
+#define R2D_DEFAULT_VIRTUAL_WIDTH 320
+#define R2D_DEFAULT_VIRTUAL_HEIGHT 200
+#define R2D_DEFAULT_WINDOW_SCALE 4
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -27,6 +31,7 @@ typedef struct R2D_Crt {
     Shader shader;
     Texture2D noise;
     int resolution_loc;
+    int virtual_resolution_loc;
     int noise_loc;
     int random_loc;
     bool enabled;
@@ -60,6 +65,9 @@ void R2D_SetCrt(R2D_Context *ctx, R2D_Crt *crt);
 
 const char *R2D_AssetPath(const char *relative_path);
 
+int R2D_VirtualWidth(const R2D_Context *ctx);
+int R2D_VirtualHeight(const R2D_Context *ctx);
+Vector2 R2D_VirtualSize(const R2D_Context *ctx);
 Vector2 R2D_MouseVirtualPosition(const R2D_Context *ctx);
 Rectangle R2D_Rect(float x, float y, float width, float height);
 
