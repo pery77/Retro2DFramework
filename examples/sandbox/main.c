@@ -65,7 +65,15 @@ static void Sandbox_Update(float dt, void *user_data)
     }
 
     if (IsKeyPressed(KEY_B)) {
+        R2D_PlaySfx(R2D_SfxLaser());
+    }
+
+    if (IsKeyPressed(KEY_N)) {
         R2D_PlaySfx(R2D_SfxExplosion());
+    }
+
+    if (IsKeyPressed(KEY_M)) {
+        R2D_PlaySfx(R2D_SfxPowerup());
     }
 
     sandbox->blink_timer += dt;
@@ -97,7 +105,7 @@ static void Sandbox_Draw(void *user_data)
     if (sandbox->crt != 0) {
         DrawText(sandbox->crt->enabled ? "C: CRT ON" : "C: CRT OFF", 8, 34, 8, R2D_ColorFromHex(0x50fa7bff));
         DrawText("R: RELOAD CRT", 8, 46, 8, R2D_ColorFromHex(0xffb86cff));
-        DrawText("Z/X/V/B: SFX", 8, 58, 8, R2D_ColorFromHex(0xffb86cff));
+        DrawText("Z/X/V/B/N/M: SFX", 8, 58, 8, R2D_ColorFromHex(0xffb86cff));
     }
 
     if (sandbox->reload_message_timer > 0.0f) {

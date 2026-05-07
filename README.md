@@ -48,7 +48,9 @@ Con Visual Studio/MSVC, el ejecutable queda en:
 
 Pulsa `C` en el sandbox para activar o desactivar el efecto CRT. Pulsa `R` para
 recargar `assets/shaders/crt.fs` sin cerrar el programa.
-Pulsa `Z`, `X`, `V` o `B` para probar presets generados con el sintetizador.
+Pulsa `Z`, `X`, `V`, `B`, `N` o `M` para probar presets generados con el sintetizador.
+El sintetizador soporta envolvente, slide de tono, vibrato, arpegio, duty sweep y filtros
+paso bajo, paso alto y paso banda por voz.
 
 Atajos de ventana incluidos por el framework:
 
@@ -67,5 +69,6 @@ assets                  Recursos que se copian junto al ejecutable
 include/r2d/r2d.h       API publica
 src/r2d.c               Implementacion del framework
 src/r2d_crt.c           Postproceso CRT opcional
+src/r2d_audio.c         Sintetizador simple para efectos retro
 examples/sandbox        Primer juego de prueba
 ```

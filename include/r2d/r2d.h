@@ -49,8 +49,16 @@ typedef enum R2D_Waveform {
     R2D_WAVE_SINE
 } R2D_Waveform;
 
+typedef enum R2D_Filter {
+    R2D_FILTER_NONE = 0,
+    R2D_FILTER_LOWPASS,
+    R2D_FILTER_HIGHPASS,
+    R2D_FILTER_BANDPASS
+} R2D_Filter;
+
 typedef struct R2D_Sfx {
     R2D_Waveform waveform;
+    R2D_Filter filter;
     float frequency;
     float volume;
     float pan;
@@ -60,7 +68,15 @@ typedef struct R2D_Sfx {
     float duration;
     float release;
     float pitch_slide;
+    float vibrato_depth;
+    float vibrato_rate;
+    float arpeggio_step_1;
+    float arpeggio_step_2;
+    float arpeggio_rate;
     float duty;
+    float duty_slide;
+    float filter_cutoff;
+    float filter_resonance;
 } R2D_Sfx;
 
 typedef struct R2D_Context {
@@ -100,6 +116,7 @@ R2D_Sfx R2D_SfxJump(void);
 R2D_Sfx R2D_SfxLaser(void);
 R2D_Sfx R2D_SfxHit(void);
 R2D_Sfx R2D_SfxExplosion(void);
+R2D_Sfx R2D_SfxPowerup(void);
 void R2D_PlaySfx(R2D_Sfx sfx);
 void R2D_PlayTone(R2D_Waveform waveform, float frequency, float duration);
 
