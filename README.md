@@ -70,9 +70,11 @@ Controles:
 - `Arriba` / `Abajo`: elegir parametro.
 - `Izquierda` / `Derecha`: cambiar valor.
 - `Shift`: cambio rapido.
+- `Q` / `E`: cambiar preset.
 - `Espacio`: reproducir.
-- `S`: guardar en `assets/audio/sfx/editor.r2sfx`.
-- `L`: cargar `assets/audio/sfx/editor.r2sfx`.
+- `S`: guardar el preset actual.
+- `L`: recargar el preset actual desde disco.
+- `Backspace`: restaurar el preset compilado base.
 
 Los archivos `.r2sfx` son texto plano `clave=valor`, pensados para versionarse y editarse a
 mano si hace falta.

@@ -1,13 +1,31 @@
 #include "r2d/r2d.h"
 
 #define SFX_FIELD_COUNT 20
+#define SFX_PRESET_COUNT 7
+
+typedef struct SfxEditorPreset {
+    const char *name;
+    const char *path;
+    R2D_Sfx (*fallback)(void);
+} SfxEditorPreset;
 
 typedef struct SfxEditor {
     R2D_Sfx sfx;
     int selected_field;
+    int selected_preset;
     float message_timer;
     const char *message;
 } SfxEditor;
+
+static const SfxEditorPreset sfx_editor_presets[SFX_PRESET_COUNT] = {
+    { "coin", "audio/sfx/coin.r2sfx", R2D_SfxCoin },
+    { "hit", "audio/sfx/hit.r2sfx", R2D_SfxHit },
+    { "jump", "audio/sfx/jump.r2sfx", R2D_SfxJump },
+    { "laser", "audio/sfx/laser.r2sfx", R2D_SfxLaser },
+    { "explosion", "audio/sfx/explosion.r2sfx", R2D_SfxExplosion },
+    { "powerup", "audio/sfx/powerup.r2sfx", R2D_SfxPowerup },
+    { "editor", "audio/sfx/editor.r2sfx", R2D_SfxPowerup }
+};
 
 static const char *SfxEditor_WaveformName(R2D_Waveform waveform)
 {
@@ -184,15 +202,55 @@ static void SfxEditor_SetMessage(SfxEditor *editor, const char *message)
     editor->message_timer = 1.2f;
 }
 
+static const SfxEditorPreset *SfxEditor_CurrentPreset(const SfxEditor *editor)
+{
+    return &sfx_editor_presets[editor->selected_preset];
+}
+
+static void SfxEditor_LoadPreset(SfxEditor *editor)
+{
+    const SfxEditorPreset *preset = SfxEditor_CurrentPreset(editor);
+
+    editor->sfx = preset->fallback();
+
+    if (R2D_LoadSfx(R2D_AssetPath(preset->path), &editor->sfx)) {
+        SfxEditor_SetMessage(editor, "loaded");
+    } else {
+        SfxEditor_SetMessage(editor, "fallback");
+    }
+}
+
+static void SfxEditor_SavePreset(SfxEditor *editor)
+{
+    const SfxEditorPreset *preset = SfxEditor_CurrentPreset(editor);
+
+    SfxEditor_SetMessage(
+        editor,
+        R2D_SaveSfx(R2D_AssetPath(preset->path), editor->sfx) ? "saved" : "save failed"
+    );
+}
+
+static void SfxEditor_SelectPreset(SfxEditor *editor, int direction)
+{
+    editor->selected_preset = (editor->selected_preset + direction + SFX_PRESET_COUNT) % SFX_PRESET_COUNT;
+    SfxEditor_LoadPreset(editor);
+}
+
+static void SfxEditor_ResetPreset(SfxEditor *editor)
+{
+    editor->sfx = SfxEditor_CurrentPreset(editor)->fallback();
+    SfxEditor_SetMessage(editor, "reset");
+}
+
 static void SfxEditor_Init(void *user_data)
 {
     SfxEditor *editor = (SfxEditor *)user_data;
 
-    editor->sfx = R2D_SfxPowerup();
-    R2D_LoadSfx(R2D_AssetPath("audio/sfx/editor.r2sfx"), &editor->sfx);
+    editor->selected_preset = 0;
     editor->selected_field = 0;
     editor->message_timer = 0.0f;
     editor->message = "";
+    SfxEditor_LoadPreset(editor);
 }
 
 static void SfxEditor_Update(float dt, void *user_data)
@@ -207,6 +265,14 @@ static void SfxEditor_Update(float dt, void *user_data)
 
     if (IsKeyPressed(KEY_UP)) {
         editor->selected_field = (editor->selected_field + SFX_FIELD_COUNT - 1) % SFX_FIELD_COUNT;
+    }
+
+    if (IsKeyPressed(KEY_Q)) {
+        SfxEditor_SelectPreset(editor, -1);
+    }
+
+    if (IsKeyPressed(KEY_E)) {
+        SfxEditor_SelectPreset(editor, 1);
     }
 
     if (direction != 0) {
@@ -225,17 +291,15 @@ static void SfxEditor_Update(float dt, void *user_data)
     }
 
     if (IsKeyPressed(KEY_S)) {
-        SfxEditor_SetMessage(
-            editor,
-            R2D_SaveSfx(R2D_AssetPath("audio/sfx/editor.r2sfx"), editor->sfx) ? "saved" : "save failed"
-        );
+        SfxEditor_SavePreset(editor);
     }
 
     if (IsKeyPressed(KEY_L)) {
-        SfxEditor_SetMessage(
-            editor,
-            R2D_LoadSfx(R2D_AssetPath("audio/sfx/editor.r2sfx"), &editor->sfx) ? "loaded" : "load failed"
-        );
+        SfxEditor_LoadPreset(editor);
+    }
+
+    if (IsKeyPressed(KEY_BACKSPACE)) {
+        SfxEditor_ResetPreset(editor);
     }
 
     if (editor->message_timer > 0.0f) {
@@ -246,21 +310,23 @@ static void SfxEditor_Update(float dt, void *user_data)
 static void SfxEditor_Draw(void *user_data)
 {
     SfxEditor *editor = (SfxEditor *)user_data;
+    const SfxEditorPreset *preset = SfxEditor_CurrentPreset(editor);
 
     DrawText("R2D SFX EDITOR", 8, 8, 10, R2D_ColorFromHex(0xf8f8f2ff));
-    DrawText("UP/DOWN field  LEFT/RIGHT value  SHIFT fast", 8, 22, 8, R2D_ColorFromHex(0x8be9fdff));
-    DrawText("SPACE play  S save  L load", 8, 34, 8, R2D_ColorFromHex(0xffb86cff));
+    DrawText(TextFormat("Q/E preset: %s", preset->name), 8, 22, 8, R2D_ColorFromHex(0x8be9fdff));
+    DrawText("UP/DOWN field  LEFT/RIGHT value  SHIFT fast", 8, 34, 8, R2D_ColorFromHex(0x8be9fdff));
+    DrawText("SPACE play  S save  L load  BACK reset", 8, 46, 8, R2D_ColorFromHex(0xffb86cff));
 
     for (int i = 0; i < SFX_FIELD_COUNT; ++i) {
-        const int y = 48 + i * 7;
+        const int y = 60 + i * 6;
         const Color color = i == editor->selected_field ? R2D_ColorFromHex(0x50fa7bff) : R2D_ColorFromHex(0xd7d7e0ff);
 
-        DrawText(TextFormat("%c", i == editor->selected_field ? '>' : ' '), 8, y, 7, color);
-        DrawText(SfxEditor_FieldName(i), 18, y, 7, color);
-        DrawText(SfxEditor_FieldText(&editor->sfx, i), 132, y, 7, color);
+        DrawText(TextFormat("%c", i == editor->selected_field ? '>' : ' '), 8, y, 6, color);
+        DrawText(SfxEditor_FieldName(i), 18, y, 6, color);
+        DrawText(SfxEditor_FieldText(&editor->sfx, i), 132, y, 6, color);
     }
 
-    DrawText("assets/audio/sfx/editor.r2sfx", 8, 190, 7, R2D_ColorFromHex(0x6272a4ff));
+    DrawText(TextFormat("assets/%s", preset->path), 8, 190, 7, R2D_ColorFromHex(0x6272a4ff));
 
     if (editor->message_timer > 0.0f) {
         DrawText(editor->message, 236, 190, 7, R2D_ColorFromHex(0xf1fa8cff));
