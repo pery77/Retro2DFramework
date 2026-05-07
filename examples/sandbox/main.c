@@ -4,10 +4,24 @@ typedef struct Sandbox {
     Vector2 player;
     float blink_timer;
     float reload_message_timer;
+    R2D_Sfx coin;
+    R2D_Sfx hit;
+    R2D_Sfx jump;
+    R2D_Sfx laser;
+    R2D_Sfx explosion;
+    R2D_Sfx powerup;
     bool reload_ok;
     R2D_Context *context;
     R2D_Crt *crt;
 } Sandbox;
+
+static R2D_Sfx Sandbox_LoadSfx(const char *path, R2D_Sfx fallback)
+{
+    R2D_Sfx sfx = fallback;
+
+    R2D_LoadSfx(R2D_AssetPath(path), &sfx);
+    return sfx;
+}
 
 static void Sandbox_Init(void *user_data)
 {
@@ -15,6 +29,12 @@ static void Sandbox_Init(void *user_data)
     sandbox->player = (Vector2) { 152.0f, 82.0f };
     sandbox->blink_timer = 0.0f;
     sandbox->reload_message_timer = 0.0f;
+    sandbox->coin = Sandbox_LoadSfx("audio/sfx/coin.r2sfx", R2D_SfxCoin());
+    sandbox->hit = Sandbox_LoadSfx("audio/sfx/hit.r2sfx", R2D_SfxHit());
+    sandbox->jump = Sandbox_LoadSfx("audio/sfx/jump.r2sfx", R2D_SfxJump());
+    sandbox->laser = Sandbox_LoadSfx("audio/sfx/laser.r2sfx", R2D_SfxLaser());
+    sandbox->explosion = Sandbox_LoadSfx("audio/sfx/explosion.r2sfx", R2D_SfxExplosion());
+    sandbox->powerup = Sandbox_LoadSfx("audio/sfx/powerup.r2sfx", R2D_SfxPowerup());
     sandbox->reload_ok = false;
 }
 
@@ -53,27 +73,27 @@ static void Sandbox_Update(float dt, void *user_data)
     }
 
     if (IsKeyPressed(KEY_Z)) {
-        R2D_PlaySfx(R2D_SfxCoin());
+        R2D_PlaySfx(sandbox->coin);
     }
 
     if (IsKeyPressed(KEY_X)) {
-        R2D_PlaySfx(R2D_SfxHit());
+        R2D_PlaySfx(sandbox->hit);
     }
 
     if (IsKeyPressed(KEY_V)) {
-        R2D_PlaySfx(R2D_SfxJump());
+        R2D_PlaySfx(sandbox->jump);
     }
 
     if (IsKeyPressed(KEY_B)) {
-        R2D_PlaySfx(R2D_SfxLaser());
+        R2D_PlaySfx(sandbox->laser);
     }
 
     if (IsKeyPressed(KEY_N)) {
-        R2D_PlaySfx(R2D_SfxExplosion());
+        R2D_PlaySfx(sandbox->explosion);
     }
 
     if (IsKeyPressed(KEY_M)) {
-        R2D_PlaySfx(R2D_SfxPowerup());
+        R2D_PlaySfx(sandbox->powerup);
     }
 
     sandbox->blink_timer += dt;

@@ -117,6 +117,8 @@ R2D_Sfx R2D_SfxLaser(void);
 R2D_Sfx R2D_SfxHit(void);
 R2D_Sfx R2D_SfxExplosion(void);
 R2D_Sfx R2D_SfxPowerup(void);
+bool R2D_LoadSfx(const char *path, R2D_Sfx *sfx);
+bool R2D_SaveSfx(const char *path, R2D_Sfx sfx);
 void R2D_PlaySfx(R2D_Sfx sfx);
 void R2D_PlayTone(R2D_Waveform waveform, float frequency, float duration);
 

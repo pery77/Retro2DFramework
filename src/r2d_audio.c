@@ -1,6 +1,10 @@
 #include "r2d/r2d.h"
 
+#include <ctype.h>
 #include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #define R2D_AUDIO_CHANNELS 2
 #define R2D_AUDIO_SAMPLE_SIZE 16
@@ -28,6 +32,20 @@ typedef struct R2D_AudioState {
 
 static R2D_AudioState r2d_audio = { 0 };
 
+static bool R2D_AudioOpenFile(FILE **file, const char *path, const char *mode)
+{
+    if (file == 0 || path == 0 || mode == 0) {
+        return false;
+    }
+
+#if defined(_MSC_VER)
+    return fopen_s(file, path, mode) == 0 && *file != 0;
+#else
+    *file = fopen(path, mode);
+    return *file != 0;
+#endif
+}
+
 static float R2D_AudioClamp(float value, float min, float max)
 {
     if (value < min) {
@@ -39,6 +57,182 @@ static float R2D_AudioClamp(float value, float min, float max)
     }
 
     return value;
+}
+
+static char *R2D_AudioTrim(char *text)
+{
+    char *end;
+
+    while (*text != '\0' && isspace((unsigned char)*text)) {
+        ++text;
+    }
+
+    end = text + strlen(text);
+
+    while (end > text && isspace((unsigned char)*(end - 1))) {
+        --end;
+    }
+
+    *end = '\0';
+    return text;
+}
+
+static bool R2D_AudioStringEquals(const char *left, const char *right)
+{
+    while (*left != '\0' && *right != '\0') {
+        if (tolower((unsigned char)*left) != tolower((unsigned char)*right)) {
+            return false;
+        }
+
+        ++left;
+        ++right;
+    }
+
+    return *left == '\0' && *right == '\0';
+}
+
+static const char *R2D_AudioWaveformName(R2D_Waveform waveform)
+{
+    switch (waveform) {
+        case R2D_WAVE_TRIANGLE:
+            return "triangle";
+        case R2D_WAVE_SAW:
+            return "saw";
+        case R2D_WAVE_RAMP:
+            return "ramp";
+        case R2D_WAVE_NOISE:
+            return "noise";
+        case R2D_WAVE_SINE:
+            return "sine";
+        case R2D_WAVE_SQUARE:
+        default:
+            return "square";
+    }
+}
+
+static bool R2D_AudioParseWaveform(const char *text, R2D_Waveform *waveform)
+{
+    if (R2D_AudioStringEquals(text, "square")) {
+        *waveform = R2D_WAVE_SQUARE;
+    } else if (R2D_AudioStringEquals(text, "triangle")) {
+        *waveform = R2D_WAVE_TRIANGLE;
+    } else if (R2D_AudioStringEquals(text, "saw")) {
+        *waveform = R2D_WAVE_SAW;
+    } else if (R2D_AudioStringEquals(text, "ramp")) {
+        *waveform = R2D_WAVE_RAMP;
+    } else if (R2D_AudioStringEquals(text, "noise")) {
+        *waveform = R2D_WAVE_NOISE;
+    } else if (R2D_AudioStringEquals(text, "sine")) {
+        *waveform = R2D_WAVE_SINE;
+    } else {
+        return false;
+    }
+
+    return true;
+}
+
+static const char *R2D_AudioFilterName(R2D_Filter filter)
+{
+    switch (filter) {
+        case R2D_FILTER_LOWPASS:
+            return "lowpass";
+        case R2D_FILTER_HIGHPASS:
+            return "highpass";
+        case R2D_FILTER_BANDPASS:
+            return "bandpass";
+        case R2D_FILTER_NONE:
+        default:
+            return "none";
+    }
+}
+
+static bool R2D_AudioParseFilter(const char *text, R2D_Filter *filter)
+{
+    if (R2D_AudioStringEquals(text, "none")) {
+        *filter = R2D_FILTER_NONE;
+    } else if (R2D_AudioStringEquals(text, "lowpass")) {
+        *filter = R2D_FILTER_LOWPASS;
+    } else if (R2D_AudioStringEquals(text, "highpass")) {
+        *filter = R2D_FILTER_HIGHPASS;
+    } else if (R2D_AudioStringEquals(text, "bandpass")) {
+        *filter = R2D_FILTER_BANDPASS;
+    } else {
+        return false;
+    }
+
+    return true;
+}
+
+static bool R2D_AudioReadFloat(const char *text, float *value)
+{
+    char *end = 0;
+    const float parsed = strtof(text, &end);
+
+    if (end == text) {
+        return false;
+    }
+
+    *value = parsed;
+    return true;
+}
+
+static bool R2D_AudioApplySfxField(R2D_Sfx *sfx, const char *key, const char *value)
+{
+    float number = 0.0f;
+
+    if (R2D_AudioStringEquals(key, "waveform")) {
+        return R2D_AudioParseWaveform(value, &sfx->waveform);
+    }
+
+    if (R2D_AudioStringEquals(key, "filter")) {
+        return R2D_AudioParseFilter(value, &sfx->filter);
+    }
+
+    if (!R2D_AudioReadFloat(value, &number)) {
+        return false;
+    }
+
+    if (R2D_AudioStringEquals(key, "frequency")) {
+        sfx->frequency = number;
+    } else if (R2D_AudioStringEquals(key, "volume")) {
+        sfx->volume = number;
+    } else if (R2D_AudioStringEquals(key, "pan")) {
+        sfx->pan = number;
+    } else if (R2D_AudioStringEquals(key, "attack")) {
+        sfx->attack = number;
+    } else if (R2D_AudioStringEquals(key, "decay")) {
+        sfx->decay = number;
+    } else if (R2D_AudioStringEquals(key, "sustain")) {
+        sfx->sustain = number;
+    } else if (R2D_AudioStringEquals(key, "duration")) {
+        sfx->duration = number;
+    } else if (R2D_AudioStringEquals(key, "release")) {
+        sfx->release = number;
+    } else if (R2D_AudioStringEquals(key, "pitch_slide")) {
+        sfx->pitch_slide = number;
+    } else if (R2D_AudioStringEquals(key, "vibrato_depth")) {
+        sfx->vibrato_depth = number;
+    } else if (R2D_AudioStringEquals(key, "vibrato_rate")) {
+        sfx->vibrato_rate = number;
+    } else if (R2D_AudioStringEquals(key, "arpeggio_step_1")) {
+        sfx->arpeggio_step_1 = number;
+    } else if (R2D_AudioStringEquals(key, "arpeggio_step_2")) {
+        sfx->arpeggio_step_2 = number;
+    } else if (R2D_AudioStringEquals(key, "arpeggio_rate")) {
+        sfx->arpeggio_rate = number;
+    } else if (R2D_AudioStringEquals(key, "duty")) {
+        sfx->duty = number;
+    } else if (R2D_AudioStringEquals(key, "duty_slide")) {
+        sfx->duty_slide = number;
+    } else if (R2D_AudioStringEquals(key, "filter_cutoff")) {
+        sfx->filter_cutoff = number;
+    } else if (R2D_AudioStringEquals(key, "filter_resonance")) {
+        sfx->filter_resonance = number;
+    } else {
+        return false;
+    }
+
+    return true;
 }
 
 static float R2D_AudioFastSin(float phase)
@@ -491,6 +685,83 @@ R2D_Sfx R2D_SfxPowerup(void)
     sfx.filter_resonance = 0.45f;
 
     return sfx;
+}
+
+bool R2D_LoadSfx(const char *path, R2D_Sfx *sfx)
+{
+    FILE *file = 0;
+    char line[256];
+    R2D_Sfx loaded;
+
+    if (path == 0 || sfx == 0 || !R2D_AudioOpenFile(&file, path, "rb")) {
+        return false;
+    }
+
+    loaded = R2D_DefaultSfx();
+
+    while (fgets(line, sizeof(line), file) != 0) {
+        char *text = R2D_AudioTrim(line);
+        char *separator;
+        char *key;
+        char *value;
+
+        if (*text == '\0' || *text == '#' || *text == ';') {
+            continue;
+        }
+
+        separator = strchr(text, '=');
+
+        if (separator == 0) {
+            continue;
+        }
+
+        *separator = '\0';
+        key = R2D_AudioTrim(text);
+        value = R2D_AudioTrim(separator + 1);
+
+        if (R2D_AudioStringEquals(key, "version")) {
+            continue;
+        }
+
+        R2D_AudioApplySfxField(&loaded, key, value);
+    }
+
+    fclose(file);
+    *sfx = loaded;
+    return true;
+}
+
+bool R2D_SaveSfx(const char *path, R2D_Sfx sfx)
+{
+    FILE *file = 0;
+
+    if (path == 0 || !R2D_AudioOpenFile(&file, path, "wb")) {
+        return false;
+    }
+
+    fprintf(file, "version=1\n");
+    fprintf(file, "waveform=%s\n", R2D_AudioWaveformName(sfx.waveform));
+    fprintf(file, "filter=%s\n", R2D_AudioFilterName(sfx.filter));
+    fprintf(file, "frequency=%.6g\n", sfx.frequency);
+    fprintf(file, "volume=%.6g\n", sfx.volume);
+    fprintf(file, "pan=%.6g\n", sfx.pan);
+    fprintf(file, "attack=%.6g\n", sfx.attack);
+    fprintf(file, "decay=%.6g\n", sfx.decay);
+    fprintf(file, "sustain=%.6g\n", sfx.sustain);
+    fprintf(file, "duration=%.6g\n", sfx.duration);
+    fprintf(file, "release=%.6g\n", sfx.release);
+    fprintf(file, "pitch_slide=%.6g\n", sfx.pitch_slide);
+    fprintf(file, "vibrato_depth=%.6g\n", sfx.vibrato_depth);
+    fprintf(file, "vibrato_rate=%.6g\n", sfx.vibrato_rate);
+    fprintf(file, "arpeggio_step_1=%.6g\n", sfx.arpeggio_step_1);
+    fprintf(file, "arpeggio_step_2=%.6g\n", sfx.arpeggio_step_2);
+    fprintf(file, "arpeggio_rate=%.6g\n", sfx.arpeggio_rate);
+    fprintf(file, "duty=%.6g\n", sfx.duty);
+    fprintf(file, "duty_slide=%.6g\n", sfx.duty_slide);
+    fprintf(file, "filter_cutoff=%.6g\n", sfx.filter_cutoff);
+    fprintf(file, "filter_resonance=%.6g\n", sfx.filter_resonance);
+
+    return fclose(file) == 0;
 }
 
 void R2D_PlaySfx(R2D_Sfx sfx)

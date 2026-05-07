@@ -29,8 +29,12 @@ O en Windows:
 ```powershell
 .\build_debug.bat
 .\build_release.bat
+.\build_sandbox_debug.bat
+.\build_sfx_editor_debug.bat
 ```
 
+`build_debug.bat` y `build_release.bat` compilan todo. Los scripts `build_sandbox_debug.bat`
+y `build_sfx_editor_debug.bat` compilan solo el juego de prueba o solo el editor de efectos.
 La build `Release` enlaza el ejemplo como aplicacion Windows, asi que no abre consola.
 
 ## Ejecutar ejemplo
@@ -51,6 +55,27 @@ recargar `assets/shaders/crt.fs` sin cerrar el programa.
 Pulsa `Z`, `X`, `V`, `B`, `N` o `M` para probar presets generados con el sintetizador.
 El sintetizador soporta envolvente, slide de tono, vibrato, arpegio, duty sweep y filtros
 paso bajo, paso alto y paso banda por voz.
+Los presets se cargan desde `assets/audio/sfx/*.r2sfx`; si un archivo falta, el sandbox usa
+el preset compilado como fallback.
+
+## Editor de efectos
+
+```powershell
+.\build_sfx_editor_debug.bat
+.\build\Debug\r2d_sfx_editor.exe
+```
+
+Controles:
+
+- `Arriba` / `Abajo`: elegir parametro.
+- `Izquierda` / `Derecha`: cambiar valor.
+- `Shift`: cambio rapido.
+- `Espacio`: reproducir.
+- `S`: guardar en `assets/audio/sfx/editor.r2sfx`.
+- `L`: cargar `assets/audio/sfx/editor.r2sfx`.
+
+Los archivos `.r2sfx` son texto plano `clave=valor`, pensados para versionarse y editarse a
+mano si hace falta.
 
 Atajos de ventana incluidos por el framework:
 
@@ -66,9 +91,11 @@ la carpeta `assets` del proyecto para que editar shaders en runtime sea directo.
 
 ```text
 assets                  Recursos que se copian junto al ejecutable
+assets/audio/sfx        Presets de sintetizador .r2sfx
 include/r2d/r2d.h       API publica
 src/r2d.c               Implementacion del framework
 src/r2d_crt.c           Postproceso CRT opcional
 src/r2d_audio.c         Sintetizador simple para efectos retro
 examples/sandbox        Primer juego de prueba
+tools/sfx_editor        Editor sencillo de presets de sonido
 ```

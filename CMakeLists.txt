@@ -7,6 +7,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
 option(R2D_BUILD_EXAMPLES "Build Retro2DFramework examples" ON)
+option(R2D_BUILD_TOOLS "Build Retro2DFramework tools" ON)
 
 find_package(raylib CONFIG QUIET)
 
@@ -66,4 +67,10 @@ if(R2D_BUILD_EXAMPLES)
             $<$<AND:$<CONFIG:Release>,$<NOT:$<C_COMPILER_ID:MSVC>>>:-mwindows>
         )
     endif()
+endif()
+
+if(R2D_BUILD_TOOLS)
+    add_executable(r2d_sfx_editor tools/sfx_editor/main.c)
+    target_link_libraries(r2d_sfx_editor PRIVATE r2d)
+    r2d_copy_assets(r2d_sfx_editor)
 endif()
