@@ -18,4 +18,5 @@ arpeggio_rate=0
 duty=0.5
 duty_slide=0
 filter_cutoff=1400
+filter_cutoff_slide=-2600
 filter_resonance=0.2

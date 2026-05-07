@@ -76,6 +76,7 @@ typedef struct R2D_Sfx {
     float duty;
     float duty_slide;
     float filter_cutoff;
+    float filter_cutoff_slide;
     float filter_resonance;
 } R2D_Sfx;
 

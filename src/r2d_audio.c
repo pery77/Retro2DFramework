@@ -226,6 +226,8 @@ static bool R2D_AudioApplySfxField(R2D_Sfx *sfx, const char *key, const char *va
         sfx->duty_slide = number;
     } else if (R2D_AudioStringEquals(key, "filter_cutoff")) {
         sfx->filter_cutoff = number;
+    } else if (R2D_AudioStringEquals(key, "filter_cutoff_slide")) {
+        sfx->filter_cutoff_slide = number;
     } else if (R2D_AudioStringEquals(key, "filter_resonance")) {
         sfx->filter_resonance = number;
     } else {
@@ -289,7 +291,11 @@ static float R2D_AudioArpeggioOffset(const R2D_Sfx *sfx, float elapsed)
 static float R2D_AudioApplyFilter(R2D_AudioVoice *voice, float input)
 {
     const R2D_Sfx *sfx = &voice->sfx;
-    const float cutoff = R2D_AudioClamp(sfx->filter_cutoff, 20.0f, 20000.0f);
+    const float cutoff = R2D_AudioClamp(
+        sfx->filter_cutoff + sfx->filter_cutoff_slide * voice->elapsed,
+        20.0f,
+        20000.0f
+    );
     const float resonance = R2D_AudioClamp(sfx->filter_resonance, 0.0f, 1.0f);
     const float f = R2D_AudioClamp(
         2.0f * sinf(3.14159265f * cutoff / (float)R2D_AUDIO_SAMPLE_RATE),
@@ -554,6 +560,7 @@ R2D_Sfx R2D_DefaultSfx(void)
         .duty = 0.5f,
         .duty_slide = 0.0f,
         .filter_cutoff = 8000.0f,
+        .filter_cutoff_slide = 0.0f,
         .filter_resonance = 0.0f
     };
 }
@@ -617,6 +624,7 @@ R2D_Sfx R2D_SfxLaser(void)
     sfx.duty_slide = 2.2f;
     sfx.filter = R2D_FILTER_BANDPASS;
     sfx.filter_cutoff = 1200.0f;
+    sfx.filter_cutoff_slide = -1800.0f;
     sfx.filter_resonance = 0.35f;
 
     return sfx;
@@ -658,6 +666,7 @@ R2D_Sfx R2D_SfxExplosion(void)
     sfx.vibrato_rate = 9.0f;
     sfx.filter = R2D_FILTER_LOWPASS;
     sfx.filter_cutoff = 1400.0f;
+    sfx.filter_cutoff_slide = -2600.0f;
     sfx.filter_resonance = 0.2f;
 
     return sfx;
@@ -759,6 +768,7 @@ bool R2D_SaveSfx(const char *path, R2D_Sfx sfx)
     fprintf(file, "duty=%.6g\n", sfx.duty);
     fprintf(file, "duty_slide=%.6g\n", sfx.duty_slide);
     fprintf(file, "filter_cutoff=%.6g\n", sfx.filter_cutoff);
+    fprintf(file, "filter_cutoff_slide=%.6g\n", sfx.filter_cutoff_slide);
     fprintf(file, "filter_resonance=%.6g\n", sfx.filter_resonance);
 
     return fclose(file) == 0;
@@ -777,6 +787,7 @@ void R2D_PlaySfx(R2D_Sfx sfx)
     sfx.pan = R2D_AudioClamp(sfx.pan, 0.0f, 1.0f);
     sfx.frequency = R2D_AudioClamp(sfx.frequency, 20.0f, 22000.0f);
     sfx.filter_cutoff = R2D_AudioClamp(sfx.filter_cutoff, 20.0f, 20000.0f);
+    sfx.filter_cutoff_slide = R2D_AudioClamp(sfx.filter_cutoff_slide, -20000.0f, 20000.0f);
     sfx.filter_resonance = R2D_AudioClamp(sfx.filter_resonance, 0.0f, 1.0f);
     sfx.attack = fmaxf(0.0f, sfx.attack);
     sfx.decay = fmaxf(0.0f, sfx.decay);

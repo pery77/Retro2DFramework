@@ -72,12 +72,13 @@ Controles:
 - `Shift`: cambio rapido.
 - `Q` / `E`: cambiar preset.
 - `Espacio`: reproducir.
+- `R`: mutar el preset actual con cambios pequenos.
 - `S`: guardar el preset actual.
 - `L`: recargar el preset actual desde disco.
 - `Backspace`: restaurar el preset compilado base.
 
 Los archivos `.r2sfx` son texto plano `clave=valor`, pensados para versionarse y editarse a
-mano si hace falta.
+mano si hace falta. El editor muestra un preview simple de envolvente, tono y filtro.
 
 Atajos de ventana incluidos por el framework:
 
