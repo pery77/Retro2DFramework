@@ -9,6 +9,12 @@ typedef struct SfxEditorPreset {
     R2D_Sfx (*fallback)(void);
 } SfxEditorPreset;
 
+typedef struct SfxEditorRange {
+    float min;
+    float max;
+    bool centered;
+} SfxEditorRange;
+
 typedef struct SfxEditor {
     R2D_Sfx sfx;
     int selected_field;
@@ -26,6 +32,19 @@ static const SfxEditorPreset sfx_editor_presets[SFX_PRESET_COUNT] = {
     { "powerup", "audio/sfx/powerup.r2sfx", R2D_SfxPowerup },
     { "editor", "audio/sfx/editor.r2sfx", R2D_SfxPowerup }
 };
+
+static float SfxEditor_Clamp(float value, float min, float max)
+{
+    if (value < min) {
+        return min;
+    }
+
+    if (value > max) {
+        return max;
+    }
+
+    return value;
+}
 
 static const char *SfxEditor_WaveformName(R2D_Waveform waveform)
 {
@@ -113,43 +132,113 @@ static const char *SfxEditor_FieldName(int field)
         case 1:
             return "filter";
         case 2:
-            return "frequency";
+            return "freq";
         case 3:
-            return "volume";
+            return "vol";
         case 4:
             return "pan";
         case 5:
-            return "attack";
+            return "atk";
         case 6:
-            return "decay";
+            return "dec";
         case 7:
-            return "sustain";
+            return "sus";
         case 8:
-            return "duration";
+            return "dur";
         case 9:
-            return "release";
+            return "rel";
         case 10:
-            return "pitch_slide";
+            return "pitch";
         case 11:
-            return "vibrato_depth";
+            return "vib_dep";
         case 12:
-            return "vibrato_rate";
+            return "vib_rate";
         case 13:
-            return "arpeggio_step_1";
+            return "arp_1";
         case 14:
-            return "arpeggio_step_2";
+            return "arp_2";
         case 15:
-            return "arpeggio_rate";
+            return "arp_rate";
         case 16:
             return "duty";
         case 17:
-            return "duty_slide";
+            return "duty_sl";
         case 18:
-            return "filter_cutoff";
+            return "cutoff";
         case 19:
-            return "filter_resonance";
+            return "reson";
         default:
             return "";
+    }
+}
+
+static const char *SfxEditor_FieldGroup(int field)
+{
+    if (field <= 4) {
+        return "OSC";
+    }
+
+    if (field <= 9) {
+        return "ENV";
+    }
+
+    if (field <= 17) {
+        return "MOD";
+    }
+
+    return "FLT";
+}
+
+static Color SfxEditor_GroupColor(int field)
+{
+    if (field <= 4) {
+        return R2D_ColorFromHex(0x8be9fdff);
+    }
+
+    if (field <= 9) {
+        return R2D_ColorFromHex(0xf1fa8cff);
+    }
+
+    if (field <= 17) {
+        return R2D_ColorFromHex(0xffb86cff);
+    }
+
+    return R2D_ColorFromHex(0x50fa7bff);
+}
+
+static SfxEditorRange SfxEditor_FieldRange(int field)
+{
+    switch (field) {
+        case 2:
+            return (SfxEditorRange) { 20.0f, 4000.0f, false };
+        case 3:
+        case 4:
+        case 7:
+        case 16:
+        case 19:
+            return (SfxEditorRange) { 0.0f, 1.0f, false };
+        case 5:
+        case 6:
+        case 8:
+        case 9:
+            return (SfxEditorRange) { 0.0f, 1.0f, false };
+        case 10:
+            return (SfxEditorRange) { -8000.0f, 8000.0f, true };
+        case 11:
+            return (SfxEditorRange) { 0.0f, 1000.0f, false };
+        case 12:
+            return (SfxEditorRange) { 0.0f, 100.0f, false };
+        case 13:
+        case 14:
+            return (SfxEditorRange) { -24.0f, 24.0f, true };
+        case 15:
+            return (SfxEditorRange) { 0.0f, 80.0f, false };
+        case 17:
+            return (SfxEditorRange) { -5.0f, 5.0f, true };
+        case 18:
+            return (SfxEditorRange) { 20.0f, 20000.0f, false };
+        default:
+            return (SfxEditorRange) { 0.0f, 1.0f, false };
     }
 }
 
@@ -174,9 +263,10 @@ static float SfxEditor_FieldStep(int field)
         case 11:
         case 12:
         case 15:
-        case 17:
         case 18:
             return 10.0f;
+        case 17:
+            return 0.1f;
         case 5:
         case 6:
         case 8:
@@ -193,6 +283,16 @@ static float SfxEditor_FieldStep(int field)
             return 1.0f;
         default:
             return 1.0f;
+    }
+}
+
+static void SfxEditor_ClampField(R2D_Sfx *sfx, int field)
+{
+    float *value = SfxEditor_FieldValue(sfx, field);
+    const SfxEditorRange range = SfxEditor_FieldRange(field);
+
+    if (value != 0) {
+        *value = SfxEditor_Clamp(*value, range.min, range.max);
     }
 }
 
@@ -283,6 +383,7 @@ static void SfxEditor_Update(float dt, void *user_data)
         } else {
             float *value = SfxEditor_FieldValue(&editor->sfx, editor->selected_field);
             *value += (float)direction * SfxEditor_FieldStep(editor->selected_field) * (fast ? 10.0f : 1.0f);
+            SfxEditor_ClampField(&editor->sfx, editor->selected_field);
         }
     }
 
@@ -311,31 +412,58 @@ static void SfxEditor_Draw(void *user_data)
 {
     SfxEditor *editor = (SfxEditor *)user_data;
     const SfxEditorPreset *preset = SfxEditor_CurrentPreset(editor);
+    const int row_height = 12;
 
-    DrawText("R2D SFX EDITOR", 8, 8, 10, R2D_ColorFromHex(0xf8f8f2ff));
-    DrawText(TextFormat("Q/E preset: %s", preset->name), 8, 22, 8, R2D_ColorFromHex(0x8be9fdff));
-    DrawText("UP/DOWN field  LEFT/RIGHT value  SHIFT fast", 8, 34, 8, R2D_ColorFromHex(0x8be9fdff));
-    DrawText("SPACE play  S save  L load  BACK reset", 8, 46, 8, R2D_ColorFromHex(0xffb86cff));
+    DrawText(TextFormat("Q/E preset: %s", preset->name), 8, 8, 8, R2D_ColorFromHex(0x8be9fdff));
+    DrawText("UP/DOWN field  LEFT/RIGHT value  SHIFT fast", 8, 20, 8, R2D_ColorFromHex(0x8be9fdff));
+    DrawText("SPACE play  S save  L load  BACK reset", 8, 32, 8, R2D_ColorFromHex(0xffb86cff));
 
     for (int i = 0; i < SFX_FIELD_COUNT; ++i) {
-        const int y = 60 + i * 6;
+        const int column = i / 10;
+        const int row = i % 10;
+        const int x = column == 0 ? 8 : 164;
+        const int y = 48 + row * row_height;
         const Color color = i == editor->selected_field ? R2D_ColorFromHex(0x50fa7bff) : R2D_ColorFromHex(0xd7d7e0ff);
+        const Color group_color = SfxEditor_GroupColor(i);
+        float *value = SfxEditor_FieldValue(&editor->sfx, i);
 
-        DrawText(TextFormat("%c", i == editor->selected_field ? '>' : ' '), 8, y, 6, color);
-        DrawText(SfxEditor_FieldName(i), 18, y, 6, color);
-        DrawText(SfxEditor_FieldText(&editor->sfx, i), 132, y, 6, color);
+        DrawText(TextFormat("%c", i == editor->selected_field ? '>' : ' '), x, y, 7, color);
+        DrawText(SfxEditor_FieldGroup(i), x + 10, y, 7, group_color);
+        DrawText(SfxEditor_FieldName(i), x + 34, y, 7, color);
+        DrawText(SfxEditor_FieldText(&editor->sfx, i), x + 92, y, 7, color);
+
+        if (value != 0) {
+            const SfxEditorRange range = SfxEditor_FieldRange(i);
+            const Rectangle track = { (float)x + 34.0f, (float)y + 9.0f, 110.0f, 3.0f };
+            const float normalized = SfxEditor_Clamp((*value - range.min) / (range.max - range.min), 0.0f, 1.0f);
+
+            DrawRectangleRec(track, R2D_ColorFromHex(0x303040ff));
+
+            if (range.centered) {
+                const float center = track.x + track.width * 0.5f;
+                const float knob = track.x + track.width * normalized;
+                const float x = knob < center ? knob : center;
+                const float width = knob < center ? center - knob : knob - center;
+
+                DrawRectangleRec((Rectangle) { x, track.y, width, track.height }, group_color);
+                DrawRectangle((int)center, (int)track.y - 1, 1, 5, R2D_ColorFromHex(0xf8f8f2ff));
+            } else {
+                DrawRectangleRec((Rectangle) { track.x, track.y, track.width * normalized, track.height }, group_color);
+            }
+        }
     }
 
-    DrawText(TextFormat("assets/%s", preset->path), 8, 190, 7, R2D_ColorFromHex(0x6272a4ff));
+    DrawText(TextFormat("assets/%s", preset->path), 8, 188, 7, R2D_ColorFromHex(0x6272a4ff));
 
     if (editor->message_timer > 0.0f) {
-        DrawText(editor->message, 236, 190, 7, R2D_ColorFromHex(0xf1fa8cff));
+        DrawText(editor->message, 236, 188, 7, R2D_ColorFromHex(0xf1fa8cff));
     }
 }
 
 int main(void)
 {
     R2D_Context context = { 0 };
+    R2D_Crt crt = { 0 };
     R2D_Config config = R2D_DefaultConfig();
     SfxEditor editor = { 0 };
 
@@ -347,6 +475,8 @@ int main(void)
     }
 
     R2D_AudioInit();
+    R2D_CrtInit(&crt);
+    R2D_SetCrt(&context, &crt);
 
     R2D_Run(&context, (R2D_App) {
         SfxEditor_Init,
@@ -356,6 +486,7 @@ int main(void)
         &editor
     });
 
+    R2D_CrtClose(&crt);
     R2D_AudioClose();
     R2D_Close(&context);
     return 0;
