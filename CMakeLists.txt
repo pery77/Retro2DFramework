@@ -30,6 +30,10 @@ target_include_directories(r2d
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
+target_compile_definitions(r2d PRIVATE
+    R2D_DEVELOPMENT_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/"
+)
+
 target_link_libraries(r2d PUBLIC raylib)
 
 if(MSVC)
@@ -38,9 +42,21 @@ else()
     target_compile_options(r2d PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
+function(r2d_copy_assets target_name)
+    add_custom_target(${target_name}_assets
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_CURRENT_SOURCE_DIR}/assets
+            $<TARGET_FILE_DIR:${target_name}>/assets
+        COMMENT "Copying assets for ${target_name}"
+        VERBATIM
+    )
+    add_dependencies(${target_name} ${target_name}_assets)
+endfunction()
+
 if(R2D_BUILD_EXAMPLES)
     add_executable(r2d_sandbox examples/sandbox/main.c)
     target_link_libraries(r2d_sandbox PRIVATE r2d)
+    r2d_copy_assets(r2d_sandbox)
 
     if(WIN32)
         target_link_options(r2d_sandbox PRIVATE

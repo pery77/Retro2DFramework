@@ -53,9 +53,12 @@ void R2D_BeginFrame(R2D_Context *ctx);
 void R2D_EndFrame(R2D_Context *ctx);
 
 bool R2D_CrtInit(R2D_Crt *crt);
+bool R2D_CrtReload(R2D_Crt *crt);
 void R2D_CrtClose(R2D_Crt *crt);
 void R2D_CrtSetEnabled(R2D_Crt *crt, bool enabled);
 void R2D_SetCrt(R2D_Context *ctx, R2D_Crt *crt);
+
+const char *R2D_AssetPath(const char *relative_path);
 
 Vector2 R2D_MouseVirtualPosition(const R2D_Context *ctx);
 Rectangle R2D_Rect(float x, float y, float width, float height);

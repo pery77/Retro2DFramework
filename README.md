@@ -46,11 +46,18 @@ Con Visual Studio/MSVC, el ejecutable queda en:
 .\build\Release\r2d_sandbox.exe
 ```
 
-Pulsa `C` en el sandbox para activar o desactivar el efecto CRT.
+Pulsa `C` en el sandbox para activar o desactivar el efecto CRT. Pulsa `R` para
+recargar `assets/shaders/crt.fs` sin cerrar el programa.
+
+La carpeta `assets` se copia automaticamente junto al ejecutable al compilar. El codigo
+resuelve rutas con `R2D_AssetPath("shaders/crt.fs")`, siempre relativas a esa carpeta
+`assets` del ejecutable. En builds locales generadas por este CMake, primero intenta leer
+la carpeta `assets` del proyecto para que editar shaders en runtime sea directo.
 
 ## Estructura
 
 ```text
+assets                  Recursos que se copian junto al ejecutable
 include/r2d/r2d.h       API publica
 src/r2d.c               Implementacion del framework
 src/r2d_crt.c           Postproceso CRT opcional

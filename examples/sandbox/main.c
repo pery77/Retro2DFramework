@@ -3,6 +3,8 @@
 typedef struct Sandbox {
     Vector2 player;
     float blink_timer;
+    float reload_message_timer;
+    bool reload_ok;
     R2D_Crt *crt;
 } Sandbox;
 
@@ -11,6 +13,8 @@ static void Sandbox_Init(void *user_data)
     Sandbox *sandbox = (Sandbox *)user_data;
     sandbox->player = (Vector2) { 152.0f, 82.0f };
     sandbox->blink_timer = 0.0f;
+    sandbox->reload_message_timer = 0.0f;
+    sandbox->reload_ok = false;
 }
 
 static void Sandbox_Update(float dt, void *user_data)
@@ -36,6 +40,15 @@ static void Sandbox_Update(float dt, void *user_data)
 
     if (IsKeyPressed(KEY_C) && sandbox->crt != 0) {
         R2D_CrtSetEnabled(sandbox->crt, !sandbox->crt->enabled);
+    }
+
+    if (IsKeyPressed(KEY_R) && sandbox->crt != 0) {
+        sandbox->reload_ok = R2D_CrtReload(sandbox->crt);
+        sandbox->reload_message_timer = 1.25f;
+    }
+
+    if (sandbox->reload_message_timer > 0.0f) {
+        sandbox->reload_message_timer -= dt;
     }
 
     sandbox->blink_timer += dt;
@@ -64,6 +77,17 @@ static void Sandbox_Draw(void *user_data)
     DrawText("WASD / Arrows", 8, 22, 8, R2D_ColorFromHex(0x8be9fdff));
     if (sandbox->crt != 0) {
         DrawText(sandbox->crt->enabled ? "C: CRT ON" : "C: CRT OFF", 8, 34, 8, R2D_ColorFromHex(0x50fa7bff));
+        DrawText("R: RELOAD CRT", 8, 46, 8, R2D_ColorFromHex(0xffb86cff));
+    }
+
+    if (sandbox->reload_message_timer > 0.0f) {
+        DrawText(
+            sandbox->reload_ok ? "SHADER RELOADED" : "SHADER ERROR",
+            8,
+            58,
+            8,
+            sandbox->reload_ok ? R2D_ColorFromHex(0x50fa7bff) : R2D_ColorFromHex(0xff5555ff)
+        );
     }
 
     DrawRectangleRec(R2D_Rect(sandbox->player.x, sandbox->player.y, 16.0f, 16.0f), R2D_ColorFromHex(0xff5555ff));
@@ -88,10 +112,9 @@ int main(void)
         return 1;
     }
 
-    if (R2D_CrtInit(&crt)) {
-        R2D_SetCrt(&context, &crt);
-        sandbox.crt = &crt;
-    }
+    R2D_CrtInit(&crt);
+    R2D_SetCrt(&context, &crt);
+    sandbox.crt = &crt;
 
     R2D_Run(&context, (R2D_App) {
         Sandbox_Init,

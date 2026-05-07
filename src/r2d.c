@@ -1,6 +1,7 @@
 #include "r2d/r2d.h"
 
 #include <math.h>
+#include <stdio.h>
 
 static Rectangle R2D_CalculateDestination(int virtual_width, int virtual_height)
 {
@@ -157,6 +158,25 @@ void R2D_EndFrame(R2D_Context *ctx)
     }
 
     EndDrawing();
+}
+
+const char *R2D_AssetPath(const char *relative_path)
+{
+    static char path[1024];
+
+    if (relative_path == 0) {
+        relative_path = "";
+    }
+
+#ifdef R2D_DEVELOPMENT_ASSET_DIR
+    snprintf(path, sizeof(path), "%s%s", R2D_DEVELOPMENT_ASSET_DIR, relative_path);
+    if (FileExists(path) || DirectoryExists(path)) {
+        return path;
+    }
+#endif
+
+    snprintf(path, sizeof(path), "%sassets/%s", GetApplicationDirectory(), relative_path);
+    return path;
 }
 
 Vector2 R2D_MouseVirtualPosition(const R2D_Context *ctx)
