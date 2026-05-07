@@ -78,7 +78,8 @@ bool R2D_Init(R2D_Context *ctx, R2D_Config config)
     ctx->crt = 0;
     ctx->is_ready = IsRenderTextureValid(ctx->target);
 
-    SetTextureFilter(ctx->target.texture, TEXTURE_FILTER_POINT);
+    SetTextureFilter(ctx->target.texture, TEXTURE_FILTER_BILINEAR);
+    SetTextureWrap(ctx->target.texture, TEXTURE_WRAP_MIRROR_REPEAT);
     return ctx->is_ready;
 }
 
