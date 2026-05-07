@@ -53,38 +53,19 @@ static void Sandbox_Update(float dt, void *user_data)
     }
 
     if (IsKeyPressed(KEY_Z)) {
-        R2D_Sfx sfx = R2D_DefaultSfx();
-        sfx.waveform = R2D_WAVE_SQUARE;
-        sfx.frequency = 523.25f;
-        sfx.pitch_slide = -1200.0f;
-        sfx.duration = 0.04f;
-        R2D_PlaySfx(sfx);
+        R2D_PlaySfx(R2D_SfxCoin());
     }
 
     if (IsKeyPressed(KEY_X)) {
-        R2D_Sfx sfx = R2D_DefaultSfx();
-        sfx.waveform = R2D_WAVE_NOISE;
-        sfx.frequency = 1800.0f;
-        sfx.volume = 0.25f;
-        sfx.decay = 0.02f;
-        sfx.sustain = 0.5f;
-        sfx.duration = 0.03f;
-        sfx.release = 0.08f;
-        R2D_PlaySfx(sfx);
+        R2D_PlaySfx(R2D_SfxHit());
     }
 
     if (IsKeyPressed(KEY_V)) {
-        R2D_Sfx sfx = R2D_DefaultSfx();
-        sfx.waveform = R2D_WAVE_TRIANGLE;
-        sfx.frequency = 220.0f;
-        sfx.pitch_slide = 800.0f;
-        sfx.duration = 0.08f;
-        sfx.release = 0.05f;
-        R2D_PlaySfx(sfx);
+        R2D_PlaySfx(R2D_SfxJump());
     }
 
     if (IsKeyPressed(KEY_B)) {
-        R2D_PlayTone(R2D_WAVE_SAW, 110.0f, 0.12f);
+        R2D_PlaySfx(R2D_SfxExplosion());
     }
 
     sandbox->blink_timer += dt;
@@ -111,7 +92,7 @@ static void Sandbox_Draw(void *user_data)
     const bool blink = ((int)(sandbox->blink_timer * 4.0f) % 2) == 0;
 
     Sandbox_DrawGrid(sandbox->context);
-    DrawText("Retro2DFramework XXXX", 8, 8, 10, R2D_ColorFromHex(0xf8f8f2ff));
+    DrawText("Retro2DFramework", 8, 8, 10, R2D_ColorFromHex(0xf8f8f2ff));
     DrawText("WASD / Arrows", 8, 22, 8, R2D_ColorFromHex(0x8be9fdff));
     if (sandbox->crt != 0) {
         DrawText(sandbox->crt->enabled ? "C: CRT ON" : "C: CRT OFF", 8, 34, 8, R2D_ColorFromHex(0x50fa7bff));

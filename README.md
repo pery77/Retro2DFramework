@@ -48,7 +48,7 @@ Con Visual Studio/MSVC, el ejecutable queda en:
 
 Pulsa `C` en el sandbox para activar o desactivar el efecto CRT. Pulsa `R` para
 recargar `assets/shaders/crt.fs` sin cerrar el programa.
-Pulsa `Z`, `X`, `V` o `B` para probar efectos generados con el sintetizador.
+Pulsa `Z`, `X`, `V` o `B` para probar presets generados con el sintetizador.
 
 Atajos de ventana incluidos por el framework:
 

@@ -92,7 +92,14 @@ void R2D_TakeScreenshot(void);
 bool R2D_AudioInit(void);
 void R2D_AudioClose(void);
 bool R2D_AudioIsReady(void);
+void R2D_AudioSetMasterVolume(float volume);
+float R2D_AudioMasterVolume(void);
 R2D_Sfx R2D_DefaultSfx(void);
+R2D_Sfx R2D_SfxCoin(void);
+R2D_Sfx R2D_SfxJump(void);
+R2D_Sfx R2D_SfxLaser(void);
+R2D_Sfx R2D_SfxHit(void);
+R2D_Sfx R2D_SfxExplosion(void);
 void R2D_PlaySfx(R2D_Sfx sfx);
 void R2D_PlayTone(R2D_Waveform waveform, float frequency, float duration);
 

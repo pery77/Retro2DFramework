@@ -19,6 +19,7 @@ typedef struct R2D_AudioState {
     AudioStream stream;
     R2D_AudioVoice voices[R2D_AUDIO_MAX_VOICES];
     unsigned int next_noise_seed;
+    float master_volume;
     bool owns_device;
     bool ready;
 } R2D_AudioState;
@@ -53,6 +54,13 @@ static float R2D_AudioFastSin(float phase)
         : 0.225f * (result * result - result) + result;
 
     return result;
+}
+
+static float R2D_AudioSoftClip(float sample)
+{
+    const float amount = fabsf(sample);
+
+    return sample / (1.0f + amount * 0.35f);
 }
 
 static float R2D_AudioEnvelope(const R2D_Sfx *sfx, float elapsed)
@@ -177,15 +185,17 @@ static void R2D_AudioCallback(void *buffer, unsigned int frames)
 
             if (voice->active) {
                 const float pan = R2D_AudioClamp(voice->sfx.pan, 0.0f, 1.0f);
+                const float left_gain = sqrtf(1.0f - pan);
+                const float right_gain = sqrtf(pan);
                 const float sample = R2D_AudioProcessVoice(voice);
 
-                left += sample * (1.0f - pan);
-                right += sample * pan;
+                left += sample * left_gain;
+                right += sample * right_gain;
             }
         }
 
-        left = R2D_AudioClamp(left, -1.0f, 1.0f);
-        right = R2D_AudioClamp(right, -1.0f, 1.0f);
+        left = R2D_AudioClamp(R2D_AudioSoftClip(left * r2d_audio.master_volume), -1.0f, 1.0f);
+        right = R2D_AudioClamp(R2D_AudioSoftClip(right * r2d_audio.master_volume), -1.0f, 1.0f);
 
         samples[frame * R2D_AUDIO_CHANNELS] = (short)(left * 32767.0f);
         samples[frame * R2D_AUDIO_CHANNELS + 1] = (short)(right * 32767.0f);
@@ -221,6 +231,7 @@ bool R2D_AudioInit(void)
     }
 
     r2d_audio.next_noise_seed = 0x12345678u;
+    r2d_audio.master_volume = 0.75f;
     SetAudioStreamCallback(r2d_audio.stream, R2D_AudioCallback);
     PlayAudioStream(r2d_audio.stream);
     r2d_audio.ready = true;
@@ -249,6 +260,16 @@ bool R2D_AudioIsReady(void)
     return r2d_audio.ready;
 }
 
+void R2D_AudioSetMasterVolume(float volume)
+{
+    r2d_audio.master_volume = R2D_AudioClamp(volume, 0.0f, 1.0f);
+}
+
+float R2D_AudioMasterVolume(void)
+{
+    return r2d_audio.master_volume;
+}
+
 R2D_Sfx R2D_DefaultSfx(void)
 {
     return (R2D_Sfx) {
@@ -266,6 +287,93 @@ R2D_Sfx R2D_DefaultSfx(void)
     };
 }
 
+R2D_Sfx R2D_SfxCoin(void)
+{
+    R2D_Sfx sfx = R2D_DefaultSfx();
+
+    sfx.waveform = R2D_WAVE_SQUARE;
+    sfx.frequency = 880.0f;
+    sfx.volume = 0.28f;
+    sfx.attack = 0.001f;
+    sfx.decay = 0.035f;
+    sfx.sustain = 0.75f;
+    sfx.duration = 0.055f;
+    sfx.release = 0.025f;
+    sfx.pitch_slide = 2200.0f;
+    sfx.duty = 0.25f;
+
+    return sfx;
+}
+
+R2D_Sfx R2D_SfxJump(void)
+{
+    R2D_Sfx sfx = R2D_DefaultSfx();
+
+    sfx.waveform = R2D_WAVE_TRIANGLE;
+    sfx.frequency = 220.0f;
+    sfx.volume = 0.32f;
+    sfx.attack = 0.001f;
+    sfx.decay = 0.03f;
+    sfx.sustain = 0.85f;
+    sfx.duration = 0.08f;
+    sfx.release = 0.055f;
+    sfx.pitch_slide = 760.0f;
+
+    return sfx;
+}
+
+R2D_Sfx R2D_SfxLaser(void)
+{
+    R2D_Sfx sfx = R2D_DefaultSfx();
+
+    sfx.waveform = R2D_WAVE_SQUARE;
+    sfx.frequency = 1040.0f;
+    sfx.volume = 0.24f;
+    sfx.attack = 0.0f;
+    sfx.decay = 0.025f;
+    sfx.sustain = 0.9f;
+    sfx.duration = 0.04f;
+    sfx.release = 0.04f;
+    sfx.pitch_slide = -5200.0f;
+    sfx.duty = 0.18f;
+
+    return sfx;
+}
+
+R2D_Sfx R2D_SfxHit(void)
+{
+    R2D_Sfx sfx = R2D_DefaultSfx();
+
+    sfx.waveform = R2D_WAVE_NOISE;
+    sfx.frequency = 2600.0f;
+    sfx.volume = 0.34f;
+    sfx.attack = 0.0f;
+    sfx.decay = 0.018f;
+    sfx.sustain = 0.55f;
+    sfx.duration = 0.025f;
+    sfx.release = 0.05f;
+    sfx.pitch_slide = -1800.0f;
+
+    return sfx;
+}
+
+R2D_Sfx R2D_SfxExplosion(void)
+{
+    R2D_Sfx sfx = R2D_DefaultSfx();
+
+    sfx.waveform = R2D_WAVE_NOISE;
+    sfx.frequency = 950.0f;
+    sfx.volume = 0.45f;
+    sfx.attack = 0.0f;
+    sfx.decay = 0.05f;
+    sfx.sustain = 0.8f;
+    sfx.duration = 0.12f;
+    sfx.release = 0.18f;
+    sfx.pitch_slide = -620.0f;
+
+    return sfx;
+}
+
 void R2D_PlaySfx(R2D_Sfx sfx)
 {
     int selected = -1;
@@ -277,6 +385,13 @@ void R2D_PlaySfx(R2D_Sfx sfx)
 
     sfx.volume = R2D_AudioClamp(sfx.volume, 0.0f, 1.0f);
     sfx.pan = R2D_AudioClamp(sfx.pan, 0.0f, 1.0f);
+    sfx.frequency = R2D_AudioClamp(sfx.frequency, 20.0f, 22000.0f);
+    sfx.attack = fmaxf(0.0f, sfx.attack);
+    sfx.decay = fmaxf(0.0f, sfx.decay);
+    sfx.sustain = R2D_AudioClamp(sfx.sustain, 0.0f, 1.0f);
+    sfx.duration = fmaxf(0.0f, sfx.duration);
+    sfx.release = fmaxf(0.001f, sfx.release);
+    sfx.duty = R2D_AudioClamp(sfx.duty, 0.01f, 0.99f);
 
     for (int i = 0; i < R2D_AUDIO_MAX_VOICES; ++i) {
         if (!r2d_audio.voices[i].active) {
