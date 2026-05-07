@@ -6,6 +6,8 @@
 #define R2D_DEFAULT_VIRTUAL_WIDTH 320
 #define R2D_DEFAULT_VIRTUAL_HEIGHT 200
 #define R2D_DEFAULT_WINDOW_SCALE 4
+#define R2D_AUDIO_SAMPLE_RATE 48000
+#define R2D_AUDIO_MAX_VOICES 16
 
 #ifdef __cplusplus
 extern "C" {
@@ -38,6 +40,29 @@ typedef struct R2D_Crt {
     bool is_ready;
 } R2D_Crt;
 
+typedef enum R2D_Waveform {
+    R2D_WAVE_SQUARE = 0,
+    R2D_WAVE_TRIANGLE,
+    R2D_WAVE_SAW,
+    R2D_WAVE_RAMP,
+    R2D_WAVE_NOISE,
+    R2D_WAVE_SINE
+} R2D_Waveform;
+
+typedef struct R2D_Sfx {
+    R2D_Waveform waveform;
+    float frequency;
+    float volume;
+    float pan;
+    float attack;
+    float decay;
+    float sustain;
+    float duration;
+    float release;
+    float pitch_slide;
+    float duty;
+} R2D_Sfx;
+
 typedef struct R2D_Context {
     R2D_Config config;
     RenderTexture2D target;
@@ -63,6 +88,13 @@ void R2D_EndFrame(R2D_Context *ctx);
 
 void R2D_ToggleFullscreen(R2D_Context *ctx);
 void R2D_TakeScreenshot(void);
+
+bool R2D_AudioInit(void);
+void R2D_AudioClose(void);
+bool R2D_AudioIsReady(void);
+R2D_Sfx R2D_DefaultSfx(void);
+void R2D_PlaySfx(R2D_Sfx sfx);
+void R2D_PlayTone(R2D_Waveform waveform, float frequency, float duration);
 
 bool R2D_CrtInit(R2D_Crt *crt);
 bool R2D_CrtReload(R2D_Crt *crt);

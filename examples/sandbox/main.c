@@ -52,6 +52,41 @@ static void Sandbox_Update(float dt, void *user_data)
         sandbox->reload_message_timer -= dt;
     }
 
+    if (IsKeyPressed(KEY_Z)) {
+        R2D_Sfx sfx = R2D_DefaultSfx();
+        sfx.waveform = R2D_WAVE_SQUARE;
+        sfx.frequency = 523.25f;
+        sfx.pitch_slide = -1200.0f;
+        sfx.duration = 0.04f;
+        R2D_PlaySfx(sfx);
+    }
+
+    if (IsKeyPressed(KEY_X)) {
+        R2D_Sfx sfx = R2D_DefaultSfx();
+        sfx.waveform = R2D_WAVE_NOISE;
+        sfx.frequency = 1800.0f;
+        sfx.volume = 0.25f;
+        sfx.decay = 0.02f;
+        sfx.sustain = 0.5f;
+        sfx.duration = 0.03f;
+        sfx.release = 0.08f;
+        R2D_PlaySfx(sfx);
+    }
+
+    if (IsKeyPressed(KEY_V)) {
+        R2D_Sfx sfx = R2D_DefaultSfx();
+        sfx.waveform = R2D_WAVE_TRIANGLE;
+        sfx.frequency = 220.0f;
+        sfx.pitch_slide = 800.0f;
+        sfx.duration = 0.08f;
+        sfx.release = 0.05f;
+        R2D_PlaySfx(sfx);
+    }
+
+    if (IsKeyPressed(KEY_B)) {
+        R2D_PlayTone(R2D_WAVE_SAW, 110.0f, 0.12f);
+    }
+
     sandbox->blink_timer += dt;
 }
 
@@ -81,13 +116,14 @@ static void Sandbox_Draw(void *user_data)
     if (sandbox->crt != 0) {
         DrawText(sandbox->crt->enabled ? "C: CRT ON" : "C: CRT OFF", 8, 34, 8, R2D_ColorFromHex(0x50fa7bff));
         DrawText("R: RELOAD CRT", 8, 46, 8, R2D_ColorFromHex(0xffb86cff));
+        DrawText("Z/X/V/B: SFX", 8, 58, 8, R2D_ColorFromHex(0xffb86cff));
     }
 
     if (sandbox->reload_message_timer > 0.0f) {
         DrawText(
             sandbox->reload_ok ? "SHADER RELOADED" : "SHADER ERROR",
             8,
-            58,
+            70,
             8,
             sandbox->reload_ok ? R2D_ColorFromHex(0x50fa7bff) : R2D_ColorFromHex(0xff5555ff)
         );
@@ -115,6 +151,7 @@ int main(void)
         return 1;
     }
 
+    R2D_AudioInit();
     R2D_CrtInit(&crt);
     R2D_SetCrt(&context, &crt);
     sandbox.context = &context;
@@ -129,6 +166,7 @@ int main(void)
     });
 
     R2D_CrtClose(&crt);
+    R2D_AudioClose();
     R2D_Close(&context);
     return 0;
 }
