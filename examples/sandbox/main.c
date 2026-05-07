@@ -3,6 +3,7 @@
 typedef struct Sandbox {
     Vector2 player;
     float blink_timer;
+    R2D_Crt *crt;
 } Sandbox;
 
 static void Sandbox_Init(void *user_data)
@@ -33,6 +34,10 @@ static void Sandbox_Update(float dt, void *user_data)
         sandbox->player.y += speed * dt;
     }
 
+    if (IsKeyPressed(KEY_C) && sandbox->crt != 0) {
+        R2D_CrtSetEnabled(sandbox->crt, !sandbox->crt->enabled);
+    }
+
     sandbox->blink_timer += dt;
 }
 
@@ -57,6 +62,9 @@ static void Sandbox_Draw(void *user_data)
     Sandbox_DrawGrid();
     DrawText("Retro2DFramework XXXX", 8, 8, 10, R2D_ColorFromHex(0xf8f8f2ff));
     DrawText("WASD / Arrows", 8, 22, 8, R2D_ColorFromHex(0x8be9fdff));
+    if (sandbox->crt != 0) {
+        DrawText(sandbox->crt->enabled ? "C: CRT ON" : "C: CRT OFF", 8, 34, 8, R2D_ColorFromHex(0x50fa7bff));
+    }
 
     DrawRectangleRec(R2D_Rect(sandbox->player.x, sandbox->player.y, 16.0f, 16.0f), R2D_ColorFromHex(0xff5555ff));
     DrawRectangleLinesEx(R2D_Rect(sandbox->player.x, sandbox->player.y, 16.0f, 16.0f), 1.0f, R2D_ColorFromHex(0xf1fa8cff));
@@ -69,6 +77,7 @@ static void Sandbox_Draw(void *user_data)
 int main(void)
 {
     R2D_Context context = { 0 };
+    R2D_Crt crt = { 0 };
     R2D_Config config = R2D_DefaultConfig();
     Sandbox sandbox = { 0 };
 
@@ -79,6 +88,11 @@ int main(void)
         return 1;
     }
 
+    if (R2D_CrtInit(&crt)) {
+        R2D_SetCrt(&context, &crt);
+        sandbox.crt = &crt;
+    }
+
     R2D_Run(&context, (R2D_App) {
         Sandbox_Init,
         Sandbox_Update,
@@ -87,7 +101,7 @@ int main(void)
         &sandbox
     });
 
+    R2D_CrtClose(&crt);
     R2D_Close(&context);
     return 0;
 }
-

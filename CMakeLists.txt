@@ -22,6 +22,7 @@ endif()
 
 add_library(r2d STATIC
     src/r2d.c
+    src/r2d_crt.c
 )
 
 target_include_directories(r2d

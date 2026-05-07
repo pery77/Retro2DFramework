@@ -7,6 +7,7 @@ Objetivos iniciales:
 - Resolucion virtual con escalado pixel-perfect.
 - Bucle de juego simple basado en callbacks.
 - Renderizado a textura para mantener pixeles nitidos.
+- Postproceso CRT opcional, inspirado en Nostalgika.
 - Helpers para paletas, sprites y coordenadas virtuales.
 - Ejemplos pequenos que sirvan como pruebas vivas del framework.
 
@@ -45,10 +46,13 @@ Con Visual Studio/MSVC, el ejecutable queda en:
 .\build\Release\r2d_sandbox.exe
 ```
 
+Pulsa `C` en el sandbox para activar o desactivar el efecto CRT.
+
 ## Estructura
 
 ```text
 include/r2d/r2d.h       API publica
 src/r2d.c               Implementacion del framework
+src/r2d_crt.c           Postproceso CRT opcional
 examples/sandbox        Primer juego de prueba
 ```

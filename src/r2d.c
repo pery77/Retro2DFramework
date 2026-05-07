@@ -74,6 +74,7 @@ bool R2D_Init(R2D_Context *ctx, R2D_Config config)
     };
     ctx->destination = R2D_CalculateDestination(config.virtual_width, config.virtual_height);
     ctx->origin = (Vector2) { 0.0f, 0.0f };
+    ctx->crt = 0;
     ctx->is_ready = IsRenderTextureValid(ctx->target);
 
     SetTextureFilter(ctx->target.texture, TEXTURE_FILTER_POINT);
@@ -139,7 +140,22 @@ void R2D_EndFrame(R2D_Context *ctx)
 
     BeginDrawing();
     ClearBackground(BLACK);
-    DrawTexturePro(ctx->target.texture, ctx->source, ctx->destination, ctx->origin, 0.0f, WHITE);
+
+    if (ctx->crt != 0 && ctx->crt->enabled && ctx->crt->is_ready) {
+        const Vector2 resolution = { ctx->destination.width, ctx->destination.height };
+        const float random = (float)GetRandomValue(0, 10000) / 10000.0f;
+
+        SetShaderValue(ctx->crt->shader, ctx->crt->resolution_loc, &resolution, SHADER_UNIFORM_VEC2);
+        SetShaderValue(ctx->crt->shader, ctx->crt->random_loc, &random, SHADER_UNIFORM_FLOAT);
+        SetShaderValueTexture(ctx->crt->shader, ctx->crt->noise_loc, ctx->crt->noise);
+
+        BeginShaderMode(ctx->crt->shader);
+        DrawTexturePro(ctx->target.texture, ctx->source, ctx->destination, ctx->origin, 0.0f, WHITE);
+        EndShaderMode();
+    } else {
+        DrawTexturePro(ctx->target.texture, ctx->source, ctx->destination, ctx->origin, 0.0f, WHITE);
+    }
+
     EndDrawing();
 }
 

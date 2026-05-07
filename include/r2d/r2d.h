@@ -23,12 +23,23 @@ typedef struct R2D_App {
     void *user_data;
 } R2D_App;
 
+typedef struct R2D_Crt {
+    Shader shader;
+    Texture2D noise;
+    int resolution_loc;
+    int noise_loc;
+    int random_loc;
+    bool enabled;
+    bool is_ready;
+} R2D_Crt;
+
 typedef struct R2D_Context {
     R2D_Config config;
     RenderTexture2D target;
     Rectangle source;
     Rectangle destination;
     Vector2 origin;
+    R2D_Crt *crt;
     bool is_ready;
 } R2D_Context;
 
@@ -41,6 +52,11 @@ void R2D_Close(R2D_Context *ctx);
 void R2D_BeginFrame(R2D_Context *ctx);
 void R2D_EndFrame(R2D_Context *ctx);
 
+bool R2D_CrtInit(R2D_Crt *crt);
+void R2D_CrtClose(R2D_Crt *crt);
+void R2D_CrtSetEnabled(R2D_Crt *crt, bool enabled);
+void R2D_SetCrt(R2D_Context *ctx, R2D_Crt *crt);
+
 Vector2 R2D_MouseVirtualPosition(const R2D_Context *ctx);
 Rectangle R2D_Rect(float x, float y, float width, float height);
 
@@ -52,4 +68,3 @@ Color R2D_ColorFromHex(unsigned int rgba);
 #endif
 
 #endif
-
