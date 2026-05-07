@@ -2,6 +2,7 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <time.h>
 
 static Rectangle R2D_CalculateDestination(int virtual_width, int virtual_height)
 {
@@ -24,6 +25,20 @@ static Rectangle R2D_CalculateDestination(int virtual_width, int virtual_height)
         width,
         height
     };
+}
+
+static void R2D_HandleWindowShortcuts(R2D_Context *ctx)
+{
+    const bool alt_enter = IsKeyPressed(KEY_ENTER) &&
+        (IsKeyDown(KEY_LEFT_ALT) || IsKeyDown(KEY_RIGHT_ALT));
+
+    if (IsKeyPressed(KEY_F11) || alt_enter) {
+        R2D_ToggleFullscreen(ctx);
+    }
+
+    if (ctx != 0 && (IsKeyPressed(KEY_F12) || IsKeyPressed(KEY_PRINT_SCREEN))) {
+        ctx->screenshot_requested = true;
+    }
 }
 
 R2D_Config R2D_DefaultConfig(void)
@@ -75,7 +90,11 @@ bool R2D_Init(R2D_Context *ctx, R2D_Config config)
     };
     ctx->destination = R2D_CalculateDestination(config.virtual_width, config.virtual_height);
     ctx->origin = (Vector2) { 0.0f, 0.0f };
+    ctx->windowed_width = config.virtual_width * config.window_scale;
+    ctx->windowed_height = config.virtual_height * config.window_scale;
+    ctx->windowed_position = GetWindowPosition();
     ctx->crt = 0;
+    ctx->screenshot_requested = false;
     ctx->is_ready = IsRenderTextureValid(ctx->target);
 
     SetTextureFilter(ctx->target.texture, TEXTURE_FILTER_BILINEAR);
@@ -95,6 +114,8 @@ void R2D_Run(R2D_Context *ctx, R2D_App app)
 
     while (!WindowShouldClose()) {
         const float dt = GetFrameTime();
+
+        R2D_HandleWindowShortcuts(ctx);
 
         if (app.update != 0) {
             app.update(dt, app.user_data);
@@ -160,6 +181,89 @@ void R2D_EndFrame(R2D_Context *ctx)
     }
 
     EndDrawing();
+
+    if (ctx->screenshot_requested) {
+        R2D_TakeScreenshot();
+        ctx->screenshot_requested = false;
+    }
+}
+
+void R2D_ToggleFullscreen(R2D_Context *ctx)
+{
+    if (ctx == 0 || !ctx->is_ready) {
+        return;
+    }
+
+    if (!IsWindowFullscreen()) {
+        const Vector2 position = GetWindowPosition();
+
+        ctx->windowed_width = GetScreenWidth();
+        ctx->windowed_height = GetScreenHeight();
+        ctx->windowed_position = position;
+
+        const int monitor = GetCurrentMonitor();
+        SetWindowSize(GetMonitorWidth(monitor), GetMonitorHeight(monitor));
+        ToggleFullscreen();
+    } else {
+        ToggleFullscreen();
+        SetWindowSize(ctx->windowed_width, ctx->windowed_height);
+        SetWindowPosition((int)ctx->windowed_position.x, (int)ctx->windowed_position.y);
+    }
+}
+
+void R2D_TakeScreenshot(void)
+{
+    char directory[1024];
+    char filename[1200];
+    time_t now;
+    struct tm local_time;
+    bool has_time = false;
+
+    snprintf(directory, sizeof(directory), "%sscreenshots", GetApplicationDirectory());
+
+    if (!DirectoryExists(directory)) {
+        MakeDirectory(directory);
+    }
+
+    now = time(0);
+#if defined(_WIN32)
+    has_time = localtime_s(&local_time, &now) == 0;
+#else
+    {
+        struct tm *time_info = localtime(&now);
+        if (time_info != 0) {
+            local_time = *time_info;
+            has_time = true;
+        }
+    }
+#endif
+
+    if (!has_time) {
+        snprintf(filename, sizeof(filename), "%s/screenshot.png", directory);
+    } else {
+        snprintf(
+            filename,
+            sizeof(filename),
+            "%s/screenshot_%04d%02d%02d_%02d%02d%02d.png",
+            directory,
+            local_time.tm_year + 1900,
+            local_time.tm_mon + 1,
+            local_time.tm_mday,
+            local_time.tm_hour,
+            local_time.tm_min,
+            local_time.tm_sec
+        );
+    }
+
+    Image screenshot = LoadImageFromScreen();
+
+    if (ExportImage(screenshot, filename)) {
+        TraceLog(LOG_INFO, "R2D: Screenshot saved: %s", filename);
+    } else {
+        TraceLog(LOG_WARNING, "R2D: Screenshot could not be saved: %s", filename);
+    }
+
+    UnloadImage(screenshot);
 }
 
 const char *R2D_AssetPath(const char *relative_path)

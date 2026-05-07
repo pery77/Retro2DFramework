@@ -49,6 +49,11 @@ Con Visual Studio/MSVC, el ejecutable queda en:
 Pulsa `C` en el sandbox para activar o desactivar el efecto CRT. Pulsa `R` para
 recargar `assets/shaders/crt.fs` sin cerrar el programa.
 
+Atajos de ventana incluidos por el framework:
+
+- `F11` o `Alt+Enter`: alternar pantalla completa.
+- `F12` o `PrintScreen`: guardar captura en `screenshots` junto al ejecutable.
+
 La carpeta `assets` se copia automaticamente junto al ejecutable al compilar. El codigo
 resuelve rutas con `R2D_AssetPath("shaders/crt.fs")`, siempre relativas a esa carpeta
 `assets` del ejecutable. En builds locales generadas por este CMake, primero intenta leer

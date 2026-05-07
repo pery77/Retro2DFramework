@@ -44,7 +44,11 @@ typedef struct R2D_Context {
     Rectangle source;
     Rectangle destination;
     Vector2 origin;
+    int windowed_width;
+    int windowed_height;
+    Vector2 windowed_position;
     R2D_Crt *crt;
+    bool screenshot_requested;
     bool is_ready;
 } R2D_Context;
 
@@ -56,6 +60,9 @@ void R2D_Close(R2D_Context *ctx);
 
 void R2D_BeginFrame(R2D_Context *ctx);
 void R2D_EndFrame(R2D_Context *ctx);
+
+void R2D_ToggleFullscreen(R2D_Context *ctx);
+void R2D_TakeScreenshot(void);
 
 bool R2D_CrtInit(R2D_Crt *crt);
 bool R2D_CrtReload(R2D_Crt *crt);
