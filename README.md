@@ -76,7 +76,9 @@ Controles:
 - `Espacio`: reproducir.
 - `A`: activar o desactivar auto-play al editar.
 - `R`: mutar el preset actual con cambios pequenos.
+- `N`: crear una variante numerada del preset actual.
 - `C`: clonar el sonido actual en `editor.r2sfx`.
+- `F5`: refrescar la carpeta `assets/audio/sfx`.
 - `S`: guardar el preset actual.
 - `L`: recargar el preset actual desde disco.
 - `Backspace`: restaurar un sonido base.

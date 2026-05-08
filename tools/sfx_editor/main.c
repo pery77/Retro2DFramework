@@ -40,6 +40,8 @@ typedef struct SfxEditor {
     bool mouse_editing;
 } SfxEditor;
 
+static void SfxEditor_LoadPreset(SfxEditor *editor);
+
 static float SfxEditor_Clamp(float value, float min, float max)
 {
     if (value < min) {
@@ -662,6 +664,18 @@ static bool SfxEditor_CanLeavePreset(SfxEditor *editor)
     return false;
 }
 
+static void SfxEditor_SelectPresetByName(SfxEditor *editor, const char *name)
+{
+    const int preset = SfxEditor_FindPreset(editor, name);
+
+    if (preset >= 0) {
+        editor->selected_preset = preset;
+        SfxEditor_LoadPreset(editor);
+        SfxEditor_ClearHistory(editor);
+        SfxEditor_PlayIfNeeded(editor);
+    }
+}
+
 static void SfxEditor_LoadPreset(SfxEditor *editor)
 {
     const SfxEditorPreset *preset = SfxEditor_CurrentPreset(editor);
@@ -675,6 +689,29 @@ static void SfxEditor_LoadPreset(SfxEditor *editor)
     }
 
     editor->dirty = false;
+}
+
+static void SfxEditor_RefreshPresets(SfxEditor *editor)
+{
+    char current_name[SFX_NAME_SIZE];
+
+    if (!SfxEditor_CanLeavePreset(editor)) {
+        return;
+    }
+
+    SfxEditor_CopyText(current_name, sizeof(current_name), SfxEditor_CurrentPreset(editor)->name);
+    SfxEditor_DiscoverPresets(editor);
+    editor->selected_preset = 0;
+
+    if (SfxEditor_FindPreset(editor, current_name) >= 0) {
+        SfxEditor_SelectPresetByName(editor, current_name);
+    } else {
+        SfxEditor_LoadPreset(editor);
+        SfxEditor_ClearHistory(editor);
+        SfxEditor_PlayIfNeeded(editor);
+    }
+
+    SfxEditor_SetMessage(editor, "refreshed");
 }
 
 static void SfxEditor_SavePreset(SfxEditor *editor)
@@ -723,6 +760,40 @@ static void SfxEditor_CloneToEditorPreset(SfxEditor *editor)
         editor->dirty = true;
         SfxEditor_SetMessage(editor, "clone failed");
     }
+}
+
+static void SfxEditor_CreateVariant(SfxEditor *editor)
+{
+    const char *base = SfxEditor_CurrentPreset(editor)->name;
+    char name[SFX_NAME_SIZE];
+    char file_name[SFX_NAME_SIZE + 16];
+    char relative_path[SFX_PATH_SIZE];
+
+    if (!SfxEditor_CanLeavePreset(editor)) {
+        return;
+    }
+
+    for (int i = 1; i <= 999; ++i) {
+        snprintf(name, sizeof(name), "%s_%03d", base, i);
+
+        if (SfxEditor_FindPreset(editor, name) < 0) {
+            snprintf(file_name, sizeof(file_name), "%s.r2sfx", name);
+            snprintf(relative_path, sizeof(relative_path), "audio/sfx/%s", file_name);
+
+            if (R2D_SaveSfx(R2D_AssetPath(relative_path), editor->sfx)) {
+                SfxEditor_AddPreset(editor, file_name);
+                SfxEditor_SortPresets(editor);
+                SfxEditor_SelectPresetByName(editor, name);
+                SfxEditor_SetMessage(editor, "created");
+            } else {
+                SfxEditor_SetMessage(editor, "create failed");
+            }
+
+            return;
+        }
+    }
+
+    SfxEditor_SetMessage(editor, "too many variants");
 }
 
 static void SfxEditor_ResetPreset(SfxEditor *editor)
@@ -874,6 +945,14 @@ static void SfxEditor_Update(float dt, void *user_data)
         SfxEditor_CloneToEditorPreset(editor);
     }
 
+    if (IsKeyPressed(KEY_N)) {
+        SfxEditor_CreateVariant(editor);
+    }
+
+    if (IsKeyPressed(KEY_F5)) {
+        SfxEditor_RefreshPresets(editor);
+    }
+
     if ((IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL)) && IsKeyPressed(KEY_Z)) {
         SfxEditor_Undo(editor);
     }
@@ -971,7 +1050,7 @@ static void SfxEditor_Draw(void *user_data)
         8,
         R2D_ColorFromHex(0xffb86cff)
     );
-    DrawText("C clone  BACK reset  Ctrl+Z/Y undo/redo", 8, 44, 8, R2D_ColorFromHex(0xffb86cff));
+    DrawText("N new  C clone  F5 refresh  Ctrl+Z/Y", 8, 44, 8, R2D_ColorFromHex(0xffb86cff));
 
     for (int i = 0; i < SFX_FIELD_COUNT; ++i) {
         const int x = SfxEditor_FieldX(i);
