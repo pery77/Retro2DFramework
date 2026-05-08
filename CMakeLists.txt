@@ -25,11 +25,14 @@ add_library(r2d STATIC
     src/r2d.c
     src/r2d_audio.c
     src/r2d_crt.c
+    src/r2d_music.c
 )
 
 target_include_directories(r2d
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/external/tinysoundfont
 )
 
 target_compile_definitions(r2d PRIVATE
@@ -55,10 +58,14 @@ function(r2d_copy_assets target_name)
     add_dependencies(${target_name} ${target_name}_assets)
 endfunction()
 
+function(r2d_add_app target_name source_file)
+    add_executable(${target_name} ${source_file})
+    target_link_libraries(${target_name} PRIVATE r2d)
+    r2d_copy_assets(${target_name})
+endfunction()
+
 if(R2D_BUILD_EXAMPLES)
-    add_executable(r2d_sandbox examples/sandbox/main.c)
-    target_link_libraries(r2d_sandbox PRIVATE r2d)
-    r2d_copy_assets(r2d_sandbox)
+    r2d_add_app(r2d_sandbox examples/sandbox/main.c)
 
     if(WIN32)
         target_link_options(r2d_sandbox PRIVATE
@@ -70,7 +77,6 @@ if(R2D_BUILD_EXAMPLES)
 endif()
 
 if(R2D_BUILD_TOOLS)
-    add_executable(r2d_sfx_editor tools/sfx_editor/main.c)
-    target_link_libraries(r2d_sfx_editor PRIVATE r2d)
-    r2d_copy_assets(r2d_sfx_editor)
+    r2d_add_app(r2d_sfx_editor tools/sfx_editor/main.c)
+    r2d_add_app(r2d_midi_player tools/midi_player/main.c)
 endif()

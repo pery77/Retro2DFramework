@@ -34,8 +34,9 @@ O en Windows:
 ```
 
 `build_debug.bat` y `build_release.bat` compilan todo. Los scripts `build_sandbox_debug.bat`
-y `build_sfx_editor_debug.bat` compilan solo el juego de prueba o solo el editor de efectos.
-La build `Release` enlaza el ejemplo como aplicacion Windows, asi que no abre consola.
+`build_sfx_editor_debug.bat` y `build_midi_player_debug.bat` compilan solo el juego de
+prueba, el editor de efectos o el reproductor MIDI. La build `Release` enlaza el ejemplo
+como aplicacion Windows, asi que no abre consola.
 
 ## Ejecutar ejemplo
 
@@ -57,6 +58,25 @@ El sintetizador soporta envolvente, slide de tono, vibrato, arpegio, duty sweep 
 paso bajo, paso alto y paso banda por voz.
 Los presets se cargan desde `assets/audio/sfx/*.r2sfx`; si un archivo falta, el sandbox usa
 el preset compilado como fallback.
+
+El framework tambien puede reproducir musica MIDI con SoundFont usando TinySoundFont y
+TinyMidiLoader. Coloca un MIDI en `assets/audio/music/theme.mid` y una SoundFont en
+`assets/audio/soundfonts/chiptune.sf2`; el sandbox los carga si existen y permite activar
+o parar la musica con `P`.
+
+## Reproductor MIDI
+
+```powershell
+.\build_midi_player_debug.bat
+.\build\Debug\r2d_midi_player.exe
+```
+
+El reproductor descubre todos los `.mid` y `.midi` de `assets/audio/music` y todos los
+`.sf2` de `assets/audio/soundfonts`. Usa `Izquierda` / `Derecha` para cambiar entre la
+lista de MIDIs y la lista de SoundFonts, `Arriba` / `Abajo` para seleccionar, `Espacio`
+o `Enter` para reproducir, pausar o continuar, `S` para parar, `R` para reiniciar,
+`L` para activar o desactivar loop, `A` para auto-play al cambiar seleccion, `-` / `+`
+para volumen y `F5` para refrescar carpetas.
 
 ## Editor de efectos
 
@@ -104,10 +124,15 @@ la carpeta `assets` del proyecto para que editar shaders en runtime sea directo.
 ```text
 assets                  Recursos que se copian junto al ejecutable
 assets/audio/sfx        Presets de sintetizador .r2sfx
+assets/audio/music      Canciones MIDI
+assets/audio/soundfonts Bancos SoundFont .sf2
+external/tinysoundfont  TinySoundFont y TinyMidiLoader
 include/r2d/r2d.h       API publica
 src/r2d.c               Implementacion del framework
 src/r2d_crt.c           Postproceso CRT opcional
 src/r2d_audio.c         Sintetizador simple para efectos retro
+src/r2d_music.c         Reproduccion MIDI + SoundFont
 examples/sandbox        Primer juego de prueba
 tools/sfx_editor        Editor sencillo de presets de sonido
+tools/midi_player       Reproductor para probar MIDIs con SoundFonts
 ```

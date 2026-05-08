@@ -1,5 +1,7 @@
 #include "r2d/r2d.h"
 
+#include <stdio.h>
+
 typedef struct Sandbox {
     Vector2 player;
     float blink_timer;
@@ -10,7 +12,9 @@ typedef struct Sandbox {
     R2D_Sfx laser;
     R2D_Sfx explosion;
     R2D_Sfx powerup;
+    R2D_Music music;
     bool reload_ok;
+    bool music_loaded;
     R2D_Context *context;
     R2D_Crt *crt;
 } Sandbox;
@@ -26,6 +30,9 @@ static R2D_Sfx Sandbox_LoadSfx(const char *path, R2D_Sfx fallback)
 static void Sandbox_Init(void *user_data)
 {
     Sandbox *sandbox = (Sandbox *)user_data;
+    char midi_path[1024];
+    char soundfont_path[1024];
+
     sandbox->player = (Vector2) { 152.0f, 82.0f };
     sandbox->blink_timer = 0.0f;
     sandbox->reload_message_timer = 0.0f;
@@ -36,12 +43,25 @@ static void Sandbox_Init(void *user_data)
     sandbox->explosion = Sandbox_LoadSfx("audio/sfx/explosion.r2sfx", R2D_SfxExplosion());
     sandbox->powerup = Sandbox_LoadSfx("audio/sfx/powerup.r2sfx", R2D_SfxPowerup());
     sandbox->reload_ok = false;
+
+    snprintf(midi_path, sizeof(midi_path), "%s", R2D_AssetPath("audio/music/touhou-bad-apple.mid"));
+    snprintf(soundfont_path, sizeof(soundfont_path), "%s", R2D_AssetPath("audio/soundfonts/8-Bit_Sounds.sf2"));
+
+    sandbox->music_loaded = FileExists(midi_path) &&
+        FileExists(soundfont_path) &&
+        R2D_MusicLoad(&sandbox->music, midi_path, soundfont_path);
+
+    if (sandbox->music_loaded) {
+        R2D_MusicPlay(&sandbox->music, true);
+    }
 }
 
 static void Sandbox_Update(float dt, void *user_data)
 {
     Sandbox *sandbox = (Sandbox *)user_data;
     const float speed = 80.0f;
+
+    R2D_MusicUpdate(&sandbox->music);
 
     if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)) {
         sandbox->player.x -= speed * dt;
@@ -96,6 +116,14 @@ static void Sandbox_Update(float dt, void *user_data)
         R2D_PlaySfx(sandbox->powerup);
     }
 
+    if (IsKeyPressed(KEY_P) && sandbox->music_loaded) {
+        if (R2D_MusicIsPlaying(&sandbox->music)) {
+            R2D_MusicStop(&sandbox->music);
+        } else {
+            R2D_MusicPlay(&sandbox->music, true);
+        }
+    }
+
     sandbox->blink_timer += dt;
 }
 
@@ -126,13 +154,14 @@ static void Sandbox_Draw(void *user_data)
         DrawText(sandbox->crt->enabled ? "C: CRT ON" : "C: CRT OFF", 8, 34, 8, R2D_ColorFromHex(0x50fa7bff));
         DrawText("R: RELOAD CRT", 8, 46, 8, R2D_ColorFromHex(0xffb86cff));
         DrawText("Z/X/V/B/N/M: SFX", 8, 58, 8, R2D_ColorFromHex(0xffb86cff));
+        DrawText(sandbox->music_loaded ? "P: MUSIC" : "MUSIC: ADD theme.mid + chiptune.sf2", 8, 70, 8, R2D_ColorFromHex(0xffb86cff));
     }
 
     if (sandbox->reload_message_timer > 0.0f) {
         DrawText(
             sandbox->reload_ok ? "SHADER RELOADED" : "SHADER ERROR",
             8,
-            70,
+            82,
             8,
             sandbox->reload_ok ? R2D_ColorFromHex(0x50fa7bff) : R2D_ColorFromHex(0xff5555ff)
         );
@@ -144,6 +173,13 @@ static void Sandbox_Draw(void *user_data)
     if (blink) {
         DrawPixel((int)sandbox->player.x + 11, (int)sandbox->player.y + 5, BLACK);
     }
+}
+
+static void Sandbox_Shutdown(void *user_data)
+{
+    Sandbox *sandbox = (Sandbox *)user_data;
+
+    R2D_MusicUnload(&sandbox->music);
 }
 
 int main(void)
@@ -170,7 +206,7 @@ int main(void)
         Sandbox_Init,
         Sandbox_Update,
         Sandbox_Draw,
-        0,
+        Sandbox_Shutdown,
         &sandbox
     });
 

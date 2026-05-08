@@ -80,6 +80,10 @@ typedef struct R2D_Sfx {
     float filter_resonance;
 } R2D_Sfx;
 
+typedef struct R2D_Music {
+    void *state;
+} R2D_Music;
+
 typedef struct R2D_Context {
     R2D_Config config;
     RenderTexture2D target;
@@ -122,6 +126,21 @@ bool R2D_LoadSfx(const char *path, R2D_Sfx *sfx);
 bool R2D_SaveSfx(const char *path, R2D_Sfx sfx);
 void R2D_PlaySfx(R2D_Sfx sfx);
 void R2D_PlayTone(R2D_Waveform waveform, float frequency, float duration);
+
+bool R2D_MusicLoad(R2D_Music *music, const char *midi_path, const char *soundfont_path);
+void R2D_MusicUnload(R2D_Music *music);
+void R2D_MusicPlay(R2D_Music *music, bool loop);
+void R2D_MusicStop(R2D_Music *music);
+void R2D_MusicPause(R2D_Music *music);
+void R2D_MusicResume(R2D_Music *music);
+void R2D_MusicUpdate(R2D_Music *music);
+void R2D_MusicSetVolume(R2D_Music *music, float volume);
+void R2D_MusicSetLoop(R2D_Music *music, bool loop);
+bool R2D_MusicIsPlaying(const R2D_Music *music);
+bool R2D_MusicIsPaused(const R2D_Music *music);
+float R2D_MusicPosition(const R2D_Music *music);
+float R2D_MusicLength(const R2D_Music *music);
+const char *R2D_MusicLastError(void);
 
 bool R2D_CrtInit(R2D_Crt *crt);
 bool R2D_CrtReload(R2D_Crt *crt);
