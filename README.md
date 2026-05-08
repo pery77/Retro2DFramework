@@ -71,7 +71,7 @@ Controles:
 - `Izquierda` / `Derecha`: cambiar valor.
 - `Shift`: cambio rapido.
 - `Raton`: seleccionar parametro; arrastrar barras numericas.
-- Click en los tabs superiores: cambiar preset.
+- Click en las flechas superiores: cambiar preset.
 - `Q` / `E`: cambiar preset.
 - `Espacio`: reproducir.
 - `A`: activar o desactivar auto-play al editar.
@@ -79,7 +79,7 @@ Controles:
 - `C`: clonar el sonido actual en `editor.r2sfx`.
 - `S`: guardar el preset actual.
 - `L`: recargar el preset actual desde disco.
-- `Backspace`: restaurar el preset compilado base.
+- `Backspace`: restaurar un sonido base.
 - `Ctrl+Z` / `Ctrl+Y`: deshacer y rehacer cambios.
 
 Los archivos `.r2sfx` son texto plano `clave=valor`, pensados para versionarse y editarse a

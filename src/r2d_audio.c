@@ -294,32 +294,32 @@ static float R2D_AudioApplyFilter(R2D_AudioVoice *voice, float input)
     const float cutoff = R2D_AudioClamp(
         sfx->filter_cutoff + sfx->filter_cutoff_slide * voice->elapsed,
         20.0f,
-        20000.0f
+        18000.0f
     );
     const float resonance = R2D_AudioClamp(sfx->filter_resonance, 0.0f, 1.0f);
-    const float f = R2D_AudioClamp(
-        2.0f * sinf(3.14159265f * cutoff / (float)R2D_AUDIO_SAMPLE_RATE),
-        0.001f,
-        0.99f
-    );
-    const float damping = 2.0f - resonance * 1.85f;
+    const float g = tanf(3.14159265f * cutoff / (float)R2D_AUDIO_SAMPLE_RATE);
+    const float k = 2.0f - resonance * 1.7f;
+    const float a1 = 1.0f / (1.0f + g * (g + k));
+    const float v3 = input - voice->filter_low;
+    const float band = (voice->filter_band + g * v3) * a1;
+    const float low = voice->filter_low + g * band;
     float high;
 
     if (sfx->filter == R2D_FILTER_NONE) {
         return input;
     }
 
-    voice->filter_low += f * voice->filter_band;
-    high = input - voice->filter_low - damping * voice->filter_band;
-    voice->filter_band += f * high;
+    high = input - k * band - low;
+    voice->filter_band = 2.0f * band - voice->filter_band;
+    voice->filter_low = 2.0f * low - voice->filter_low;
 
     switch (sfx->filter) {
         case R2D_FILTER_LOWPASS:
-            return voice->filter_low;
+            return low;
         case R2D_FILTER_HIGHPASS:
             return high;
         case R2D_FILTER_BANDPASS:
-            return voice->filter_band;
+            return band;
         case R2D_FILTER_NONE:
         default:
             return input;
@@ -570,18 +570,18 @@ R2D_Sfx R2D_SfxCoin(void)
     R2D_Sfx sfx = R2D_DefaultSfx();
 
     sfx.waveform = R2D_WAVE_SQUARE;
-    sfx.frequency = 880.0f;
-    sfx.volume = 0.28f;
-    sfx.attack = 0.001f;
-    sfx.decay = 0.035f;
-    sfx.sustain = 0.75f;
-    sfx.duration = 0.055f;
-    sfx.release = 0.025f;
-    sfx.pitch_slide = 2200.0f;
-    sfx.duty = 0.25f;
-    sfx.duty_slide = 1.2f;
-    sfx.filter = R2D_FILTER_HIGHPASS;
-    sfx.filter_cutoff = 700.0f;
+    sfx.frequency = 1320.0f;
+    sfx.volume = 0.22f;
+    sfx.attack = 0.0f;
+    sfx.decay = 0.012f;
+    sfx.sustain = 0.9f;
+    sfx.duration = 0.075f;
+    sfx.release = 0.035f;
+    sfx.arpeggio_step_1 = 4.0f;
+    sfx.arpeggio_step_2 = 7.0f;
+    sfx.arpeggio_rate = 28.0f;
+    sfx.duty = 0.5f;
+    sfx.filter = R2D_FILTER_NONE;
 
     return sfx;
 }
@@ -618,14 +618,14 @@ R2D_Sfx R2D_SfxLaser(void)
     sfx.duration = 0.04f;
     sfx.release = 0.04f;
     sfx.pitch_slide = -5200.0f;
-    sfx.vibrato_depth = 38.0f;
-    sfx.vibrato_rate = 45.0f;
+    sfx.vibrato_depth = 18.0f;
+    sfx.vibrato_rate = 35.0f;
     sfx.duty = 0.18f;
     sfx.duty_slide = 2.2f;
     sfx.filter = R2D_FILTER_BANDPASS;
-    sfx.filter_cutoff = 1200.0f;
-    sfx.filter_cutoff_slide = -1800.0f;
-    sfx.filter_resonance = 0.35f;
+    sfx.filter_cutoff = 1800.0f;
+    sfx.filter_cutoff_slide = -1200.0f;
+    sfx.filter_resonance = 0.22f;
 
     return sfx;
 }
@@ -662,12 +662,12 @@ R2D_Sfx R2D_SfxExplosion(void)
     sfx.duration = 0.12f;
     sfx.release = 0.18f;
     sfx.pitch_slide = -620.0f;
-    sfx.vibrato_depth = 20.0f;
+    sfx.vibrato_depth = 8.0f;
     sfx.vibrato_rate = 9.0f;
     sfx.filter = R2D_FILTER_LOWPASS;
-    sfx.filter_cutoff = 1400.0f;
-    sfx.filter_cutoff_slide = -2600.0f;
-    sfx.filter_resonance = 0.2f;
+    sfx.filter_cutoff = 2200.0f;
+    sfx.filter_cutoff_slide = -3200.0f;
+    sfx.filter_resonance = 0.08f;
 
     return sfx;
 }
