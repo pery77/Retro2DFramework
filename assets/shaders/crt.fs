@@ -18,18 +18,18 @@ out vec4 finalColor;
 #define blurSize       6.0
 
 uniform vec2 virtualResolution;
-float blurFactor = 0.98;
+float blurFactor = 0.9;
 float blurBlink = 0.05;
-float blurPower = 0.36;
+float blurPower = 0.46;
 float curvature = 0.8;
 float vignetteForce = 0.3;
-float mask = 0.05;
+float mask = 0.06;
 
 float noiseAmount = 0.025;
 
 float scan_line_strength = -8.0;
 float scan_line_amount = 1.0;
-float aberation_amount = 0.3;
+float aberation_amount = 0.35;
 float pixel_strength = -2.0;
 
 vec2 curve(vec2 uv, float c)

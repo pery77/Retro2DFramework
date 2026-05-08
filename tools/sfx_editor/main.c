@@ -4,6 +4,7 @@
 
 #define SFX_FIELD_COUNT 21
 #define SFX_PRESET_COUNT 7
+#define SFX_HISTORY_COUNT 32
 
 typedef struct SfxEditorPreset {
     const char *name;
@@ -19,10 +20,19 @@ typedef struct SfxEditorRange {
 
 typedef struct SfxEditor {
     R2D_Sfx sfx;
+    R2D_Sfx undo_history[SFX_HISTORY_COUNT];
+    R2D_Sfx redo_history[SFX_HISTORY_COUNT];
+    R2D_Context *context;
     int selected_field;
     int selected_preset;
+    int mouse_field;
+    int undo_count;
+    int redo_count;
     float message_timer;
     const char *message;
+    bool auto_play;
+    bool dirty;
+    bool mouse_editing;
 } SfxEditor;
 
 static const SfxEditorPreset sfx_editor_presets[SFX_PRESET_COUNT] = {
@@ -34,6 +44,28 @@ static const SfxEditorPreset sfx_editor_presets[SFX_PRESET_COUNT] = {
     { "powerup", "audio/sfx/powerup.r2sfx", R2D_SfxPowerup },
     { "editor", "audio/sfx/editor.r2sfx", R2D_SfxPowerup }
 };
+
+static const char *SfxEditor_PresetTabName(int preset)
+{
+    switch (preset) {
+        case 0:
+            return "coin";
+        case 1:
+            return "hit";
+        case 2:
+            return "jump";
+        case 3:
+            return "laser";
+        case 4:
+            return "boom";
+        case 5:
+            return "power";
+        case 6:
+            return "edit";
+        default:
+            return "";
+    }
+}
 
 static float SfxEditor_Clamp(float value, float min, float max)
 {
@@ -221,8 +253,7 @@ static SfxEditorRange SfxEditor_FieldRange(int field)
         case 4:
         case 7:
         case 16:
-        case 19:
-            return (SfxEditorRange) { -20000.0f, 20000.0f, true };
+            return (SfxEditorRange) { 0.0f, 1.0f, false };
         case 20:
             return (SfxEditorRange) { 0.0f, 1.0f, false };
         case 5:
@@ -245,6 +276,8 @@ static SfxEditorRange SfxEditor_FieldRange(int field)
             return (SfxEditorRange) { -5.0f, 5.0f, true };
         case 18:
             return (SfxEditorRange) { 20.0f, 20000.0f, false };
+        case 19:
+            return (SfxEditorRange) { -20000.0f, 20000.0f, true };
         default:
             return (SfxEditorRange) { 0.0f, 1.0f, false };
     }
@@ -318,10 +351,142 @@ static void SfxEditor_ClampField(R2D_Sfx *sfx, int field)
     }
 }
 
+static bool SfxEditor_FieldIsNumeric(int field)
+{
+    return field >= 2 && field < SFX_FIELD_COUNT;
+}
+
+static int SfxEditor_FieldColumn(int field)
+{
+    return field / 7;
+}
+
+static int SfxEditor_FieldRow(int field)
+{
+    return field % 7;
+}
+
+static int SfxEditor_FieldX(int field)
+{
+    return 8 + SfxEditor_FieldColumn(field) * 104;
+}
+
+static int SfxEditor_FieldY(int field)
+{
+    return 60 + SfxEditor_FieldRow(field) * 14;
+}
+
+static Rectangle SfxEditor_FieldHitRect(int field)
+{
+    return (Rectangle) {
+        (float)SfxEditor_FieldX(field),
+        (float)SfxEditor_FieldY(field),
+        100.0f,
+        13.0f
+    };
+}
+
+static Rectangle SfxEditor_FieldTrackRect(int field)
+{
+    return (Rectangle) {
+        (float)SfxEditor_FieldX(field) + 34.0f,
+        (float)SfxEditor_FieldY(field) + 9.0f,
+        66.0f,
+        3.0f
+    };
+}
+
+static Rectangle SfxEditor_PresetTabRect(int preset)
+{
+    return (Rectangle) {
+        8.0f + (float)preset * 44.0f,
+        7.0f,
+        40.0f,
+        10.0f
+    };
+}
+
+static void SfxEditor_SetFieldFromMouse(SfxEditor *editor, int field, Vector2 mouse)
+{
+    float *value = SfxEditor_FieldValue(&editor->sfx, field);
+    const SfxEditorRange range = SfxEditor_FieldRange(field);
+    const Rectangle track = SfxEditor_FieldTrackRect(field);
+    const float normalized = SfxEditor_Clamp((mouse.x - track.x) / track.width, 0.0f, 1.0f);
+
+    if (value != 0) {
+        *value = range.min + (range.max - range.min) * normalized;
+        SfxEditor_ClampField(&editor->sfx, field);
+        editor->dirty = true;
+    }
+}
+
 static void SfxEditor_SetMessage(SfxEditor *editor, const char *message)
 {
     editor->message = message;
     editor->message_timer = 1.2f;
+}
+
+static void SfxEditor_PlayIfNeeded(SfxEditor *editor)
+{
+    if (editor->auto_play) {
+        R2D_PlaySfx(editor->sfx);
+    }
+}
+
+static void SfxEditor_ClearHistory(SfxEditor *editor)
+{
+    editor->undo_count = 0;
+    editor->redo_count = 0;
+}
+
+static void SfxEditor_PushHistory(R2D_Sfx *history, int *count, R2D_Sfx sfx)
+{
+    if (*count >= SFX_HISTORY_COUNT) {
+        for (int i = 1; i < SFX_HISTORY_COUNT; ++i) {
+            history[i - 1] = history[i];
+        }
+
+        *count = SFX_HISTORY_COUNT - 1;
+    }
+
+    history[*count] = sfx;
+    *count += 1;
+}
+
+static void SfxEditor_PushUndo(SfxEditor *editor)
+{
+    SfxEditor_PushHistory(editor->undo_history, &editor->undo_count, editor->sfx);
+    editor->redo_count = 0;
+}
+
+static void SfxEditor_Undo(SfxEditor *editor)
+{
+    if (editor->undo_count <= 0) {
+        SfxEditor_SetMessage(editor, "no undo");
+        return;
+    }
+
+    SfxEditor_PushHistory(editor->redo_history, &editor->redo_count, editor->sfx);
+    editor->undo_count -= 1;
+    editor->sfx = editor->undo_history[editor->undo_count];
+    editor->dirty = true;
+    SfxEditor_SetMessage(editor, "undo");
+    SfxEditor_PlayIfNeeded(editor);
+}
+
+static void SfxEditor_Redo(SfxEditor *editor)
+{
+    if (editor->redo_count <= 0) {
+        SfxEditor_SetMessage(editor, "no redo");
+        return;
+    }
+
+    SfxEditor_PushHistory(editor->undo_history, &editor->undo_count, editor->sfx);
+    editor->redo_count -= 1;
+    editor->sfx = editor->redo_history[editor->redo_count];
+    editor->dirty = true;
+    SfxEditor_SetMessage(editor, "redo");
+    SfxEditor_PlayIfNeeded(editor);
 }
 
 static float SfxEditor_TotalDuration(const R2D_Sfx *sfx)
@@ -375,6 +540,8 @@ static void SfxEditor_Mutate(SfxEditor *editor)
 {
     R2D_Sfx *sfx = &editor->sfx;
 
+    SfxEditor_PushUndo(editor);
+
     sfx->frequency += SfxEditor_RandomRange(90.0f);
     sfx->volume += SfxEditor_RandomRange(0.05f);
     sfx->attack += SfxEditor_RandomRange(0.01f);
@@ -395,11 +562,23 @@ static void SfxEditor_Mutate(SfxEditor *editor)
     }
 
     SfxEditor_SetMessage(editor, "mutated");
+    editor->dirty = true;
+    SfxEditor_PlayIfNeeded(editor);
 }
 
 static const SfxEditorPreset *SfxEditor_CurrentPreset(const SfxEditor *editor)
 {
     return &sfx_editor_presets[editor->selected_preset];
+}
+
+static bool SfxEditor_CanLeavePreset(SfxEditor *editor)
+{
+    if (!editor->dirty) {
+        return true;
+    }
+
+    SfxEditor_SetMessage(editor, "save/clone/load first");
+    return false;
 }
 
 static void SfxEditor_LoadPreset(SfxEditor *editor)
@@ -413,28 +592,74 @@ static void SfxEditor_LoadPreset(SfxEditor *editor)
     } else {
         SfxEditor_SetMessage(editor, "fallback");
     }
+
+    editor->dirty = false;
 }
 
 static void SfxEditor_SavePreset(SfxEditor *editor)
 {
     const SfxEditorPreset *preset = SfxEditor_CurrentPreset(editor);
 
-    SfxEditor_SetMessage(
-        editor,
-        R2D_SaveSfx(R2D_AssetPath(preset->path), editor->sfx) ? "saved" : "save failed"
-    );
+    if (R2D_SaveSfx(R2D_AssetPath(preset->path), editor->sfx)) {
+        editor->dirty = false;
+        SfxEditor_SetMessage(editor, "saved");
+    } else {
+        SfxEditor_SetMessage(editor, "save failed");
+    }
 }
 
 static void SfxEditor_SelectPreset(SfxEditor *editor, int direction)
 {
+    if (!SfxEditor_CanLeavePreset(editor)) {
+        return;
+    }
+
     editor->selected_preset = (editor->selected_preset + direction + SFX_PRESET_COUNT) % SFX_PRESET_COUNT;
     SfxEditor_LoadPreset(editor);
+    SfxEditor_ClearHistory(editor);
+    SfxEditor_PlayIfNeeded(editor);
+}
+
+static void SfxEditor_SelectPresetIndex(SfxEditor *editor, int preset)
+{
+    if (preset == editor->selected_preset) {
+        return;
+    }
+
+    if (!SfxEditor_CanLeavePreset(editor)) {
+        return;
+    }
+
+    editor->selected_preset = preset;
+    SfxEditor_LoadPreset(editor);
+    SfxEditor_ClearHistory(editor);
+    SfxEditor_PlayIfNeeded(editor);
+}
+
+static void SfxEditor_CloneToEditorPreset(SfxEditor *editor)
+{
+    const int editor_preset = SFX_PRESET_COUNT - 1;
+    const SfxEditorPreset *preset = &sfx_editor_presets[editor_preset];
+
+    editor->selected_preset = editor_preset;
+
+    if (R2D_SaveSfx(R2D_AssetPath(preset->path), editor->sfx)) {
+        editor->dirty = false;
+        SfxEditor_ClearHistory(editor);
+        SfxEditor_SetMessage(editor, "cloned");
+    } else {
+        editor->dirty = true;
+        SfxEditor_SetMessage(editor, "clone failed");
+    }
 }
 
 static void SfxEditor_ResetPreset(SfxEditor *editor)
 {
+    SfxEditor_PushUndo(editor);
     editor->sfx = SfxEditor_CurrentPreset(editor)->fallback();
+    editor->dirty = true;
     SfxEditor_SetMessage(editor, "reset");
+    SfxEditor_PlayIfNeeded(editor);
 }
 
 static void SfxEditor_Init(void *user_data)
@@ -445,7 +670,60 @@ static void SfxEditor_Init(void *user_data)
     editor->selected_field = 0;
     editor->message_timer = 0.0f;
     editor->message = "";
+    editor->auto_play = false;
+    editor->mouse_field = -1;
+    editor->mouse_editing = false;
     SfxEditor_LoadPreset(editor);
+    SfxEditor_ClearHistory(editor);
+}
+
+static void SfxEditor_HandleMouse(SfxEditor *editor)
+{
+    const Vector2 mouse = R2D_MouseVirtualPosition(editor->context);
+
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        for (int i = 0; i < SFX_PRESET_COUNT; ++i) {
+            if (CheckCollisionPointRec(mouse, SfxEditor_PresetTabRect(i))) {
+                SfxEditor_SelectPresetIndex(editor, i);
+                return;
+            }
+        }
+
+        for (int i = 0; i < SFX_FIELD_COUNT; ++i) {
+            if (CheckCollisionPointRec(mouse, SfxEditor_FieldHitRect(i))) {
+                editor->selected_field = i;
+                editor->mouse_field = i;
+
+                if (SfxEditor_FieldIsNumeric(i)) {
+                    SfxEditor_PushUndo(editor);
+                    SfxEditor_SetFieldFromMouse(editor, i, mouse);
+                    editor->mouse_editing = true;
+                } else {
+                    SfxEditor_PushUndo(editor);
+
+                    if (i == 0) {
+                        editor->sfx.waveform = (R2D_Waveform)((editor->sfx.waveform + 1) % 6);
+                    } else {
+                        editor->sfx.filter = (R2D_Filter)((editor->sfx.filter + 1) % 4);
+                    }
+
+                    editor->dirty = true;
+                    SfxEditor_PlayIfNeeded(editor);
+                }
+
+                break;
+            }
+        }
+    }
+
+    if (editor->mouse_editing && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+        SfxEditor_SetFieldFromMouse(editor, editor->mouse_field, mouse);
+    }
+
+    if (editor->mouse_editing && IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
+        editor->mouse_editing = false;
+        SfxEditor_PlayIfNeeded(editor);
+    }
 }
 
 static void SfxEditor_Update(float dt, void *user_data)
@@ -470,7 +748,11 @@ static void SfxEditor_Update(float dt, void *user_data)
         SfxEditor_SelectPreset(editor, 1);
     }
 
+    SfxEditor_HandleMouse(editor);
+
     if (direction != 0) {
+        SfxEditor_PushUndo(editor);
+
         if (editor->selected_field == 0) {
             editor->sfx.waveform = (R2D_Waveform)((editor->sfx.waveform + direction + 6) % 6);
         } else if (editor->selected_field == 1) {
@@ -480,6 +762,9 @@ static void SfxEditor_Update(float dt, void *user_data)
             *value += (float)direction * SfxEditor_FieldStep(editor->selected_field) * (fast ? 10.0f : 1.0f);
             SfxEditor_ClampField(&editor->sfx, editor->selected_field);
         }
+
+        editor->dirty = true;
+        SfxEditor_PlayIfNeeded(editor);
     }
 
     if (IsKeyPressed(KEY_SPACE)) {
@@ -491,7 +776,9 @@ static void SfxEditor_Update(float dt, void *user_data)
     }
 
     if (IsKeyPressed(KEY_L)) {
+        SfxEditor_PushUndo(editor);
         SfxEditor_LoadPreset(editor);
+        SfxEditor_PlayIfNeeded(editor);
     }
 
     if (IsKeyPressed(KEY_BACKSPACE)) {
@@ -500,6 +787,23 @@ static void SfxEditor_Update(float dt, void *user_data)
 
     if (IsKeyPressed(KEY_R)) {
         SfxEditor_Mutate(editor);
+    }
+
+    if (IsKeyPressed(KEY_A)) {
+        editor->auto_play = !editor->auto_play;
+        SfxEditor_SetMessage(editor, editor->auto_play ? "auto on" : "auto off");
+    }
+
+    if (IsKeyPressed(KEY_C)) {
+        SfxEditor_CloneToEditorPreset(editor);
+    }
+
+    if ((IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL)) && IsKeyPressed(KEY_Z)) {
+        SfxEditor_Undo(editor);
+    }
+
+    if ((IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL)) && IsKeyPressed(KEY_Y)) {
+        SfxEditor_Redo(editor);
     }
 
     if (editor->message_timer > 0.0f) {
@@ -557,21 +861,48 @@ static void SfxEditor_DrawPreview(const R2D_Sfx *sfx)
     SfxEditor_DrawCurve(area, sfx, R2D_ColorFromHex(0x50fa7bff), 2);
 }
 
+static void SfxEditor_DrawPresetTabs(const SfxEditor *editor)
+{
+    for (int i = 0; i < SFX_PRESET_COUNT; ++i) {
+        const Rectangle rect = SfxEditor_PresetTabRect(i);
+        const bool active = i == editor->selected_preset;
+        const Color border = active ? R2D_ColorFromHex(0x50fa7bff) : R2D_ColorFromHex(0x6272a4ff);
+        const Color text = active ? R2D_ColorFromHex(0xf8f8f2ff) : R2D_ColorFromHex(0x8be9fdff);
+
+        if (active) {
+            DrawRectangleRec(rect, R2D_ColorFromHex(0x243a34ff));
+        }
+
+        DrawRectangleLinesEx(rect, 1.0f, border);
+        DrawText(
+            TextFormat("%s%s", SfxEditor_PresetTabName(i), active && editor->dirty ? "*" : ""),
+            (int)rect.x + 3,
+            (int)rect.y + 2,
+            6,
+            text
+        );
+    }
+}
+
 static void SfxEditor_Draw(void *user_data)
 {
     SfxEditor *editor = (SfxEditor *)user_data;
     const SfxEditorPreset *preset = SfxEditor_CurrentPreset(editor);
-    const int row_height = 14;
 
-    DrawText(TextFormat("Q/E preset: %s", preset->name), 8, 8, 8, R2D_ColorFromHex(0x8be9fdff));
+    SfxEditor_DrawPresetTabs(editor);
     DrawText("UP/DOWN field  LEFT/RIGHT value  SHIFT fast", 8, 20, 8, R2D_ColorFromHex(0x8be9fdff));
-    DrawText("SPACE play  R mutate  S save  L load  BACK reset", 8, 32, 8, R2D_ColorFromHex(0xffb86cff));
+    DrawText(
+        TextFormat("SPACE play  A auto:%s  R mut  S save  L load", editor->auto_play ? "on" : "off"),
+        8,
+        32,
+        8,
+        R2D_ColorFromHex(0xffb86cff)
+    );
+    DrawText("C clone  BACK reset  Ctrl+Z/Y undo/redo", 8, 44, 8, R2D_ColorFromHex(0xffb86cff));
 
     for (int i = 0; i < SFX_FIELD_COUNT; ++i) {
-        const int column = i / 7;
-        const int row = i % 7;
-        const int x = 8 + column * 104;
-        const int y = 50 + row * row_height;
+        const int x = SfxEditor_FieldX(i);
+        const int y = SfxEditor_FieldY(i);
         const Color color = i == editor->selected_field ? R2D_ColorFromHex(0x50fa7bff) : R2D_ColorFromHex(0xd7d7e0ff);
         const Color group_color = SfxEditor_GroupColor(i);
         float *value = SfxEditor_FieldValue(&editor->sfx, i);
@@ -583,7 +914,7 @@ static void SfxEditor_Draw(void *user_data)
 
         if (value != 0) {
             const SfxEditorRange range = SfxEditor_FieldRange(i);
-            const Rectangle track = { (float)x + 34.0f, (float)y + 9.0f, 66.0f, 3.0f };
+            const Rectangle track = SfxEditor_FieldTrackRect(i);
             const float normalized = SfxEditor_Clamp((*value - range.min) / (range.max - range.min), 0.0f, 1.0f);
 
             DrawRectangleRec(track, R2D_ColorFromHex(0x303040ff));
@@ -620,6 +951,7 @@ int main(void)
 
     config.title = "Retro2DFramework SFX Editor";
     config.clear_color = R2D_ColorFromHex(0x15151fff);
+    editor.context = &context;
 
     if (!R2D_Init(&context, config)) {
         return 1;
