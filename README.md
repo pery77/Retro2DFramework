@@ -53,6 +53,8 @@ Con Visual Studio/MSVC, el ejecutable queda en:
 
 Pulsa `C` en el sandbox para activar o desactivar el efecto CRT. Pulsa `R` para
 recargar `assets/shaders/crt.fs` sin cerrar el programa.
+Pulsa `F3` para ver overlays de depuracion del tilemap: tiles de colision, objetos y
+viewport de camara.
 Pulsa `Z`, `X`, `V`, `B`, `N` o `M` para probar presets generados con el sintetizador.
 El sintetizador soporta envolvente, slide de tono, vibrato, arpegio, duty sweep y filtros
 paso bajo, paso alto y paso banda por voz.
@@ -62,7 +64,11 @@ El jugador del sandbox usa una spritesheet procedural para probar `R2D_SpriteShe
 `R2D_AnimPlayer` y el dibujado de animaciones sin depender de assets externos.
 Tambien carga `assets/tilemaps/sandbox.json`, un mapa Tiled JSON minimo con capas de tiles
 sin compresion. El soporte inicial de tilemaps esta pensado para mapas ortogonales finitos,
-datos en array JSON y tilesets de imagen unica.
+datos en array JSON, tilesets de imagen unica y object layers rectangulares. Si el mapa
+tiene un objeto llamado `PlayerStart`, el sandbox usa su posicion como spawn del jugador.
+La camara del sandbox sigue al jugador y se limita al rectangulo del mapa.
+El dibujado del sandbox usa el rectangulo visible de la camara para no recorrer todo el
+tilemap en mapas grandes.
 
 El framework tambien puede reproducir musica MIDI con SoundFont usando TinySoundFont y
 TinyMidiLoader. Coloca un MIDI en `assets/audio/music/theme.mid` y una SoundFont en
@@ -168,6 +174,7 @@ assets/audio/soundfonts Bancos SoundFont .sf2
 external/tinysoundfont  TinySoundFont y TinyMidiLoader
 include/r2d/r2d.h       API publica
 src/r2d.c               Implementacion del framework
+src/r2d_camera.c        Camara 2D simple para coordenadas de mundo y pantalla
 src/r2d_crt.c           Postproceso CRT opcional
 src/r2d_audio.c         Sintetizador simple para efectos retro
 src/r2d_music.c         Reproduccion MIDI + SoundFont

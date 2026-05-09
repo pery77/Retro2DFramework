@@ -112,6 +112,12 @@ typedef struct R2D_AnimPlayer {
     bool playing;
 } R2D_AnimPlayer;
 
+typedef struct R2D_Camera {
+    Vector2 position;
+    int viewport_width;
+    int viewport_height;
+} R2D_Camera;
+
 typedef struct R2D_TilemapLayer {
     char name[64];
     unsigned int *tiles;
@@ -225,6 +231,13 @@ Vector2 R2D_VirtualSize(const R2D_Context *ctx);
 Vector2 R2D_MouseVirtualPosition(const R2D_Context *ctx);
 Rectangle R2D_Rect(float x, float y, float width, float height);
 
+R2D_Camera R2D_CameraCreate(int viewport_width, int viewport_height);
+void R2D_CameraFollow(R2D_Camera *camera, Vector2 target);
+void R2D_CameraClampToRect(R2D_Camera *camera, Rectangle bounds);
+Vector2 R2D_CameraPixelPosition(const R2D_Camera *camera);
+Vector2 R2D_CameraWorldToScreen(const R2D_Camera *camera, Vector2 world);
+Vector2 R2D_CameraScreenToWorld(const R2D_Camera *camera, Vector2 screen);
+Rectangle R2D_CameraView(const R2D_Camera *camera);
 R2D_SpriteSheet R2D_LoadSpriteSheet(const char *path, int frame_width, int frame_height);
 R2D_SpriteSheet R2D_SpriteSheetFromTexture(Texture2D texture, int frame_width, int frame_height);
 void R2D_UnloadSpriteSheet(R2D_SpriteSheet *sheet);
@@ -255,6 +268,11 @@ const R2D_TilemapObject *R2D_TilemapFindObject(const R2D_Tilemap *tilemap, const
 const R2D_TilemapObject *R2D_TilemapFindObjectByType(const R2D_Tilemap *tilemap, const char *type);
 void R2D_TilemapDraw(const R2D_Tilemap *tilemap, Vector2 position);
 void R2D_TilemapDrawLayer(const R2D_Tilemap *tilemap, int layer_index, Vector2 position);
+void R2D_TilemapDrawVisible(const R2D_Tilemap *tilemap, Rectangle view, Vector2 position);
+void R2D_TilemapDrawLayerVisible(const R2D_Tilemap *tilemap, int layer_index, Rectangle view, Vector2 position);
+void R2D_TilemapDrawCollisionDebug(const R2D_Tilemap *tilemap, int layer_index, Vector2 position, Color color);
+void R2D_TilemapDrawCollisionDebugVisible(const R2D_Tilemap *tilemap, int layer_index, Rectangle view, Vector2 position, Color color);
+void R2D_TilemapDrawObjectsDebug(const R2D_Tilemap *tilemap, Vector2 position, Color color);
 Color R2D_ColorFromHex(unsigned int rgba);
 
 #ifdef __cplusplus

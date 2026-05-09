@@ -103,6 +103,25 @@ static bool R2D_TilemapReadInt(const char *begin, const char *end, const char *k
     return true;
 }
 
+static bool R2D_TilemapReadFloat(const char *begin, const char *end, const char *key, float *value)
+{
+    const char *text = R2D_TilemapFindKey(begin, end, key);
+    char *parsed_end = 0;
+    float parsed;
+
+    if (text == 0 || value == 0) {
+        return false;
+    }
+
+    parsed = strtof(text, &parsed_end);
+    if (parsed_end == text) {
+        return false;
+    }
+
+    *value = parsed;
+    return true;
+}
+
 static bool R2D_TilemapReadBool(const char *begin, const char *end, const char *key, bool fallback)
 {
     const char *text = R2D_TilemapFindKey(begin, end, key);
@@ -563,6 +582,173 @@ static bool R2D_TilemapParseLayers(R2D_Tilemap *tilemap, const char *text)
     return layer_index == tilemap->layer_count;
 }
 
+static int R2D_TilemapCountObjectsInLayer(const char *layer_begin, const char *layer_end)
+{
+    const char *objects = R2D_TilemapFindKey(layer_begin, layer_end, "objects");
+    const char *objects_end;
+    const char *cursor;
+    int count = 0;
+
+    if (objects == 0 || *objects != '[') {
+        return 0;
+    }
+
+    objects_end = R2D_TilemapFindMatching(objects, '[', ']');
+    if (objects_end == 0 || objects_end > layer_end) {
+        return 0;
+    }
+
+    cursor = objects;
+    while ((cursor = R2D_TilemapFindFirstObjectInArray(cursor, objects_end)) != 0) {
+        const char *object_end = R2D_TilemapFindMatching(cursor, '{', '}');
+
+        if (object_end == 0 || object_end > objects_end) {
+            break;
+        }
+
+        ++count;
+        cursor = object_end + 1;
+    }
+
+    return count;
+}
+
+static int R2D_TilemapCountObjects(const char *layers, const char *layers_end)
+{
+    const char *cursor = layers;
+    int count = 0;
+
+    while ((cursor = R2D_TilemapFindFirstObjectInArray(cursor, layers_end)) != 0) {
+        const char *object_end = R2D_TilemapFindMatching(cursor, '{', '}');
+        char type[32];
+
+        if (object_end == 0 || object_end > layers_end) {
+            break;
+        }
+
+        if (R2D_TilemapReadString(cursor, object_end, "type", type, sizeof(type)) &&
+            strcmp(type, "objectgroup") == 0) {
+            count += R2D_TilemapCountObjectsInLayer(cursor, object_end);
+        }
+
+        cursor = object_end + 1;
+    }
+
+    return count;
+}
+
+static bool R2D_TilemapParseObject(
+    const char *object_begin,
+    const char *object_end,
+    R2D_TilemapObject *object
+)
+{
+    float x = 0.0f;
+    float y = 0.0f;
+    float width = 0.0f;
+    float height = 0.0f;
+
+    if (object == 0 ||
+        !R2D_TilemapReadFloat(object_begin, object_end, "x", &x) ||
+        !R2D_TilemapReadFloat(object_begin, object_end, "y", &y)) {
+        return false;
+    }
+
+    R2D_TilemapReadString(object_begin, object_end, "name", object->name, sizeof(object->name));
+    R2D_TilemapReadString(object_begin, object_end, "type", object->type, sizeof(object->type));
+    R2D_TilemapReadFloat(object_begin, object_end, "width", &width);
+    R2D_TilemapReadFloat(object_begin, object_end, "height", &height);
+
+    object->rect = (Rectangle) { x, y, width, height };
+    return true;
+}
+
+static bool R2D_TilemapParseObjectsInLayer(
+    R2D_Tilemap *tilemap,
+    const char *layer_begin,
+    const char *layer_end,
+    int *object_index
+)
+{
+    const char *objects = R2D_TilemapFindKey(layer_begin, layer_end, "objects");
+    const char *objects_end;
+    const char *cursor;
+
+    if (objects == 0 || *objects != '[') {
+        return true;
+    }
+
+    objects_end = R2D_TilemapFindMatching(objects, '[', ']');
+    if (objects_end == 0 || objects_end > layer_end) {
+        return false;
+    }
+
+    cursor = objects;
+    while ((cursor = R2D_TilemapFindFirstObjectInArray(cursor, objects_end)) != 0) {
+        const char *object_end = R2D_TilemapFindMatching(cursor, '{', '}');
+
+        if (object_end == 0 || object_end > objects_end || *object_index >= tilemap->object_count) {
+            return false;
+        }
+
+        if (!R2D_TilemapParseObject(cursor, object_end, &tilemap->objects[*object_index])) {
+            return false;
+        }
+
+        ++(*object_index);
+        cursor = object_end + 1;
+    }
+
+    return true;
+}
+
+static bool R2D_TilemapParseObjects(R2D_Tilemap *tilemap, const char *text)
+{
+    const char *layers = R2D_TilemapFindKey(text, 0, "layers");
+    const char *layers_end;
+    const char *cursor;
+    int object_index = 0;
+
+    if (layers == 0 || *layers != '[') {
+        return false;
+    }
+
+    layers_end = R2D_TilemapFindMatching(layers, '[', ']');
+    if (layers_end == 0) {
+        return false;
+    }
+
+    tilemap->object_count = R2D_TilemapCountObjects(layers, layers_end);
+    if (tilemap->object_count <= 0) {
+        return true;
+    }
+
+    tilemap->objects = (R2D_TilemapObject *)calloc((size_t)tilemap->object_count, sizeof(R2D_TilemapObject));
+    if (tilemap->objects == 0) {
+        return false;
+    }
+
+    cursor = layers;
+    while ((cursor = R2D_TilemapFindFirstObjectInArray(cursor, layers_end)) != 0) {
+        const char *object_end = R2D_TilemapFindMatching(cursor, '{', '}');
+        char type[32];
+
+        if (object_end == 0 || object_end > layers_end) {
+            return false;
+        }
+
+        if (R2D_TilemapReadString(cursor, object_end, "type", type, sizeof(type)) &&
+            strcmp(type, "objectgroup") == 0 &&
+            !R2D_TilemapParseObjectsInLayer(tilemap, cursor, object_end, &object_index)) {
+            return false;
+        }
+
+        cursor = object_end + 1;
+    }
+
+    return object_index == tilemap->object_count;
+}
+
 bool R2D_TilemapLoadTiledJson(R2D_Tilemap *tilemap, const char *path)
 {
     char *text;
@@ -593,7 +779,8 @@ bool R2D_TilemapLoadTiledJson(R2D_Tilemap *tilemap, const char *path)
         R2D_TilemapReadInt(text, 0, "tilewidth", &tilemap->tile_width) &&
         R2D_TilemapReadInt(text, 0, "tileheight", &tilemap->tile_height) &&
         R2D_TilemapParseTileset(tilemap, text, path) &&
-        R2D_TilemapParseLayers(tilemap, text);
+        R2D_TilemapParseLayers(tilemap, text) &&
+        R2D_TilemapParseObjects(tilemap, text);
 
     if (ok) {
         tilemap->is_ready = true;
@@ -619,6 +806,10 @@ void R2D_TilemapUnload(R2D_Tilemap *tilemap)
         }
 
         free(tilemap->layers);
+    }
+
+    if (tilemap->objects != 0) {
+        free(tilemap->objects);
     }
 
     if (IsTextureValid(tilemap->texture)) {
@@ -724,18 +915,96 @@ bool R2D_TilemapRectCollides(const R2D_Tilemap *tilemap, int layer_index, Rectan
     return false;
 }
 
-void R2D_TilemapDraw(const R2D_Tilemap *tilemap, Vector2 position)
+int R2D_TilemapObjectCount(const R2D_Tilemap *tilemap)
 {
-    if (!R2D_TilemapIsReady(tilemap)) {
-        return;
-    }
-
-    for (int i = 0; i < tilemap->layer_count; ++i) {
-        R2D_TilemapDrawLayer(tilemap, i, position);
-    }
+    return tilemap != 0 ? tilemap->object_count : 0;
 }
 
-void R2D_TilemapDrawLayer(const R2D_Tilemap *tilemap, int layer_index, Vector2 position)
+const R2D_TilemapObject *R2D_TilemapObjectAt(const R2D_Tilemap *tilemap, int index)
+{
+    if (tilemap == 0 || index < 0 || index >= tilemap->object_count) {
+        return 0;
+    }
+
+    return &tilemap->objects[index];
+}
+
+const R2D_TilemapObject *R2D_TilemapFindObject(const R2D_Tilemap *tilemap, const char *name)
+{
+    if (tilemap == 0 || name == 0) {
+        return 0;
+    }
+
+    for (int i = 0; i < tilemap->object_count; ++i) {
+        if (strcmp(tilemap->objects[i].name, name) == 0) {
+            return &tilemap->objects[i];
+        }
+    }
+
+    return 0;
+}
+
+const R2D_TilemapObject *R2D_TilemapFindObjectByType(const R2D_Tilemap *tilemap, const char *type)
+{
+    if (tilemap == 0 || type == 0) {
+        return 0;
+    }
+
+    for (int i = 0; i < tilemap->object_count; ++i) {
+        if (strcmp(tilemap->objects[i].type, type) == 0) {
+            return &tilemap->objects[i];
+        }
+    }
+
+    return 0;
+}
+
+static void R2D_TilemapVisibleRange(
+    const R2D_Tilemap *tilemap,
+    const R2D_TilemapLayer *layer,
+    Rectangle view,
+    int *start_x,
+    int *start_y,
+    int *end_x,
+    int *end_y
+)
+{
+    int left = (int)floorf(view.x / (float)tilemap->tile_width) - 1;
+    int top = (int)floorf(view.y / (float)tilemap->tile_height) - 1;
+    int right = (int)floorf((view.x + view.width) / (float)tilemap->tile_width) + 1;
+    int bottom = (int)floorf((view.y + view.height) / (float)tilemap->tile_height) + 1;
+
+    if (left < 0) {
+        left = 0;
+    }
+
+    if (top < 0) {
+        top = 0;
+    }
+
+    if (right >= layer->width) {
+        right = layer->width - 1;
+    }
+
+    if (bottom >= layer->height) {
+        bottom = layer->height - 1;
+    }
+
+    *start_x = left;
+    *start_y = top;
+    *end_x = right;
+    *end_y = bottom;
+}
+
+static void R2D_TilemapDrawLayerRange(
+    const R2D_Tilemap *tilemap,
+    int layer_index,
+    int start_x,
+    int start_y,
+    int end_x,
+    int end_y,
+    Vector2 position
+)
 {
     const R2D_TilemapLayer *layer;
 
@@ -748,8 +1017,28 @@ void R2D_TilemapDrawLayer(const R2D_Tilemap *tilemap, int layer_index, Vector2 p
         return;
     }
 
-    for (int y = 0; y < layer->height; ++y) {
-        for (int x = 0; x < layer->width; ++x) {
+    if (start_x < 0) {
+        start_x = 0;
+    }
+
+    if (start_y < 0) {
+        start_y = 0;
+    }
+
+    if (end_x >= layer->width) {
+        end_x = layer->width - 1;
+    }
+
+    if (end_y >= layer->height) {
+        end_y = layer->height - 1;
+    }
+
+    if (start_x > end_x || start_y > end_y) {
+        return;
+    }
+
+    for (int y = start_y; y <= end_y; ++y) {
+        for (int x = start_x; x <= end_x; ++x) {
             const unsigned int raw_gid = layer->tiles[y * layer->width + x];
             const unsigned int gid = raw_gid & R2D_TILED_GID_MASK;
             const int tile = (int)gid - tilemap->first_gid;
@@ -792,6 +1081,172 @@ void R2D_TilemapDrawLayer(const R2D_Tilemap *tilemap, int layer_index, Vector2 p
                 0.0f,
                 WHITE
             );
+        }
+    }
+}
+
+void R2D_TilemapDraw(const R2D_Tilemap *tilemap, Vector2 position)
+{
+    if (!R2D_TilemapIsReady(tilemap)) {
+        return;
+    }
+
+    for (int i = 0; i < tilemap->layer_count; ++i) {
+        R2D_TilemapDrawLayer(tilemap, i, position);
+    }
+}
+
+void R2D_TilemapDrawLayer(const R2D_Tilemap *tilemap, int layer_index, Vector2 position)
+{
+    const R2D_TilemapLayer *layer;
+
+    if (!R2D_TilemapIsReady(tilemap) || layer_index < 0 || layer_index >= tilemap->layer_count) {
+        return;
+    }
+
+    layer = &tilemap->layers[layer_index];
+    R2D_TilemapDrawLayerRange(tilemap, layer_index, 0, 0, layer->width - 1, layer->height - 1, position);
+}
+
+void R2D_TilemapDrawVisible(const R2D_Tilemap *tilemap, Rectangle view, Vector2 position)
+{
+    if (!R2D_TilemapIsReady(tilemap)) {
+        return;
+    }
+
+    for (int i = 0; i < tilemap->layer_count; ++i) {
+        R2D_TilemapDrawLayerVisible(tilemap, i, view, position);
+    }
+}
+
+void R2D_TilemapDrawLayerVisible(const R2D_Tilemap *tilemap, int layer_index, Rectangle view, Vector2 position)
+{
+    const R2D_TilemapLayer *layer;
+    int start_x;
+    int start_y;
+    int end_x;
+    int end_y;
+
+    if (!R2D_TilemapIsReady(tilemap) || layer_index < 0 || layer_index >= tilemap->layer_count) {
+        return;
+    }
+
+    layer = &tilemap->layers[layer_index];
+    R2D_TilemapVisibleRange(tilemap, layer, view, &start_x, &start_y, &end_x, &end_y);
+    R2D_TilemapDrawLayerRange(tilemap, layer_index, start_x, start_y, end_x, end_y, position);
+}
+
+void R2D_TilemapDrawCollisionDebug(const R2D_Tilemap *tilemap, int layer_index, Vector2 position, Color color)
+{
+    const R2D_TilemapLayer *layer;
+    Color fill = color;
+
+    if (!R2D_TilemapIsReady(tilemap) || layer_index < 0 || layer_index >= tilemap->layer_count) {
+        return;
+    }
+
+    layer = &tilemap->layers[layer_index];
+    if (layer->tiles == 0) {
+        return;
+    }
+
+    fill.a = (unsigned char)(fill.a / 4);
+
+    for (int y = 0; y < layer->height; ++y) {
+        for (int x = 0; x < layer->width; ++x) {
+            Rectangle rect;
+
+            if (layer->tiles[y * layer->width + x] == 0) {
+                continue;
+            }
+
+            rect = (Rectangle) {
+                position.x + (float)(x * tilemap->tile_width),
+                position.y + (float)(y * tilemap->tile_height),
+                (float)tilemap->tile_width,
+                (float)tilemap->tile_height
+            };
+
+            DrawRectangleRec(rect, fill);
+            DrawRectangleLinesEx(rect, 1.0f, color);
+        }
+    }
+}
+
+void R2D_TilemapDrawCollisionDebugVisible(
+    const R2D_Tilemap *tilemap,
+    int layer_index,
+    Rectangle view,
+    Vector2 position,
+    Color color
+)
+{
+    const R2D_TilemapLayer *layer;
+    Color fill = color;
+    int start_x;
+    int start_y;
+    int end_x;
+    int end_y;
+
+    if (!R2D_TilemapIsReady(tilemap) || layer_index < 0 || layer_index >= tilemap->layer_count) {
+        return;
+    }
+
+    layer = &tilemap->layers[layer_index];
+    if (layer->tiles == 0) {
+        return;
+    }
+
+    R2D_TilemapVisibleRange(tilemap, layer, view, &start_x, &start_y, &end_x, &end_y);
+    fill.a = (unsigned char)(fill.a / 4);
+
+    for (int y = start_y; y <= end_y; ++y) {
+        for (int x = start_x; x <= end_x; ++x) {
+            Rectangle rect;
+
+            if (layer->tiles[y * layer->width + x] == 0) {
+                continue;
+            }
+
+            rect = (Rectangle) {
+                position.x + (float)(x * tilemap->tile_width),
+                position.y + (float)(y * tilemap->tile_height),
+                (float)tilemap->tile_width,
+                (float)tilemap->tile_height
+            };
+
+            DrawRectangleRec(rect, fill);
+            DrawRectangleLinesEx(rect, 1.0f, color);
+        }
+    }
+}
+
+void R2D_TilemapDrawObjectsDebug(const R2D_Tilemap *tilemap, Vector2 position, Color color)
+{
+    Color fill = color;
+
+    if (tilemap == 0 || tilemap->objects == 0) {
+        return;
+    }
+
+    fill.a = (unsigned char)(fill.a / 5);
+
+    for (int i = 0; i < tilemap->object_count; ++i) {
+        const R2D_TilemapObject *object = &tilemap->objects[i];
+        const Rectangle rect = {
+            position.x + object->rect.x,
+            position.y + object->rect.y,
+            object->rect.width,
+            object->rect.height
+        };
+
+        DrawRectangleRec(rect, fill);
+        DrawRectangleLinesEx(rect, 1.0f, color);
+
+        if (object->name[0] != '\0') {
+            DrawText(object->name, (int)rect.x + 2, (int)rect.y - 9, 8, color);
+        } else if (object->type[0] != '\0') {
+            DrawText(object->type, (int)rect.x + 2, (int)rect.y - 9, 8, color);
         }
     }
 }

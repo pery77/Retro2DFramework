@@ -1,5 +1,6 @@
 #include "r2d/r2d.h"
 
+#include <math.h>
 #include <stdio.h>
 
 typedef struct Sandbox {
@@ -7,6 +8,8 @@ typedef struct Sandbox {
     float blink_timer;
     float reload_message_timer;
     int collision_layer;
+    R2D_Camera camera;
+    bool debug_draw;
     bool facing_left;
     bool moving;
     R2D_SpriteSheet player_sheet;
@@ -113,15 +116,18 @@ static bool Sandbox_PlayerCollides(const Sandbox *sandbox, Vector2 position)
 static void Sandbox_Init(void *user_data)
 {
     Sandbox *sandbox = (Sandbox *)user_data;
+    const R2D_TilemapObject *player_start;
     char midi_path[1024];
     char soundfont_path[1024];
     char song_path[1024];
 
     sandbox->player = (Vector2) { 152.0f, 82.0f };
+    sandbox->camera = R2D_CameraCreate(R2D_VirtualWidth(sandbox->context), R2D_VirtualHeight(sandbox->context));
     sandbox->blink_timer = 0.0f;
     sandbox->reload_message_timer = 0.0f;
     sandbox->facing_left = false;
     sandbox->moving = false;
+    sandbox->debug_draw = false;
     sandbox->player_sheet = R2D_SpriteSheetFromTexture(Sandbox_CreatePlayerTexture(), 16, 16);
     sandbox->idle_anim = R2D_AnimFrames(0, 2, 3.0f, true);
     sandbox->walk_anim = R2D_AnimFrames(0, 4, 10.0f, true);
@@ -129,6 +135,10 @@ static void Sandbox_Init(void *user_data)
     R2D_TilemapLoadTiledJson(&sandbox->tilemap, R2D_AssetPath("tilemaps/sandbox.json"));
     Sandbox_AddFallbackCollision(&sandbox->tilemap);
     sandbox->collision_layer = R2D_TilemapLayerIndex(&sandbox->tilemap, "Collision");
+    player_start = R2D_TilemapFindObject(&sandbox->tilemap, "PlayerStart");
+    if (player_start != 0) {
+        sandbox->player = (Vector2) { player_start->rect.x, player_start->rect.y };
+    }
     sandbox->coin = Sandbox_LoadSfx("audio/sfx/coin.r2sfx", R2D_SfxCoin());
     sandbox->hit = Sandbox_LoadSfx("audio/sfx/hit.r2sfx", R2D_SfxHit());
     sandbox->jump = Sandbox_LoadSfx("audio/sfx/jump.r2sfx", R2D_SfxJump());
@@ -203,6 +213,10 @@ static void Sandbox_Update(float dt, void *user_data)
         sandbox->reload_message_timer = 1.25f;
     }
 
+    if (IsKeyPressed(KEY_F3)) {
+        sandbox->debug_draw = !sandbox->debug_draw;
+    }
+
     if (sandbox->reload_message_timer > 0.0f) {
         sandbox->reload_message_timer -= dt;
     }
@@ -247,20 +261,34 @@ static void Sandbox_Update(float dt, void *user_data)
     }
 
     R2D_AnimUpdate(&sandbox->player_anim, dt);
+    R2D_CameraFollow(&sandbox->camera, (Vector2) { sandbox->player.x + 8.0f, sandbox->player.y + 8.0f });
+    if (R2D_TilemapIsReady(&sandbox->tilemap)) {
+        R2D_CameraClampToRect(
+            &sandbox->camera,
+            R2D_Rect(
+                0.0f,
+                0.0f,
+                (float)(sandbox->tilemap.width * sandbox->tilemap.tile_width),
+                (float)(sandbox->tilemap.height * sandbox->tilemap.tile_height)
+            )
+        );
+    }
     sandbox->blink_timer += dt;
 }
 
-static void Sandbox_DrawGrid(const R2D_Context *context)
+static void Sandbox_DrawGrid(const R2D_Context *context, Vector2 camera_position)
 {
     const Color grid = R2D_ColorFromHex(0x2a2a3aff);
     const int width = R2D_VirtualWidth(context);
     const int height = R2D_VirtualHeight(context);
+    const int offset_x = -((int)camera_position.x % 16);
+    const int offset_y = -((int)camera_position.y % 16);
 
-    for (int x = 0; x <= width; x += 16) {
+    for (int x = offset_x; x <= width; x += 16) {
         DrawLine(x, 0, x, height, grid);
     }
 
-    for (int y = 0; y <= height; y += 16) {
+    for (int y = offset_y; y <= height; y += 16) {
         DrawLine(0, y, width, y, grid);
     }
 }
@@ -269,36 +297,72 @@ static void Sandbox_Draw(void *user_data)
 {
     const Sandbox *sandbox = (const Sandbox *)user_data;
     const bool blink = ((int)(sandbox->blink_timer * 4.0f) % 2) == 0;
+    const Vector2 camera_pixel = R2D_CameraPixelPosition(&sandbox->camera);
+    const Vector2 camera_offset = {
+        -camera_pixel.x,
+        -camera_pixel.y
+    };
+    const Rectangle camera_view = R2D_Rect(
+        camera_pixel.x,
+        camera_pixel.y,
+        (float)sandbox->camera.viewport_width,
+        (float)sandbox->camera.viewport_height
+    );
+    const Vector2 player_screen = {
+        floorf(sandbox->player.x - camera_pixel.x),
+        floorf(sandbox->player.y - camera_pixel.y)
+    };
 
     if (R2D_TilemapIsReady(&sandbox->tilemap)) {
-        R2D_TilemapDraw(&sandbox->tilemap, (Vector2) { 0.0f, 0.0f });
+        R2D_TilemapDrawVisible(&sandbox->tilemap, camera_view, camera_offset);
     }
 
-    Sandbox_DrawGrid(sandbox->context);
+    //Sandbox_DrawGrid(sandbox->context, camera_pixel);
     DrawText("Retro2DFramework", 8, 8, 10, R2D_ColorFromHex(0xf8f8f2ff));
     DrawText("WASD / Arrows", 8, 22, 8, R2D_ColorFromHex(0x8be9fdff));
     if (sandbox->crt != 0) {
         DrawText(sandbox->crt->enabled ? "C: CRT ON" : "C: CRT OFF", 8, 34, 8, R2D_ColorFromHex(0x50fa7bff));
         DrawText("R: RELOAD CRT", 8, 46, 8, R2D_ColorFromHex(0xffb86cff));
-        DrawText("Z/X/V/B/N/M: SFX", 8, 58, 8, R2D_ColorFromHex(0xffb86cff));
-        DrawText(sandbox->music_loaded ? "P: MUSIC" : "MUSIC: ADD theme.mid + chiptune.sf2", 8, 70, 8, R2D_ColorFromHex(0xffb86cff));
+        DrawText(sandbox->debug_draw ? "F3: DEBUG ON" : "F3: DEBUG OFF", 8, 58, 8, R2D_ColorFromHex(0x50fa7bff));
+        DrawText("Z/X/V/B/N/M: SFX", 8, 70, 8, R2D_ColorFromHex(0xffb86cff));
+        DrawText(sandbox->music_loaded ? "P: MUSIC" : "MUSIC: ADD theme.mid + chiptune.sf2", 8, 82, 8, R2D_ColorFromHex(0xffb86cff));
     }
 
     if (sandbox->reload_message_timer > 0.0f) {
         DrawText(
             sandbox->reload_ok ? "SHADER RELOADED" : "SHADER ERROR",
             8,
-            82,
+            94,
             8,
             sandbox->reload_ok ? R2D_ColorFromHex(0x50fa7bff) : R2D_ColorFromHex(0xff5555ff)
         );
     }
 
-    R2D_DrawAnim(&sandbox->player_sheet, &sandbox->player_anim, sandbox->player, sandbox->facing_left);
-    DrawRectangleLinesEx(R2D_Rect(sandbox->player.x, sandbox->player.y, 16.0f, 16.0f), 1.0f, R2D_ColorFromHex(0xf1fa8cff));
+    if (sandbox->debug_draw) {
+        R2D_TilemapDrawCollisionDebugVisible(
+            &sandbox->tilemap,
+            sandbox->collision_layer,
+            camera_view,
+            camera_offset,
+            R2D_ColorFromHex(0xff5555cc)
+        );
+        R2D_TilemapDrawObjectsDebug(
+            &sandbox->tilemap,
+            camera_offset,
+            R2D_ColorFromHex(0x8be9fdcc)
+        );
+        DrawRectangleLinesEx(
+            R2D_Rect(0.0f, 0.0f, (float)R2D_VirtualWidth(sandbox->context), (float)R2D_VirtualHeight(sandbox->context)),
+            1.0f,
+            R2D_ColorFromHex(0xf1fa8cff)
+        );
+    }
+
+    R2D_DrawAnim(&sandbox->player_sheet, &sandbox->player_anim, player_screen, sandbox->facing_left);
+    DrawRectangleLinesEx(R2D_Rect(player_screen.x, player_screen.y, 16.0f, 16.0f), 1.0f, R2D_ColorFromHex(0xf1fa8cff));
 
     if (blink) {
-        DrawPixel((int)sandbox->player.x + 11, (int)sandbox->player.y + 5, BLACK);
+        DrawPixel((int)player_screen.x + 11, (int)player_screen.y + 5, BLACK);
     }
 }
 
