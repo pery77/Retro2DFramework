@@ -228,8 +228,83 @@ static void R2D_TilemapResolvePath(char *destination, int destination_size, cons
         return;
     }
 
+    if (strncmp(path, "assets/", 7) == 0 || strncmp(path, "assets\\", 7) == 0) {
+        snprintf(destination, (size_t)destination_size, "%s", R2D_AssetPath(path + 7));
+        return;
+    }
+
     R2D_TilemapDirectory(directory, sizeof(directory), base_path);
     snprintf(destination, (size_t)destination_size, "%s%s", directory, path);
+}
+
+static bool R2D_TilemapXmlReadInt(const char *begin, const char *end, const char *attribute, int *value)
+{
+    char pattern[64];
+    const char *text;
+    char *parsed_end = 0;
+    long parsed;
+
+    if (begin == 0 || attribute == 0 || value == 0) {
+        return false;
+    }
+
+    snprintf(pattern, sizeof(pattern), "%s=\"", attribute);
+    text = strstr(begin, pattern);
+
+    if (text == 0 || (end != 0 && text >= end)) {
+        return false;
+    }
+
+    text += strlen(pattern);
+    parsed = strtol(text, &parsed_end, 10);
+    if (parsed_end == text) {
+        return false;
+    }
+
+    *value = (int)parsed;
+    return true;
+}
+
+static bool R2D_TilemapXmlReadString(
+    const char *begin,
+    const char *end,
+    const char *attribute,
+    char *destination,
+    int destination_size
+)
+{
+    char pattern[64];
+    const char *text;
+    int length = 0;
+
+    if (destination_size <= 0) {
+        return false;
+    }
+
+    destination[0] = '\0';
+
+    if (begin == 0 || attribute == 0) {
+        return false;
+    }
+
+    snprintf(pattern, sizeof(pattern), "%s=\"", attribute);
+    text = strstr(begin, pattern);
+
+    if (text == 0 || (end != 0 && text >= end)) {
+        return false;
+    }
+
+    text += strlen(pattern);
+    while (*text != '\0' && *text != '"' && (end == 0 || text < end)) {
+        if (length < destination_size - 1) {
+            destination[length++] = *text;
+        }
+
+        ++text;
+    }
+
+    destination[length] = '\0';
+    return length > 0;
 }
 
 static const char *R2D_TilemapFindFirstObjectInArray(const char *begin, const char *end)
@@ -298,6 +373,7 @@ static bool R2D_TilemapParseTileset(R2D_Tilemap *tilemap, const char *text, cons
     const char *tilesets_end;
     const char *tileset_begin;
     const char *tileset_end;
+    char source[512];
     char image[512];
     char image_path[1200];
 
@@ -321,16 +397,56 @@ static bool R2D_TilemapParseTileset(R2D_Tilemap *tilemap, const char *text, cons
         return false;
     }
 
+    if (R2D_TilemapReadString(tileset_begin, tileset_end, "source", source, sizeof(source))) {
+        char tileset_path[1200];
+        char *tileset_text;
+        const char *tileset_tag;
+        const char *tileset_tag_end;
+        const char *image_tag;
+        const char *image_tag_end;
+
+        R2D_TilemapResolvePath(tileset_path, sizeof(tileset_path), path, source);
+        tileset_text = LoadFileText(tileset_path);
+
+        if (tileset_text == 0) {
+            TraceLog(LOG_WARNING, "R2D: Failed to load Tiled TSX tileset: %s", tileset_path);
+            return false;
+        }
+
+        tileset_tag = strstr(tileset_text, "<tileset");
+        image_tag = strstr(tileset_text, "<image");
+
+        if (tileset_tag == 0 || image_tag == 0) {
+            UnloadFileText(tileset_text);
+            return false;
+        }
+
+        tileset_tag_end = strchr(tileset_tag, '>');
+        image_tag_end = strchr(image_tag, '>');
+
+        R2D_TilemapXmlReadInt(tileset_tag, tileset_tag_end, "tilewidth", &tilemap->tile_width);
+        R2D_TilemapXmlReadInt(tileset_tag, tileset_tag_end, "tileheight", &tilemap->tile_height);
+
+        if (!R2D_TilemapXmlReadString(image_tag, image_tag_end, "source", image, sizeof(image))) {
+            UnloadFileText(tileset_text);
+            return false;
+        }
+
+        R2D_TilemapResolvePath(image_path, sizeof(image_path), tileset_path, image);
+        UnloadFileText(tileset_text);
+    } else {
+        if (!R2D_TilemapReadString(tileset_begin, tileset_end, "image", image, sizeof(image))) {
+            return false;
+        }
+
+        R2D_TilemapResolvePath(image_path, sizeof(image_path), path, image);
+    }
+
     R2D_TilemapReadInt(tileset_begin, tileset_end, "columns", &tilemap->columns);
     R2D_TilemapReadInt(tileset_begin, tileset_end, "tilecount", &tilemap->tile_count);
     R2D_TilemapReadInt(tileset_begin, tileset_end, "tilewidth", &tilemap->tile_width);
     R2D_TilemapReadInt(tileset_begin, tileset_end, "tileheight", &tilemap->tile_height);
 
-    if (!R2D_TilemapReadString(tileset_begin, tileset_end, "image", image, sizeof(image))) {
-        return false;
-    }
-
-    R2D_TilemapResolvePath(image_path, sizeof(image_path), path, image);
     tilemap->texture = LoadTexture(image_path);
 
     if (!IsTextureValid(tilemap->texture)) {
