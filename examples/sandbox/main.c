@@ -32,6 +32,7 @@ static void Sandbox_Init(void *user_data)
     Sandbox *sandbox = (Sandbox *)user_data;
     char midi_path[1024];
     char soundfont_path[1024];
+    char song_path[1024];
 
     sandbox->player = (Vector2) { 152.0f, 82.0f };
     sandbox->blink_timer = 0.0f;
@@ -44,12 +45,19 @@ static void Sandbox_Init(void *user_data)
     sandbox->powerup = Sandbox_LoadSfx("audio/sfx/powerup.r2sfx", R2D_SfxPowerup());
     sandbox->reload_ok = false;
 
-    snprintf(midi_path, sizeof(midi_path), "%s", R2D_AssetPath("audio/music/touhou-bad-apple.mid"));
-    snprintf(soundfont_path, sizeof(soundfont_path), "%s", R2D_AssetPath("audio/soundfonts/8-Bit_Sounds.sf2"));
+    snprintf(song_path, sizeof(song_path), "%s", R2D_AssetPath("audio/music/touhou-bad-apple.r2song"));
 
-    sandbox->music_loaded = FileExists(midi_path) &&
-        FileExists(soundfont_path) &&
-        R2D_MusicLoad(&sandbox->music, midi_path, soundfont_path);
+    sandbox->music_loaded = FileExists(song_path) &&
+        R2D_MusicLoadSong(&sandbox->music, song_path);
+
+    if (!sandbox->music_loaded) {
+        snprintf(midi_path, sizeof(midi_path), "%s", R2D_AssetPath("audio/music/touhou-bad-apple.mid"));
+        snprintf(soundfont_path, sizeof(soundfont_path), "%s", R2D_AssetPath("audio/soundfonts/8-Bit_Sounds.sf2"));
+
+        sandbox->music_loaded = FileExists(midi_path) &&
+            FileExists(soundfont_path) &&
+            R2D_MusicLoad(&sandbox->music, midi_path, soundfont_path);
+    }
 
     if (sandbox->music_loaded) {
         R2D_MusicPlay(&sandbox->music, true);

@@ -79,6 +79,8 @@ se pueden mutear canales y ajustar volumen o programa/instrumento por canal. `F6
 junto al MIDI cargado y `F7` carga la configuracion del MIDI seleccionado si existe. Esa
 configuracion conserva SoundFont, loop, volumen global, mute, volumen, banco e instrumento por canal.
 La linea de estado muestra si la cancion esta sin guardar, guardada o con cambios pendientes.
+Los juegos pueden cargar una configuracion directamente con `R2D_MusicLoadSong()`, usando
+una ruta como `R2D_AssetPath("audio/music/theme.r2song")`.
 
 ## Editor de efectos
 

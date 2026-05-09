@@ -128,6 +128,7 @@ void R2D_PlaySfx(R2D_Sfx sfx);
 void R2D_PlayTone(R2D_Waveform waveform, float frequency, float duration);
 
 bool R2D_MusicLoad(R2D_Music *music, const char *midi_path, const char *soundfont_path);
+bool R2D_MusicLoadSong(R2D_Music *music, const char *song_path);
 void R2D_MusicUnload(R2D_Music *music);
 void R2D_MusicPlay(R2D_Music *music, bool loop);
 void R2D_MusicStop(R2D_Music *music);

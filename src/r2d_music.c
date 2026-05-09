@@ -1,5 +1,6 @@
 #include "r2d/r2d.h"
 
+#include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -74,6 +75,178 @@ static void R2D_MusicSetError(const char *message, const char *path)
     } else {
         snprintf(r2d_music_last_error, sizeof(r2d_music_last_error), "%s: %s", message, path);
     }
+}
+
+static bool R2D_MusicOpenFile(FILE **file, const char *path, const char *mode)
+{
+    if (file == 0 || path == 0 || mode == 0) {
+        return false;
+    }
+
+#if defined(_MSC_VER)
+    return fopen_s(file, path, mode) == 0 && *file != 0;
+#else
+    *file = fopen(path, mode);
+    return *file != 0;
+#endif
+}
+
+static char *R2D_MusicTrim(char *text)
+{
+    char *end;
+
+    while (*text != '\0' && isspace((unsigned char)*text)) {
+        ++text;
+    }
+
+    end = text + strlen(text);
+
+    while (end > text && isspace((unsigned char)*(end - 1))) {
+        --end;
+    }
+
+    *end = '\0';
+    return text;
+}
+
+static bool R2D_MusicStringEquals(const char *left, const char *right)
+{
+    while (*left != '\0' && *right != '\0') {
+        const char a = *left >= 'A' && *left <= 'Z' ? (char)(*left + 32) : *left;
+        const char b = *right >= 'A' && *right <= 'Z' ? (char)(*right + 32) : *right;
+
+        if (a != b) {
+            return false;
+        }
+
+        ++left;
+        ++right;
+    }
+
+    return *left == '\0' && *right == '\0';
+}
+
+static bool R2D_MusicParseBool(const char *text)
+{
+    return R2D_MusicStringEquals(text, "true") ||
+        R2D_MusicStringEquals(text, "yes") ||
+        R2D_MusicStringEquals(text, "on") ||
+        R2D_MusicStringEquals(text, "1");
+}
+
+static bool R2D_MusicPathIsAbsolute(const char *path)
+{
+    if (path == 0 || path[0] == '\0') {
+        return false;
+    }
+
+    if (path[0] == '/' || path[0] == '\\') {
+        return true;
+    }
+
+    return isalpha((unsigned char)path[0]) && path[1] == ':';
+}
+
+static void R2D_MusicDirectory(char *directory, int directory_size, const char *path)
+{
+    const char *slash;
+    int length;
+
+    if (directory_size <= 0) {
+        return;
+    }
+
+    directory[0] = '\0';
+
+    if (path == 0) {
+        return;
+    }
+
+    slash = strrchr(path, '/');
+
+#if defined(_WIN32)
+    {
+        const char *backslash = strrchr(path, '\\');
+        if (backslash != 0 && (slash == 0 || backslash > slash)) {
+            slash = backslash;
+        }
+    }
+#endif
+
+    if (slash == 0) {
+        return;
+    }
+
+    length = (int)(slash - path + 1);
+
+    if (length >= directory_size) {
+        length = directory_size - 1;
+    }
+
+    memcpy(directory, path, (size_t)length);
+    directory[length] = '\0';
+}
+
+static void R2D_MusicResolveSongPath(
+    char *destination,
+    int destination_size,
+    const char *song_directory,
+    const char *value,
+    const char *asset_directory
+)
+{
+    if (destination_size <= 0) {
+        return;
+    }
+
+    if (value == 0) {
+        value = "";
+    }
+
+    if (R2D_MusicPathIsAbsolute(value)) {
+        snprintf(destination, (size_t)destination_size, "%s", value);
+    } else if (strchr(value, '/') != 0 || strchr(value, '\\') != 0) {
+        snprintf(destination, (size_t)destination_size, "%s", R2D_AssetPath(value));
+    } else if (asset_directory != 0 && asset_directory[0] != '\0') {
+        snprintf(destination, (size_t)destination_size, "%s%s", R2D_AssetPath(asset_directory), value);
+    } else {
+        snprintf(destination, (size_t)destination_size, "%s%s", song_directory, value);
+    }
+}
+
+static bool R2D_MusicParseChannelKey(const char *key, int *channel, char *field, int field_size)
+{
+    const char *cursor = key;
+    int parsed_channel = 0;
+
+    if (strncmp(cursor, "channel", 7) != 0) {
+        return false;
+    }
+
+    cursor += 7;
+
+    if (!isdigit((unsigned char)*cursor)) {
+        return false;
+    }
+
+    while (isdigit((unsigned char)*cursor)) {
+        parsed_channel = parsed_channel * 10 + (*cursor - '0');
+        ++cursor;
+    }
+
+    if (*cursor != '_' || parsed_channel < 0 || parsed_channel >= 16) {
+        return false;
+    }
+
+    ++cursor;
+
+    if (field_size <= 0) {
+        return false;
+    }
+
+    snprintf(field, (size_t)field_size, "%s", cursor);
+    *channel = parsed_channel;
+    return true;
 }
 
 static float R2D_MusicClamp(float value, float min, float max)
@@ -350,6 +523,109 @@ bool R2D_MusicLoad(R2D_Music *music, const char *midi_path, const char *soundfon
 
     TraceLog(LOG_INFO, "R2D: MIDI music loaded: %s", midi_path);
     R2D_MusicSetError("", 0);
+    return true;
+}
+
+bool R2D_MusicLoadSong(R2D_Music *music, const char *song_path)
+{
+    FILE *file = 0;
+    char song_directory[1024];
+    char line[256];
+    char midi_name[256] = "";
+    char soundfont_name[256] = "";
+    char midi_path[1200];
+    char soundfont_path[1200];
+    bool loop = true;
+    float volume = 0.65f;
+    bool channel_muted[16] = { 0 };
+    float channel_volume[16];
+    int channel_bank[16];
+    int channel_program[16];
+
+    if (music == 0 || song_path == 0) {
+        R2D_MusicSetError("invalid song load args", 0);
+        return false;
+    }
+
+    if (!R2D_MusicOpenFile(&file, song_path, "rb")) {
+        R2D_MusicSetError("song load failed", song_path);
+        return false;
+    }
+
+    for (int channel = 0; channel < 16; ++channel) {
+        channel_volume[channel] = 1.0f;
+        channel_bank[channel] = -1;
+        channel_program[channel] = -1;
+    }
+
+    while (fgets(line, sizeof(line), file) != 0) {
+        char *text = R2D_MusicTrim(line);
+        char *separator = strchr(text, '=');
+        char *key;
+        char *value;
+        int channel = -1;
+        char field[32];
+
+        if (*text == '\0' || *text == '#' || *text == ';' || separator == 0) {
+            continue;
+        }
+
+        *separator = '\0';
+        key = R2D_MusicTrim(text);
+        value = R2D_MusicTrim(separator + 1);
+
+        if (R2D_MusicStringEquals(key, "midi")) {
+            snprintf(midi_name, sizeof(midi_name), "%s", value);
+        } else if (R2D_MusicStringEquals(key, "soundfont")) {
+            snprintf(soundfont_name, sizeof(soundfont_name), "%s", value);
+        } else if (R2D_MusicStringEquals(key, "loop")) {
+            loop = R2D_MusicParseBool(value);
+        } else if (R2D_MusicStringEquals(key, "volume")) {
+            volume = (float)atof(value);
+        } else if (R2D_MusicParseChannelKey(key, &channel, field, sizeof(field))) {
+            if (R2D_MusicStringEquals(field, "muted")) {
+                channel_muted[channel] = R2D_MusicParseBool(value);
+            } else if (R2D_MusicStringEquals(field, "volume")) {
+                channel_volume[channel] = (float)atof(value);
+            } else if (R2D_MusicStringEquals(field, "bank")) {
+                channel_bank[channel] = atoi(value);
+            } else if (R2D_MusicStringEquals(field, "program")) {
+                channel_program[channel] = atoi(value);
+            }
+        }
+    }
+
+    fclose(file);
+
+    if (midi_name[0] == '\0' || soundfont_name[0] == '\0') {
+        R2D_MusicSetError("song missing midi or soundfont", song_path);
+        return false;
+    }
+
+    R2D_MusicDirectory(song_directory, sizeof(song_directory), song_path);
+    R2D_MusicResolveSongPath(midi_path, sizeof(midi_path), song_directory, midi_name, "");
+    R2D_MusicResolveSongPath(soundfont_path, sizeof(soundfont_path), song_directory, soundfont_name, "audio/soundfonts/");
+
+    if (!R2D_MusicLoad(music, midi_path, soundfont_path)) {
+        return false;
+    }
+
+    R2D_MusicSetVolume(music, volume);
+    R2D_MusicSetLoop(music, loop);
+
+    for (int channel = 0; channel < 16; ++channel) {
+        if (channel_bank[channel] >= 0) {
+            R2D_MusicSetChannelBank(music, channel, channel_bank[channel]);
+        }
+
+        if (channel_program[channel] >= 0) {
+            R2D_MusicSetChannelProgram(music, channel, channel_program[channel]);
+        }
+
+        R2D_MusicSetChannelVolume(music, channel, channel_volume[channel]);
+        R2D_MusicSetChannelMuted(music, channel, channel_muted[channel]);
+    }
+
     return true;
 }
 
