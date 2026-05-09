@@ -82,6 +82,36 @@ La linea de estado muestra si la cancion esta sin guardar, guardada o con cambio
 Los juegos pueden cargar una configuracion directamente con `R2D_MusicLoadSong()`, usando
 una ruta como `R2D_AssetPath("audio/music/theme.r2song")`.
 
+### Formato `.r2song`
+
+Los `.r2song` son texto plano `clave=valor`. Van normalmente junto al MIDI en
+`assets/audio/music` y describen como debe sonar esa cancion sin modificar el archivo MIDI.
+Las rutas simples de `midi` se resuelven junto al `.r2song`; las rutas simples de
+`soundfont` se buscan en `assets/audio/soundfonts`.
+
+```ini
+version=1
+midi=theme.mid
+soundfont=chiptune.sf2
+loop=true
+volume=0.65
+
+channel0_muted=false
+channel0_volume=1
+channel0_bank=0
+channel0_program=80
+
+channel9_muted=false
+channel9_volume=0.8
+channel9_bank=128
+channel9_program=0
+```
+
+Los canales se numeran de `0` a `15`; el canal `9` corresponde al canal MIDI 10, usado
+habitualmente para percusion. Las claves de canal son opcionales: si faltan, el framework
+usa volumen `1`, banco `0` para canales melodicos, banco `128` para percusion y el programa
+indicado por el propio MIDI.
+
 ## Editor de efectos
 
 ```powershell
