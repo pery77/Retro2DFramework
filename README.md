@@ -72,16 +72,13 @@ o parar la musica con `P`.
 ```
 
 El reproductor descubre todos los `.mid` y `.midi` de `assets/audio/music` y todos los
-`.sf2` de `assets/audio/soundfonts`. Usa `Izquierda` / `Derecha` para cambiar entre la
-lista de MIDIs y la lista de SoundFonts, `Arriba` / `Abajo` para seleccionar, `Espacio`
-o `Enter` para reproducir, pausar o continuar, `S` para parar, `R` para reiniciar,
-`L` para activar o desactivar loop, `A` para auto-play al cambiar seleccion, `-` / `+`
-para volumen y `F5` para refrescar carpetas. Pulsa `Tab` para alternar una vista de
-canales MIDI; en esa vista `Arriba` / `Abajo` elige canal, `M` lo silencia o reactiva y
-`Izquierda` / `Derecha` ajusta su volumen. `Q` / `E` cambia el programa/instrumento del
-canal seleccionado; `Shift` acelera los cambios. `F6` guarda una configuracion `.r2song`
+`.sf2` de `assets/audio/soundfonts`. Pulsa `F1` dentro del reproductor para ver todos
+los controles. Las listas aceptan raton: click selecciona, doble click reproduce y la
+rueda cambia la seleccion. Pulsa `Tab` para alternar una vista de canales MIDI; desde ahi
+se pueden mutear canales y ajustar volumen o programa/instrumento por canal. `F6` guarda una configuracion `.r2song`
 junto al MIDI cargado y `F7` carga la configuracion del MIDI seleccionado si existe. Esa
-configuracion conserva SoundFont, loop, volumen global, mute, volumen e instrumento por canal.
+configuracion conserva SoundFont, loop, volumen global, mute, volumen, banco e instrumento por canal.
+La linea de estado muestra si la cancion esta sin guardar, guardada o con cambios pendientes.
 
 ## Editor de efectos
 

@@ -147,6 +147,8 @@ void R2D_MusicSetChannelVolume(R2D_Music *music, int channel, float volume);
 float R2D_MusicChannelVolume(const R2D_Music *music, int channel);
 void R2D_MusicSetChannelProgram(R2D_Music *music, int channel, int program);
 int R2D_MusicChannelProgram(const R2D_Music *music, int channel);
+void R2D_MusicSetChannelBank(R2D_Music *music, int channel, int bank);
+int R2D_MusicChannelBank(const R2D_Music *music, int channel);
 float R2D_MusicChannelActivity(const R2D_Music *music, int channel);
 const char *R2D_MusicLastError(void);
 

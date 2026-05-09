@@ -45,6 +45,8 @@ typedef struct R2D_MusicState {
     bool channel_used[16];
     bool channel_muted[16];
     bool channel_program_override[16];
+    bool channel_bank_override[16];
+    int channel_bank[16];
     int channel_program[16];
     bool loop;
     bool playing;
@@ -118,12 +120,21 @@ static void R2D_MusicApplyMessage(R2D_MusicState *state, const tml_message *mess
             if (!state->channel_program_override[channel]) {
                 state->channel_program[channel] = (int)(unsigned char)message->program;
             }
-            tsf_channel_set_presetnumber(
-                state->soundfont,
-                channel,
-                state->channel_program[channel],
-                channel == 9
-            );
+            if (state->channel_bank_override[channel]) {
+                tsf_channel_set_bank_preset(
+                    state->soundfont,
+                    channel,
+                    state->channel_bank[channel],
+                    state->channel_program[channel]
+                );
+            } else {
+                tsf_channel_set_presetnumber(
+                    state->soundfont,
+                    channel,
+                    state->channel_program[channel],
+                    channel == 9
+                );
+            }
             break;
         case TML_CONTROL_CHANGE:
             tsf_channel_midi_control(
@@ -147,6 +158,7 @@ static void R2D_MusicScanChannels(R2D_MusicState *state)
 
     for (int channel = 0; channel < 16; ++channel) {
         state->channel_program[channel] = 0;
+        state->channel_bank[channel] = channel == 9 ? 128 : 0;
         state->channel_volume[channel] = 1.0f;
     }
 
@@ -190,12 +202,12 @@ static void R2D_MusicRewind(R2D_MusicState *state)
         R2D_MusicSetupChannels(state->soundfont);
 
         for (int channel = 0; channel < 16; ++channel) {
-            if (state->channel_program_override[channel]) {
-                tsf_channel_set_presetnumber(
+            if (state->channel_program_override[channel] || state->channel_bank_override[channel]) {
+                tsf_channel_set_bank_preset(
                     state->soundfont,
                     channel,
-                    state->channel_program[channel],
-                    channel == 9
+                    state->channel_bank[channel],
+                    state->channel_program[channel]
                 );
             }
         }
@@ -572,8 +584,41 @@ void R2D_MusicSetChannelProgram(R2D_Music *music, int channel, int program)
 
     state->channel_program[channel] = program;
     state->channel_program_override[channel] = true;
-    tsf_channel_set_presetnumber(state->soundfont, channel, program, channel == 9);
+    tsf_channel_set_bank_preset(state->soundfont, channel, state->channel_bank[channel], program);
     tsf_channel_sounds_off_all(state->soundfont, channel);
+}
+
+void R2D_MusicSetChannelBank(R2D_Music *music, int channel, int bank)
+{
+    R2D_MusicState *state = R2D_MusicGetState(music);
+
+    if (state == 0 || channel < 0 || channel >= 16) {
+        return;
+    }
+
+    if (bank < 0) {
+        bank = 0;
+    }
+
+    if (bank > 255) {
+        bank = 255;
+    }
+
+    state->channel_bank[channel] = bank;
+    state->channel_bank_override[channel] = true;
+    tsf_channel_set_bank_preset(state->soundfont, channel, bank, state->channel_program[channel]);
+    tsf_channel_sounds_off_all(state->soundfont, channel);
+}
+
+int R2D_MusicChannelBank(const R2D_Music *music, int channel)
+{
+    const R2D_MusicState *state = R2D_MusicGetConstState(music);
+
+    if (state == 0 || channel < 0 || channel >= 16) {
+        return 0;
+    }
+
+    return state->channel_bank[channel];
 }
 
 float R2D_MusicChannelActivity(const R2D_Music *music, int channel)
