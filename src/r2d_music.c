@@ -40,6 +40,12 @@ typedef struct R2D_MusicState {
     double position_ms;
     unsigned int length_ms;
     float volume;
+    float channel_volume[16];
+    float channel_activity[16];
+    bool channel_used[16];
+    bool channel_muted[16];
+    bool channel_program_override[16];
+    int channel_program[16];
     bool loop;
     bool playing;
     bool paused;
@@ -87,22 +93,35 @@ static void R2D_MusicApplyMessage(R2D_MusicState *state, const tml_message *mess
     const int key = (int)(unsigned char)message->key;
     const int velocity = (int)(unsigned char)message->velocity;
 
+    if (channel < 0 || channel >= 16) {
+        return;
+    }
+
     switch (message->type) {
         case TML_NOTE_ON:
             if (velocity == 0) {
                 tsf_channel_note_off(state->soundfont, channel, key);
-            } else {
-                tsf_channel_note_on(state->soundfont, channel, key, (float)velocity / 127.0f);
+            } else if (!state->channel_muted[channel]) {
+                tsf_channel_note_on(
+                    state->soundfont,
+                    channel,
+                    key,
+                    ((float)velocity / 127.0f) * state->channel_volume[channel]
+                );
+                state->channel_activity[channel] = 1.0f;
             }
             break;
         case TML_NOTE_OFF:
             tsf_channel_note_off(state->soundfont, channel, key);
             break;
         case TML_PROGRAM_CHANGE:
+            if (!state->channel_program_override[channel]) {
+                state->channel_program[channel] = (int)(unsigned char)message->program;
+            }
             tsf_channel_set_presetnumber(
                 state->soundfont,
                 channel,
-                (int)(unsigned char)message->program,
+                state->channel_program[channel],
                 channel == 9
             );
             break;
@@ -122,6 +141,40 @@ static void R2D_MusicApplyMessage(R2D_MusicState *state, const tml_message *mess
     }
 }
 
+static void R2D_MusicScanChannels(R2D_MusicState *state)
+{
+    const tml_message *message = state->first_message;
+
+    for (int channel = 0; channel < 16; ++channel) {
+        state->channel_program[channel] = 0;
+        state->channel_volume[channel] = 1.0f;
+    }
+
+    while (message != 0) {
+        const int channel = (int)message->channel;
+
+        if (channel >= 0 && channel < 16) {
+            switch (message->type) {
+                case TML_NOTE_ON:
+                case TML_NOTE_OFF:
+                case TML_PROGRAM_CHANGE:
+                case TML_CONTROL_CHANGE:
+                case TML_PITCH_BEND:
+                    state->channel_used[channel] = true;
+                    break;
+                default:
+                    break;
+            }
+
+            if (message->type == TML_PROGRAM_CHANGE) {
+                state->channel_program[channel] = (int)(unsigned char)message->program;
+            }
+        }
+
+        message = message->next;
+    }
+}
+
 static void R2D_MusicSetupChannels(tsf *soundfont)
 {
     for (int channel = 0; channel < 16; ++channel) {
@@ -135,6 +188,17 @@ static void R2D_MusicRewind(R2D_MusicState *state)
         tsf_reset(state->soundfont);
         tsf_set_volume(state->soundfont, state->volume);
         R2D_MusicSetupChannels(state->soundfont);
+
+        for (int channel = 0; channel < 16; ++channel) {
+            if (state->channel_program_override[channel]) {
+                tsf_channel_set_presetnumber(
+                    state->soundfont,
+                    channel,
+                    state->channel_program[channel],
+                    channel == 9
+                );
+            }
+        }
     }
 
     state->next_message = state->first_message;
@@ -187,6 +251,14 @@ static void R2D_MusicRender(R2D_MusicState *state, short *samples, int frames)
 
         rendered += chunk_frames;
         state->position_ms += (double)chunk_frames * 1000.0 / (double)R2D_AUDIO_SAMPLE_RATE;
+
+        for (int channel = 0; channel < 16; ++channel) {
+            state->channel_activity[channel] -= (float)chunk_frames / (float)R2D_AUDIO_SAMPLE_RATE * 8.0f;
+
+            if (state->channel_activity[channel] < 0.0f) {
+                state->channel_activity[channel] = 0.0f;
+            }
+        }
     }
 }
 
@@ -258,6 +330,7 @@ bool R2D_MusicLoad(R2D_Music *music, const char *midi_path, const char *soundfon
     state->next_message = messages;
     state->length_ms = length_ms;
     state->volume = 0.65f;
+    R2D_MusicScanChannels(state);
     music->state = state;
 
     tsf_set_volume(soundfont, state->volume);
@@ -409,4 +482,107 @@ float R2D_MusicLength(const R2D_Music *music)
 const char *R2D_MusicLastError(void)
 {
     return r2d_music_last_error;
+}
+
+bool R2D_MusicChannelUsed(const R2D_Music *music, int channel)
+{
+    const R2D_MusicState *state = R2D_MusicGetConstState(music);
+
+    if (state == 0 || channel < 0 || channel >= 16) {
+        return false;
+    }
+
+    return state->channel_used[channel];
+}
+
+void R2D_MusicSetChannelMuted(R2D_Music *music, int channel, bool muted)
+{
+    R2D_MusicState *state = R2D_MusicGetState(music);
+
+    if (state == 0 || channel < 0 || channel >= 16) {
+        return;
+    }
+
+    state->channel_muted[channel] = muted;
+
+    if (muted) {
+        tsf_channel_sounds_off_all(state->soundfont, channel);
+    }
+}
+
+bool R2D_MusicChannelMuted(const R2D_Music *music, int channel)
+{
+    const R2D_MusicState *state = R2D_MusicGetConstState(music);
+
+    if (state == 0 || channel < 0 || channel >= 16) {
+        return false;
+    }
+
+    return state->channel_muted[channel];
+}
+
+int R2D_MusicChannelProgram(const R2D_Music *music, int channel)
+{
+    const R2D_MusicState *state = R2D_MusicGetConstState(music);
+
+    if (state == 0 || channel < 0 || channel >= 16) {
+        return 0;
+    }
+
+    return state->channel_program[channel];
+}
+
+void R2D_MusicSetChannelVolume(R2D_Music *music, int channel, float volume)
+{
+    R2D_MusicState *state = R2D_MusicGetState(music);
+
+    if (state == 0 || channel < 0 || channel >= 16) {
+        return;
+    }
+
+    state->channel_volume[channel] = R2D_MusicClamp(volume, 0.0f, 1.0f);
+}
+
+float R2D_MusicChannelVolume(const R2D_Music *music, int channel)
+{
+    const R2D_MusicState *state = R2D_MusicGetConstState(music);
+
+    if (state == 0 || channel < 0 || channel >= 16) {
+        return 0.0f;
+    }
+
+    return state->channel_volume[channel];
+}
+
+void R2D_MusicSetChannelProgram(R2D_Music *music, int channel, int program)
+{
+    R2D_MusicState *state = R2D_MusicGetState(music);
+
+    if (state == 0 || channel < 0 || channel >= 16) {
+        return;
+    }
+
+    if (program < 0) {
+        program = 0;
+    }
+
+    if (program > 127) {
+        program = 127;
+    }
+
+    state->channel_program[channel] = program;
+    state->channel_program_override[channel] = true;
+    tsf_channel_set_presetnumber(state->soundfont, channel, program, channel == 9);
+    tsf_channel_sounds_off_all(state->soundfont, channel);
+}
+
+float R2D_MusicChannelActivity(const R2D_Music *music, int channel)
+{
+    const R2D_MusicState *state = R2D_MusicGetConstState(music);
+
+    if (state == 0 || channel < 0 || channel >= 16) {
+        return 0.0f;
+    }
+
+    return state->channel_activity[channel];
 }

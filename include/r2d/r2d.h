@@ -140,6 +140,14 @@ bool R2D_MusicIsPlaying(const R2D_Music *music);
 bool R2D_MusicIsPaused(const R2D_Music *music);
 float R2D_MusicPosition(const R2D_Music *music);
 float R2D_MusicLength(const R2D_Music *music);
+bool R2D_MusicChannelUsed(const R2D_Music *music, int channel);
+void R2D_MusicSetChannelMuted(R2D_Music *music, int channel, bool muted);
+bool R2D_MusicChannelMuted(const R2D_Music *music, int channel);
+void R2D_MusicSetChannelVolume(R2D_Music *music, int channel, float volume);
+float R2D_MusicChannelVolume(const R2D_Music *music, int channel);
+void R2D_MusicSetChannelProgram(R2D_Music *music, int channel, int program);
+int R2D_MusicChannelProgram(const R2D_Music *music, int channel);
+float R2D_MusicChannelActivity(const R2D_Music *music, int channel);
 const char *R2D_MusicLastError(void);
 
 bool R2D_CrtInit(R2D_Crt *crt);

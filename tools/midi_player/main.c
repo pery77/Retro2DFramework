@@ -1,6 +1,8 @@
 #include "r2d/r2d.h"
 
+#include <ctype.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define MIDI_PLAYER_MAX_FILES 128
@@ -22,12 +24,14 @@ typedef struct MidiPlayer {
     int soundfont_count;
     int selected_midi;
     int selected_soundfont;
+    int selected_channel;
     int active_column;
     float message_timer;
     float volume;
     const char *message;
     bool loop;
     bool auto_play;
+    bool channel_view;
     bool music_loaded;
     char last_error[128];
     char loaded_midi[MIDI_PLAYER_NAME_SIZE];
@@ -206,6 +210,74 @@ static const char *MidiPlayer_FitText(const char *text, int font_size, int max_w
     return buffer;
 }
 
+static bool MidiPlayer_OpenFile(FILE **file, const char *path, const char *mode)
+{
+    if (file == 0 || path == 0 || mode == 0) {
+        return false;
+    }
+
+#if defined(_MSC_VER)
+    return fopen_s(file, path, mode) == 0 && *file != 0;
+#else
+    *file = fopen(path, mode);
+    return *file != 0;
+#endif
+}
+
+static char *MidiPlayer_Trim(char *text)
+{
+    char *end;
+
+    while (*text != '\0' && isspace((unsigned char)*text)) {
+        ++text;
+    }
+
+    end = text + strlen(text);
+
+    while (end > text && isspace((unsigned char)*(end - 1))) {
+        --end;
+    }
+
+    *end = '\0';
+    return text;
+}
+
+static bool MidiPlayer_ParseBool(const char *text)
+{
+    return MidiPlayer_CompareNames(text, "true") == 0 ||
+        MidiPlayer_CompareNames(text, "yes") == 0 ||
+        MidiPlayer_CompareNames(text, "on") == 0 ||
+        MidiPlayer_CompareNames(text, "1") == 0;
+}
+
+static int MidiPlayer_FindFile(const MidiPlayerFile *files, int count, const char *name)
+{
+    for (int i = 0; i < count; ++i) {
+        if (MidiPlayer_CompareNames(files[i].name, name) == 0) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+static void MidiPlayer_SongPathForMidi(char *path, int path_size, const char *midi_name)
+{
+    char directory[1024];
+    char base[MIDI_PLAYER_NAME_SIZE];
+    char *extension;
+
+    snprintf(directory, sizeof(directory), "%s", R2D_AssetPath("audio/music"));
+    MidiPlayer_CopyText(base, sizeof(base), midi_name);
+    extension = strrchr(base, '.');
+
+    if (extension != 0) {
+        *extension = '\0';
+    }
+
+    snprintf(path, (size_t)path_size, "%s/%s.r2song", directory, base);
+}
+
 static void MidiPlayer_Stop(MidiPlayer *player)
 {
     if (player->music_loaded) {
@@ -252,6 +324,154 @@ static void MidiPlayer_PlaySelection(MidiPlayer *player)
     }
 }
 
+static void MidiPlayer_SaveSong(MidiPlayer *player)
+{
+    FILE *file = 0;
+    char path[1200];
+
+    if (!player->music_loaded) {
+        MidiPlayer_SetMessage(player, "play first");
+        return;
+    }
+
+    MidiPlayer_SongPathForMidi(path, sizeof(path), player->loaded_midi);
+
+    if (!MidiPlayer_OpenFile(&file, path, "wb")) {
+        MidiPlayer_SetMessage(player, "save failed");
+        return;
+    }
+
+    fprintf(file, "version=1\n");
+    fprintf(file, "midi=%s\n", player->loaded_midi);
+    fprintf(file, "soundfont=%s\n", player->loaded_soundfont);
+    fprintf(file, "loop=%s\n", player->loop ? "true" : "false");
+    fprintf(file, "volume=%.6g\n", player->volume);
+
+    for (int channel = 0; channel < 16; ++channel) {
+        fprintf(
+            file,
+            "channel%d_muted=%s\n",
+            channel,
+            R2D_MusicChannelMuted(&player->music, channel) ? "true" : "false"
+        );
+        fprintf(file, "channel%d_volume=%.6g\n", channel, R2D_MusicChannelVolume(&player->music, channel));
+        fprintf(file, "channel%d_program=%d\n", channel, R2D_MusicChannelProgram(&player->music, channel));
+    }
+
+    if (fclose(file) == 0) {
+        MidiPlayer_SetMessage(player, "song saved");
+    } else {
+        MidiPlayer_SetMessage(player, "save failed");
+    }
+}
+
+static void MidiPlayer_LoadSong(MidiPlayer *player)
+{
+    FILE *file = 0;
+    MidiPlayerFile *selected_midi = MidiPlayer_CurrentMidi(player);
+    char path[1200];
+    char line[256];
+    char midi_name[MIDI_PLAYER_NAME_SIZE] = "";
+    char soundfont_name[MIDI_PLAYER_NAME_SIZE] = "";
+    bool loop = player->loop;
+    float volume = player->volume;
+    bool channel_muted[16] = { 0 };
+    float channel_volume[16];
+    int channel_program[16];
+
+    for (int channel = 0; channel < 16; ++channel) {
+        channel_volume[channel] = 1.0f;
+        channel_program[channel] = -1;
+    }
+
+    if (selected_midi == 0) {
+        MidiPlayer_SetMessage(player, "no midi files");
+        return;
+    }
+
+    MidiPlayer_SongPathForMidi(path, sizeof(path), selected_midi->name);
+
+    if (!MidiPlayer_OpenFile(&file, path, "rb")) {
+        MidiPlayer_SetMessage(player, "no song config");
+        return;
+    }
+
+    while (fgets(line, sizeof(line), file) != 0) {
+        char *text = MidiPlayer_Trim(line);
+        char *separator = strchr(text, '=');
+        char *key;
+        char *value;
+        int channel = -1;
+        char field[32];
+
+        if (*text == '\0' || *text == '#' || *text == ';' || separator == 0) {
+            continue;
+        }
+
+        *separator = '\0';
+        key = MidiPlayer_Trim(text);
+        value = MidiPlayer_Trim(separator + 1);
+
+        if (MidiPlayer_CompareNames(key, "midi") == 0) {
+            MidiPlayer_CopyText(midi_name, sizeof(midi_name), value);
+        } else if (MidiPlayer_CompareNames(key, "soundfont") == 0) {
+            MidiPlayer_CopyText(soundfont_name, sizeof(soundfont_name), value);
+        } else if (MidiPlayer_CompareNames(key, "loop") == 0) {
+            loop = MidiPlayer_ParseBool(value);
+        } else if (MidiPlayer_CompareNames(key, "volume") == 0) {
+            volume = (float)atof(value);
+        } else if (sscanf(key, "channel%d_%31s", &channel, field) == 2 && channel >= 0 && channel < 16) {
+            if (MidiPlayer_CompareNames(field, "muted") == 0) {
+                channel_muted[channel] = MidiPlayer_ParseBool(value);
+            } else if (MidiPlayer_CompareNames(field, "volume") == 0) {
+                channel_volume[channel] = (float)atof(value);
+            } else if (MidiPlayer_CompareNames(field, "program") == 0) {
+                channel_program[channel] = atoi(value);
+            }
+        }
+    }
+
+    fclose(file);
+
+    if (midi_name[0] != '\0') {
+        const int index = MidiPlayer_FindFile(player->midis, player->midi_count, midi_name);
+
+        if (index >= 0) {
+            player->selected_midi = index;
+        }
+    }
+
+    if (soundfont_name[0] != '\0') {
+        const int index = MidiPlayer_FindFile(player->soundfonts, player->soundfont_count, soundfont_name);
+
+        if (index >= 0) {
+            player->selected_soundfont = index;
+        }
+    }
+
+    player->loop = loop;
+    player->volume = volume;
+    MidiPlayer_PlaySelection(player);
+
+    if (!player->music_loaded) {
+        return;
+    }
+
+    R2D_MusicSetVolume(&player->music, player->volume);
+    R2D_MusicSetLoop(&player->music, player->loop);
+
+    for (int channel = 0; channel < 16; ++channel) {
+        if (channel_program[channel] >= 0) {
+            R2D_MusicSetChannelProgram(&player->music, channel, channel_program[channel]);
+        }
+
+        R2D_MusicSetChannelVolume(&player->music, channel, channel_volume[channel]);
+        R2D_MusicSetChannelMuted(&player->music, channel, channel_muted[channel]);
+    }
+
+    MidiPlayer_SetMessage(player, "song loaded");
+}
+
 static void MidiPlayer_Select(MidiPlayer *player, int direction)
 {
     int *selected = player->active_column == 0 ? &player->selected_midi : &player->selected_soundfont;
@@ -273,6 +493,7 @@ static void MidiPlayer_Init(void *user_data)
     MidiPlayer *player = (MidiPlayer *)user_data;
 
     player->active_column = 0;
+    player->selected_channel = 0;
     player->loop = true;
     player->volume = 0.65f;
     player->message = "";
@@ -286,6 +507,51 @@ static void MidiPlayer_Update(float dt, void *user_data)
 
     R2D_MusicUpdate(&player->music);
 
+    if (IsKeyPressed(KEY_TAB)) {
+        player->channel_view = !player->channel_view;
+    }
+
+    if (player->channel_view) {
+        const bool fast = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
+
+        if (IsKeyPressed(KEY_UP)) {
+            player->selected_channel = (player->selected_channel + 15) % 16;
+        }
+
+        if (IsKeyPressed(KEY_DOWN)) {
+            player->selected_channel = (player->selected_channel + 1) % 16;
+        }
+
+        if (IsKeyPressed(KEY_M) && player->music_loaded) {
+            const bool muted = R2D_MusicChannelMuted(&player->music, player->selected_channel);
+            R2D_MusicSetChannelMuted(&player->music, player->selected_channel, !muted);
+            MidiPlayer_SetMessage(player, muted ? "channel on" : "channel muted");
+        }
+
+        if (IsKeyPressed(KEY_LEFT) && player->music_loaded) {
+            const float volume = R2D_MusicChannelVolume(&player->music, player->selected_channel);
+            R2D_MusicSetChannelVolume(&player->music, player->selected_channel, volume - (fast ? 0.20f : 0.05f));
+            MidiPlayer_SetMessage(player, "channel volume");
+        }
+
+        if (IsKeyPressed(KEY_RIGHT) && player->music_loaded) {
+            const float volume = R2D_MusicChannelVolume(&player->music, player->selected_channel);
+            R2D_MusicSetChannelVolume(&player->music, player->selected_channel, volume + (fast ? 0.20f : 0.05f));
+            MidiPlayer_SetMessage(player, "channel volume");
+        }
+
+        if (IsKeyPressed(KEY_Q) && player->music_loaded) {
+            const int program = R2D_MusicChannelProgram(&player->music, player->selected_channel);
+            R2D_MusicSetChannelProgram(&player->music, player->selected_channel, program - (fast ? 8 : 1));
+            MidiPlayer_SetMessage(player, "channel program");
+        }
+
+        if (IsKeyPressed(KEY_E) && player->music_loaded) {
+            const int program = R2D_MusicChannelProgram(&player->music, player->selected_channel);
+            R2D_MusicSetChannelProgram(&player->music, player->selected_channel, program + (fast ? 8 : 1));
+            MidiPlayer_SetMessage(player, "channel program");
+        }
+    } else {
     if (IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_RIGHT)) {
         player->active_column = 1 - player->active_column;
     }
@@ -306,6 +572,7 @@ static void MidiPlayer_Update(float dt, void *user_data)
     if (IsKeyPressed(KEY_E)) {
         player->active_column = 1;
         MidiPlayer_Select(player, 1);
+    }
     }
 
     if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) {
@@ -370,8 +637,47 @@ static void MidiPlayer_Update(float dt, void *user_data)
         MidiPlayer_SetMessage(player, "refreshed");
     }
 
+    if (IsKeyPressed(KEY_F6)) {
+        MidiPlayer_SaveSong(player);
+    }
+
+    if (IsKeyPressed(KEY_F7)) {
+        MidiPlayer_LoadSong(player);
+    }
+
     if (player->message_timer > 0.0f) {
         player->message_timer -= dt;
+    }
+}
+
+static void MidiPlayer_DrawChannels(const MidiPlayer *player)
+{
+    const Rectangle area = { 8.0f, 64.0f, 304.0f, 94.0f };
+
+    DrawRectangleLinesEx(area, 1.0f, R2D_ColorFromHex(0x303040ff));
+
+    for (int channel = 0; channel < 16; ++channel) {
+        const int column = channel / 8;
+        const int row = channel % 8;
+        const int x = 12 + column * 152;
+        const int y = 69 + row * 10;
+        const bool selected = channel == player->selected_channel;
+        const bool used = R2D_MusicChannelUsed(&player->music, channel);
+        const bool muted = R2D_MusicChannelMuted(&player->music, channel);
+        const int program = R2D_MusicChannelProgram(&player->music, channel);
+        const int volume = (int)(R2D_MusicChannelVolume(&player->music, channel) * 100.0f + 0.5f);
+        const float activity = R2D_MusicChannelActivity(&player->music, channel);
+        const Color color = selected ? R2D_ColorFromHex(0xf1fa8cff) : (used ? R2D_ColorFromHex(0xd7d7e0ff) : R2D_ColorFromHex(0x6272a4ff));
+        const Color bar_color = muted ? R2D_ColorFromHex(0xff5555ff) : R2D_ColorFromHex(0x50fa7bff);
+
+        DrawText(selected ? ">" : " ", x, y, 8, color);
+        DrawText(TextFormat("%02d", channel + 1), x + 10, y, 8, color);
+        DrawText(channel == 9 ? "dr" : "ch", x + 28, y, 8, color);
+        DrawText(muted ? "off" : "on ", x + 44, y, 8, muted ? R2D_ColorFromHex(0xff5555ff) : color);
+        DrawText(TextFormat("p%03d", program), x + 66, y, 8, color);
+        DrawText(TextFormat("%03d", volume), x + 96, y, 8, color);
+        DrawRectangle((int)x + 124, y + 3, 16, 3, R2D_ColorFromHex(0x303040ff));
+        DrawRectangle((int)x + 124, y + 3, (int)(16.0f * activity), 3, bar_color);
     }
 }
 
@@ -436,11 +742,16 @@ static void MidiPlayer_Draw(void *user_data)
         : (R2D_MusicIsPaused(&player->music) ? "paused" : "stopped");
 
     DrawText("Retro2D MIDI Player", 8, 8, 10, R2D_ColorFromHex(0xf8f8f2ff));
-    DrawText("LEFT/RIGHT column  UP/DOWN select  SPACE play/pause  S stop", 8, 23, 8, R2D_ColorFromHex(0x8be9fdff));
-    DrawText(TextFormat("L loop:%s  A auto:%s  R restart  -/+ vol", player->loop ? "on" : "off", player->auto_play ? "on" : "off"), 8, 35, 8, R2D_ColorFromHex(0xffb86cff));
+    DrawText(player->channel_view ? "TAB files  UP/DOWN channel  LEFT/RIGHT vol  Q/E program" : "TAB channels  LEFT/RIGHT column  UP/DOWN select  SPACE play/pause", 8, 23, 8, R2D_ColorFromHex(0x8be9fdff));
+    DrawText(TextFormat("L loop:%s  A auto:%s  F6 save  F7 load", player->loop ? "on" : "off", player->auto_play ? "on" : "off"), 8, 35, 8, R2D_ColorFromHex(0xffb86cff));
 
-    DrawText(TextFormat("MIDIS %02d", player->midi_count), 8, 52, 8, R2D_ColorFromHex(0x8be9fdff));
-    DrawText(TextFormat("SOUNDFONTS %02d", player->soundfont_count), 166, 52, 8, R2D_ColorFromHex(0xffb86cff));
+    if (player->channel_view) {
+        DrawText("CHANNELS", 8, 52, 8, R2D_ColorFromHex(0x8be9fdff));
+        DrawText("M mute  SHIFT faster edits", 138, 52, 8, R2D_ColorFromHex(0xffb86cff));
+        MidiPlayer_DrawChannels(player);
+    } else {
+        DrawText(TextFormat("MIDIS %02d", player->midi_count), 8, 52, 8, R2D_ColorFromHex(0x8be9fdff));
+        DrawText(TextFormat("SOUNDFONTS %02d", player->soundfont_count), 166, 52, 8, R2D_ColorFromHex(0xffb86cff));
 
     MidiPlayer_DrawList(
         player->midis,
@@ -459,6 +770,7 @@ static void MidiPlayer_Draw(void *user_data)
         "add .sf2 files",
         player->active_column == 1
     );
+    }
 
     DrawRectangleRec(progress_track, R2D_ColorFromHex(0x303040ff));
     DrawRectangleRec(
