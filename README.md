@@ -58,6 +58,11 @@ El sintetizador soporta envolvente, slide de tono, vibrato, arpegio, duty sweep 
 paso bajo, paso alto y paso banda por voz.
 Los presets se cargan desde `assets/audio/sfx/*.r2sfx`; si un archivo falta, el sandbox usa
 el preset compilado como fallback.
+El jugador del sandbox usa una spritesheet procedural para probar `R2D_SpriteSheet`,
+`R2D_AnimPlayer` y el dibujado de animaciones sin depender de assets externos.
+Tambien carga `assets/tilemaps/sandbox.json`, un mapa Tiled JSON minimo con capas de tiles
+sin compresion. El soporte inicial de tilemaps esta pensado para mapas ortogonales finitos,
+datos en array JSON y tilesets de imagen unica.
 
 El framework tambien puede reproducir musica MIDI con SoundFont usando TinySoundFont y
 TinyMidiLoader. Coloca un MIDI en `assets/audio/music/theme.mid` y una SoundFont en
@@ -166,6 +171,8 @@ src/r2d.c               Implementacion del framework
 src/r2d_crt.c           Postproceso CRT opcional
 src/r2d_audio.c         Sintetizador simple para efectos retro
 src/r2d_music.c         Reproduccion MIDI + SoundFont
+src/r2d_sprite.c        Spritesheets en grid y animacion simple
+src/r2d_tilemap.c       Carga y dibujado basico de mapas Tiled JSON
 examples/sandbox        Primer juego de prueba
 tools/sfx_editor        Editor sencillo de presets de sonido
 tools/midi_player       Reproductor para probar MIDIs con SoundFonts

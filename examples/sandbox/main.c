@@ -6,6 +6,13 @@ typedef struct Sandbox {
     Vector2 player;
     float blink_timer;
     float reload_message_timer;
+    bool facing_left;
+    bool moving;
+    R2D_SpriteSheet player_sheet;
+    R2D_Anim idle_anim;
+    R2D_Anim walk_anim;
+    R2D_AnimPlayer player_anim;
+    R2D_Tilemap tilemap;
     R2D_Sfx coin;
     R2D_Sfx hit;
     R2D_Sfx jump;
@@ -18,6 +25,30 @@ typedef struct Sandbox {
     R2D_Context *context;
     R2D_Crt *crt;
 } Sandbox;
+
+static Texture2D Sandbox_CreatePlayerTexture(void)
+{
+    Image image = GenImageColor(64, 16, BLANK);
+    Texture2D texture;
+
+    for (int frame = 0; frame < 4; ++frame) {
+        const int x = frame * 16;
+        const int step = frame == 1 ? 1 : frame == 3 ? -1 : 0;
+
+        ImageDrawRectangle(&image, x + 5, 3, 6, 10, R2D_ColorFromHex(0xff5555ff));
+        ImageDrawRectangle(&image, x + 4, 2, 8, 3, R2D_ColorFromHex(0xf1fa8cff));
+        ImageDrawRectangle(&image, x + 6, 0, 4, 3, R2D_ColorFromHex(0xffb86cff));
+        ImageDrawRectangle(&image, x + 3, 6, 2, 5, R2D_ColorFromHex(0x8be9fdff));
+        ImageDrawRectangle(&image, x + 11, 6, 2, 5, R2D_ColorFromHex(0x8be9fdff));
+        ImageDrawRectangle(&image, x + 5 + step, 13, 3, 3, R2D_ColorFromHex(0x50fa7bff));
+        ImageDrawRectangle(&image, x + 9 - step, 13, 3, 3, R2D_ColorFromHex(0x50fa7bff));
+        ImageDrawPixel(&image, x + 10, 3, BLACK);
+    }
+
+    texture = LoadTextureFromImage(image);
+    UnloadImage(image);
+    return texture;
+}
 
 static R2D_Sfx Sandbox_LoadSfx(const char *path, R2D_Sfx fallback)
 {
@@ -37,6 +68,13 @@ static void Sandbox_Init(void *user_data)
     sandbox->player = (Vector2) { 152.0f, 82.0f };
     sandbox->blink_timer = 0.0f;
     sandbox->reload_message_timer = 0.0f;
+    sandbox->facing_left = false;
+    sandbox->moving = false;
+    sandbox->player_sheet = R2D_SpriteSheetFromTexture(Sandbox_CreatePlayerTexture(), 16, 16);
+    sandbox->idle_anim = R2D_AnimFrames(0, 2, 3.0f, true);
+    sandbox->walk_anim = R2D_AnimFrames(0, 4, 10.0f, true);
+    R2D_AnimPlay(&sandbox->player_anim, sandbox->idle_anim);
+    R2D_TilemapLoadTiledJson(&sandbox->tilemap, R2D_AssetPath("tilemaps/sandbox.json"));
     sandbox->coin = Sandbox_LoadSfx("audio/sfx/coin.r2sfx", R2D_SfxCoin());
     sandbox->hit = Sandbox_LoadSfx("audio/sfx/hit.r2sfx", R2D_SfxHit());
     sandbox->jump = Sandbox_LoadSfx("audio/sfx/jump.r2sfx", R2D_SfxJump());
@@ -68,15 +106,18 @@ static void Sandbox_Update(float dt, void *user_data)
 {
     Sandbox *sandbox = (Sandbox *)user_data;
     const float speed = 80.0f;
+    const Vector2 previous = sandbox->player;
 
     R2D_MusicUpdate(&sandbox->music);
 
     if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)) {
         sandbox->player.x -= speed * dt;
+        sandbox->facing_left = true;
     }
 
     if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) {
         sandbox->player.x += speed * dt;
+        sandbox->facing_left = false;
     }
 
     if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W)) {
@@ -132,6 +173,14 @@ static void Sandbox_Update(float dt, void *user_data)
         }
     }
 
+    sandbox->moving = previous.x != sandbox->player.x || previous.y != sandbox->player.y;
+    if (sandbox->moving && sandbox->player_anim.anim.frame_count != sandbox->walk_anim.frame_count) {
+        R2D_AnimPlay(&sandbox->player_anim, sandbox->walk_anim);
+    } else if (!sandbox->moving && sandbox->player_anim.anim.frame_count != sandbox->idle_anim.frame_count) {
+        R2D_AnimPlay(&sandbox->player_anim, sandbox->idle_anim);
+    }
+
+    R2D_AnimUpdate(&sandbox->player_anim, dt);
     sandbox->blink_timer += dt;
 }
 
@@ -155,6 +204,10 @@ static void Sandbox_Draw(void *user_data)
     const Sandbox *sandbox = (const Sandbox *)user_data;
     const bool blink = ((int)(sandbox->blink_timer * 4.0f) % 2) == 0;
 
+    if (R2D_TilemapIsReady(&sandbox->tilemap)) {
+        R2D_TilemapDraw(&sandbox->tilemap, (Vector2) { 0.0f, 0.0f });
+    }
+
     Sandbox_DrawGrid(sandbox->context);
     DrawText("Retro2DFramework", 8, 8, 10, R2D_ColorFromHex(0xf8f8f2ff));
     DrawText("WASD / Arrows", 8, 22, 8, R2D_ColorFromHex(0x8be9fdff));
@@ -175,7 +228,7 @@ static void Sandbox_Draw(void *user_data)
         );
     }
 
-    DrawRectangleRec(R2D_Rect(sandbox->player.x, sandbox->player.y, 16.0f, 16.0f), R2D_ColorFromHex(0xff5555ff));
+    R2D_DrawAnim(&sandbox->player_sheet, &sandbox->player_anim, sandbox->player, sandbox->facing_left);
     DrawRectangleLinesEx(R2D_Rect(sandbox->player.x, sandbox->player.y, 16.0f, 16.0f), 1.0f, R2D_ColorFromHex(0xf1fa8cff));
 
     if (blink) {
@@ -188,6 +241,8 @@ static void Sandbox_Shutdown(void *user_data)
     Sandbox *sandbox = (Sandbox *)user_data;
 
     R2D_MusicUnload(&sandbox->music);
+    R2D_TilemapUnload(&sandbox->tilemap);
+    R2D_UnloadSpriteSheet(&sandbox->player_sheet);
 }
 
 int main(void)

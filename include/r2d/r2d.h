@@ -84,6 +84,56 @@ typedef struct R2D_Music {
     void *state;
 } R2D_Music;
 
+typedef struct R2D_Sprite {
+    Texture2D texture;
+    Rectangle source;
+    Vector2 origin;
+} R2D_Sprite;
+
+typedef struct R2D_SpriteSheet {
+    Texture2D texture;
+    int frame_width;
+    int frame_height;
+    int columns;
+    int rows;
+} R2D_SpriteSheet;
+
+typedef struct R2D_Anim {
+    int first_frame;
+    int frame_count;
+    float fps;
+    bool loop;
+} R2D_Anim;
+
+typedef struct R2D_AnimPlayer {
+    R2D_Anim anim;
+    float time;
+    int frame;
+    bool playing;
+} R2D_AnimPlayer;
+
+typedef struct R2D_TilemapLayer {
+    char name[64];
+    unsigned int *tiles;
+    int width;
+    int height;
+    bool visible;
+} R2D_TilemapLayer;
+
+typedef struct R2D_Tilemap {
+    Texture2D texture;
+    R2D_TilemapLayer *layers;
+    int layer_count;
+    int width;
+    int height;
+    int tile_width;
+    int tile_height;
+    int first_gid;
+    int columns;
+    int tile_count;
+    bool is_ready;
+} R2D_Tilemap;
+
 typedef struct R2D_Context {
     R2D_Config config;
     RenderTexture2D target;
@@ -167,7 +217,28 @@ Vector2 R2D_VirtualSize(const R2D_Context *ctx);
 Vector2 R2D_MouseVirtualPosition(const R2D_Context *ctx);
 Rectangle R2D_Rect(float x, float y, float width, float height);
 
+R2D_SpriteSheet R2D_LoadSpriteSheet(const char *path, int frame_width, int frame_height);
+R2D_SpriteSheet R2D_SpriteSheetFromTexture(Texture2D texture, int frame_width, int frame_height);
+void R2D_UnloadSpriteSheet(R2D_SpriteSheet *sheet);
+bool R2D_SpriteSheetIsReady(const R2D_SpriteSheet *sheet);
+int R2D_SpriteSheetFrameCount(const R2D_SpriteSheet *sheet);
+Rectangle R2D_SpriteSheetFrame(const R2D_SpriteSheet *sheet, int frame);
+R2D_Anim R2D_AnimFrames(int first_frame, int frame_count, float fps, bool loop);
+void R2D_AnimPlay(R2D_AnimPlayer *player, R2D_Anim anim);
+void R2D_AnimStop(R2D_AnimPlayer *player);
+void R2D_AnimUpdate(R2D_AnimPlayer *player, float dt);
+int R2D_AnimFrame(const R2D_AnimPlayer *player);
 void R2D_DrawSprite(Texture2D texture, Rectangle source, Vector2 position, bool flip_x);
+void R2D_DrawSpriteEx(Texture2D texture, Rectangle source, Vector2 position, Vector2 origin, float rotation, float scale, bool flip_x, Color tint);
+void R2D_DrawSheetFrame(const R2D_SpriteSheet *sheet, int frame, Vector2 position, bool flip_x);
+void R2D_DrawAnim(const R2D_SpriteSheet *sheet, const R2D_AnimPlayer *player, Vector2 position, bool flip_x);
+bool R2D_TilemapLoadTiledJson(R2D_Tilemap *tilemap, const char *path);
+void R2D_TilemapUnload(R2D_Tilemap *tilemap);
+bool R2D_TilemapIsReady(const R2D_Tilemap *tilemap);
+int R2D_TilemapLayerIndex(const R2D_Tilemap *tilemap, const char *name);
+unsigned int R2D_TilemapTileAt(const R2D_Tilemap *tilemap, int layer_index, int x, int y);
+void R2D_TilemapDraw(const R2D_Tilemap *tilemap, Vector2 position);
+void R2D_TilemapDrawLayer(const R2D_Tilemap *tilemap, int layer_index, Vector2 position);
 Color R2D_ColorFromHex(unsigned int rgba);
 
 #ifdef __cplusplus

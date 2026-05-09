@@ -319,18 +319,6 @@ Rectangle R2D_Rect(float x, float y, float width, float height)
     return (Rectangle) { x, y, width, height };
 }
 
-void R2D_DrawSprite(Texture2D texture, Rectangle source, Vector2 position, bool flip_x)
-{
-    Rectangle src = source;
-
-    if (flip_x) {
-        src.x += src.width;
-        src.width *= -1.0f;
-    }
-
-    DrawTextureRec(texture, src, position, WHITE);
-}
-
 Color R2D_ColorFromHex(unsigned int rgba)
 {
     return (Color) {

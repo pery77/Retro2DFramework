@@ -26,6 +26,8 @@ add_library(r2d STATIC
     src/r2d_audio.c
     src/r2d_crt.c
     src/r2d_music.c
+    src/r2d_sprite.c
+    src/r2d_tilemap.c
 )
 
 target_include_directories(r2d
