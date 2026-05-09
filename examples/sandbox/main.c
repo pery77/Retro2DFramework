@@ -6,6 +6,7 @@ typedef struct Sandbox {
     Vector2 player;
     float blink_timer;
     float reload_message_timer;
+    int collision_layer;
     bool facing_left;
     bool moving;
     R2D_SpriteSheet player_sheet;
@@ -25,6 +26,50 @@ typedef struct Sandbox {
     R2D_Context *context;
     R2D_Crt *crt;
 } Sandbox;
+
+static void Sandbox_AddFallbackCollision(R2D_Tilemap *tilemap)
+{
+    R2D_TilemapLayer *layers;
+    R2D_TilemapLayer *collision;
+    const int old_count = tilemap->layer_count;
+
+    if (!R2D_TilemapIsReady(tilemap) || R2D_TilemapLayerIndex(tilemap, "Collision") >= 0) {
+        return;
+    }
+
+    layers = (R2D_TilemapLayer *)MemRealloc(
+        tilemap->layers,
+        (size_t)(old_count + 1) * sizeof(R2D_TilemapLayer)
+    );
+
+    if (layers == 0) {
+        return;
+    }
+
+    tilemap->layers = layers;
+    collision = &tilemap->layers[old_count];
+    *collision = (R2D_TilemapLayer) { 0 };
+    snprintf(collision->name, sizeof(collision->name), "%s", "Collision");
+    collision->width = tilemap->width;
+    collision->height = tilemap->height;
+    collision->visible = false;
+    collision->tiles = (unsigned int *)MemAlloc((size_t)collision->width * (size_t)collision->height * sizeof(unsigned int));
+
+    if (collision->tiles == 0) {
+        return;
+    }
+
+    for (int y = 0; y < collision->height; ++y) {
+        for (int x = 0; x < collision->width; ++x) {
+            const bool border = x == 0 || y == 0 || x == collision->width - 1 || y == collision->height - 1;
+            const bool block = (x >= 9 && x <= 12 && y >= 10 && y <= 12) || (x >= 18 && x <= 21 && y >= 18 && y <= 20);
+
+            collision->tiles[y * collision->width + x] = border || block ? 1u : 0u;
+        }
+    }
+
+    tilemap->layer_count = old_count + 1;
+}
 
 static Texture2D Sandbox_CreatePlayerTexture(void)
 {
@@ -58,6 +103,13 @@ static R2D_Sfx Sandbox_LoadSfx(const char *path, R2D_Sfx fallback)
     return sfx;
 }
 
+static bool Sandbox_PlayerCollides(const Sandbox *sandbox, Vector2 position)
+{
+    const Rectangle bounds = R2D_Rect(position.x + 3.0f, position.y + 2.0f, 10.0f, 13.0f);
+
+    return R2D_TilemapRectCollides(&sandbox->tilemap, sandbox->collision_layer, bounds);
+}
+
 static void Sandbox_Init(void *user_data)
 {
     Sandbox *sandbox = (Sandbox *)user_data;
@@ -75,6 +127,8 @@ static void Sandbox_Init(void *user_data)
     sandbox->walk_anim = R2D_AnimFrames(0, 4, 10.0f, true);
     R2D_AnimPlay(&sandbox->player_anim, sandbox->idle_anim);
     R2D_TilemapLoadTiledJson(&sandbox->tilemap, R2D_AssetPath("tilemaps/sandbox.json"));
+    Sandbox_AddFallbackCollision(&sandbox->tilemap);
+    sandbox->collision_layer = R2D_TilemapLayerIndex(&sandbox->tilemap, "Collision");
     sandbox->coin = Sandbox_LoadSfx("audio/sfx/coin.r2sfx", R2D_SfxCoin());
     sandbox->hit = Sandbox_LoadSfx("audio/sfx/hit.r2sfx", R2D_SfxHit());
     sandbox->jump = Sandbox_LoadSfx("audio/sfx/jump.r2sfx", R2D_SfxJump());
@@ -107,25 +161,37 @@ static void Sandbox_Update(float dt, void *user_data)
     Sandbox *sandbox = (Sandbox *)user_data;
     const float speed = 80.0f;
     const Vector2 previous = sandbox->player;
+    Vector2 movement = { 0.0f, 0.0f };
+    Vector2 next;
 
     R2D_MusicUpdate(&sandbox->music);
 
     if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)) {
-        sandbox->player.x -= speed * dt;
+        movement.x -= speed * dt;
         sandbox->facing_left = true;
     }
 
     if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) {
-        sandbox->player.x += speed * dt;
+        movement.x += speed * dt;
         sandbox->facing_left = false;
     }
 
     if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W)) {
-        sandbox->player.y -= speed * dt;
+        movement.y -= speed * dt;
     }
 
     if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) {
-        sandbox->player.y += speed * dt;
+        movement.y += speed * dt;
+    }
+
+    next = (Vector2) { sandbox->player.x + movement.x, sandbox->player.y };
+    if (!Sandbox_PlayerCollides(sandbox, next)) {
+        sandbox->player.x = next.x;
+    }
+
+    next = (Vector2) { sandbox->player.x, sandbox->player.y + movement.y };
+    if (!Sandbox_PlayerCollides(sandbox, next)) {
+        sandbox->player.y = next.y;
     }
 
     if (IsKeyPressed(KEY_C) && sandbox->crt != 0) {

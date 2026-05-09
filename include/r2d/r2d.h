@@ -120,10 +120,18 @@ typedef struct R2D_TilemapLayer {
     bool visible;
 } R2D_TilemapLayer;
 
+typedef struct R2D_TilemapObject {
+    char name[64];
+    char type[64];
+    Rectangle rect;
+} R2D_TilemapObject;
+
 typedef struct R2D_Tilemap {
     Texture2D texture;
     R2D_TilemapLayer *layers;
+    R2D_TilemapObject *objects;
     int layer_count;
+    int object_count;
     int width;
     int height;
     int tile_width;
@@ -237,6 +245,14 @@ void R2D_TilemapUnload(R2D_Tilemap *tilemap);
 bool R2D_TilemapIsReady(const R2D_Tilemap *tilemap);
 int R2D_TilemapLayerIndex(const R2D_Tilemap *tilemap, const char *name);
 unsigned int R2D_TilemapTileAt(const R2D_Tilemap *tilemap, int layer_index, int x, int y);
+Vector2 R2D_TilemapWorldToTile(const R2D_Tilemap *tilemap, Vector2 position);
+Rectangle R2D_TilemapTileBounds(const R2D_Tilemap *tilemap, int x, int y);
+bool R2D_TilemapSolidAt(const R2D_Tilemap *tilemap, int layer_index, Vector2 position);
+bool R2D_TilemapRectCollides(const R2D_Tilemap *tilemap, int layer_index, Rectangle rect);
+int R2D_TilemapObjectCount(const R2D_Tilemap *tilemap);
+const R2D_TilemapObject *R2D_TilemapObjectAt(const R2D_Tilemap *tilemap, int index);
+const R2D_TilemapObject *R2D_TilemapFindObject(const R2D_Tilemap *tilemap, const char *name);
+const R2D_TilemapObject *R2D_TilemapFindObjectByType(const R2D_Tilemap *tilemap, const char *type);
 void R2D_TilemapDraw(const R2D_Tilemap *tilemap, Vector2 position);
 void R2D_TilemapDrawLayer(const R2D_Tilemap *tilemap, int layer_index, Vector2 position);
 Color R2D_ColorFromHex(unsigned int rgba);

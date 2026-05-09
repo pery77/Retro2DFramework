@@ -1,6 +1,7 @@
 #include "r2d/r2d.h"
 
 #include <ctype.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -661,6 +662,66 @@ unsigned int R2D_TilemapTileAt(const R2D_Tilemap *tilemap, int layer_index, int 
     }
 
     return layer->tiles[y * layer->width + x];
+}
+
+Vector2 R2D_TilemapWorldToTile(const R2D_Tilemap *tilemap, Vector2 position)
+{
+    if (!R2D_TilemapIsReady(tilemap) || tilemap->tile_width <= 0 || tilemap->tile_height <= 0) {
+        return (Vector2) { 0.0f, 0.0f };
+    }
+
+    return (Vector2) {
+        floorf(position.x / (float)tilemap->tile_width),
+        floorf(position.y / (float)tilemap->tile_height)
+    };
+}
+
+Rectangle R2D_TilemapTileBounds(const R2D_Tilemap *tilemap, int x, int y)
+{
+    if (!R2D_TilemapIsReady(tilemap)) {
+        return (Rectangle) { 0 };
+    }
+
+    return (Rectangle) {
+        (float)(x * tilemap->tile_width),
+        (float)(y * tilemap->tile_height),
+        (float)tilemap->tile_width,
+        (float)tilemap->tile_height
+    };
+}
+
+bool R2D_TilemapSolidAt(const R2D_Tilemap *tilemap, int layer_index, Vector2 position)
+{
+    const Vector2 tile = R2D_TilemapWorldToTile(tilemap, position);
+
+    return R2D_TilemapTileAt(tilemap, layer_index, (int)tile.x, (int)tile.y) != 0;
+}
+
+bool R2D_TilemapRectCollides(const R2D_Tilemap *tilemap, int layer_index, Rectangle rect)
+{
+    int left;
+    int right;
+    int top;
+    int bottom;
+
+    if (!R2D_TilemapIsReady(tilemap) || layer_index < 0 || rect.width <= 0.0f || rect.height <= 0.0f) {
+        return false;
+    }
+
+    left = (int)floorf(rect.x / (float)tilemap->tile_width);
+    right = (int)floorf((rect.x + rect.width - 0.001f) / (float)tilemap->tile_width);
+    top = (int)floorf(rect.y / (float)tilemap->tile_height);
+    bottom = (int)floorf((rect.y + rect.height - 0.001f) / (float)tilemap->tile_height);
+
+    for (int y = top; y <= bottom; ++y) {
+        for (int x = left; x <= right; ++x) {
+            if (R2D_TilemapTileAt(tilemap, layer_index, x, y) != 0) {
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
 
 void R2D_TilemapDraw(const R2D_Tilemap *tilemap, Vector2 position)
