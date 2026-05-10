@@ -2,6 +2,7 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 typedef struct Sandbox {
     Vector2 player;
@@ -40,7 +41,7 @@ static void Sandbox_AddFallbackCollision(R2D_Tilemap *tilemap)
         return;
     }
 
-    layers = (R2D_TilemapLayer *)MemRealloc(
+    layers = (R2D_TilemapLayer *)realloc(
         tilemap->layers,
         (size_t)(old_count + 1) * sizeof(R2D_TilemapLayer)
     );
@@ -56,7 +57,7 @@ static void Sandbox_AddFallbackCollision(R2D_Tilemap *tilemap)
     collision->width = tilemap->width;
     collision->height = tilemap->height;
     collision->visible = false;
-    collision->tiles = (unsigned int *)MemAlloc((size_t)collision->width * (size_t)collision->height * sizeof(unsigned int));
+    collision->tiles = (unsigned int *)calloc((size_t)collision->width * (size_t)collision->height, sizeof(unsigned int));
 
     if (collision->tiles == 0) {
         return;
@@ -132,7 +133,7 @@ static void Sandbox_Init(void *user_data)
     sandbox->idle_anim = R2D_AnimFrames(0, 2, 3.0f, true);
     sandbox->walk_anim = R2D_AnimFrames(0, 4, 10.0f, true);
     R2D_AnimPlay(&sandbox->player_anim, sandbox->idle_anim);
-    R2D_TilemapLoadTiledJson(&sandbox->tilemap, R2D_AssetPath("tilemaps/sandbox.json"));
+    R2D_TilemapLoadTiledJson(&sandbox->tilemap, R2D_AssetPath("tilemaps/r2d_sandbox.json"));
     Sandbox_AddFallbackCollision(&sandbox->tilemap);
     sandbox->collision_layer = R2D_TilemapLayerIndex(&sandbox->tilemap, "Collision");
     player_start = R2D_TilemapFindObject(&sandbox->tilemap, "PlayerStart");

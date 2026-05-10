@@ -62,10 +62,9 @@ Los presets se cargan desde `assets/audio/sfx/*.r2sfx`; si un archivo falta, el 
 el preset compilado como fallback.
 El jugador del sandbox usa una spritesheet procedural para probar `R2D_SpriteSheet`,
 `R2D_AnimPlayer` y el dibujado de animaciones sin depender de assets externos.
-Tambien carga `assets/tilemaps/sandbox.json`, un mapa Tiled JSON minimo con capas de tiles
-sin compresion. El soporte inicial de tilemaps esta pensado para mapas ortogonales finitos,
-datos en array JSON, tilesets de imagen unica y object layers rectangulares. Si el mapa
-tiene un objeto llamado `PlayerStart`, el sandbox usa su posicion como spawn del jugador.
+Tambien carga `assets/tilemaps/r2d_sandbox.json`, un mapa Tiled JSON minimo incluido con
+el framework. Si el mapa tiene un objeto llamado `PlayerStart`, el sandbox usa su posicion
+como spawn del jugador.
 La camara del sandbox sigue al jugador y se limita al rectangulo del mapa.
 El dibujado del sandbox usa el rectangulo visible de la camara para no recorrer todo el
 tilemap en mapas grandes.
@@ -122,6 +121,21 @@ Los canales se numeran de `0` a `15`; el canal `9` corresponde al canal MIDI 10,
 habitualmente para percusion. Las claves de canal son opcionales: si faltan, el framework
 usa volumen `1`, banco `0` para canales melodicos, banco `128` para percusion y el programa
 indicado por el propio MIDI.
+
+## Tilemaps Tiled
+
+El soporte inicial de Tiled esta pensado para ser pequeno y predecible. Carga mapas JSON
+ortogonales y finitos, con datos de tiles en array JSON sin compresion. Soporta tilesets
+incrustados con imagen unica y tilesets externos `.tsx` simples con `<image source="...">`.
+
+Las capas `tilelayer` se guardan como capas de tiles. Una capa llamada `Collision` puede
+usarse para colision por tiles: cualquier valor distinto de cero bloquea. Las capas
+`objectgroup` cargan objetos rectangulares con `name`, `type`, `x`, `y`, `width` y `height`;
+el sandbox usa `PlayerStart` como punto de spawn.
+
+Quedan fuera a proposito, de momento: mapas infinitos, chunks, base64, compresion,
+isometrico/hexagonal, propiedades custom, tiles animados y multiples tilesets complejos.
+La idea es usar Tiled como editor potente sin convertir el framework en un motor enorme.
 
 ## Editor de efectos
 

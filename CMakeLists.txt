@@ -69,9 +69,15 @@ endfunction()
 
 if(R2D_BUILD_EXAMPLES)
     r2d_add_app(r2d_sandbox examples/sandbox/main.c)
+    r2d_add_app(r2d_collect examples/collect/main.c)
 
     if(WIN32)
         target_link_options(r2d_sandbox PRIVATE
+            $<$<AND:$<CONFIG:Release>,$<C_COMPILER_ID:MSVC>>:/SUBSYSTEM:WINDOWS>
+            $<$<AND:$<CONFIG:Release>,$<C_COMPILER_ID:MSVC>>:/ENTRY:mainCRTStartup>
+            $<$<AND:$<CONFIG:Release>,$<NOT:$<C_COMPILER_ID:MSVC>>>:-mwindows>
+        )
+        target_link_options(r2d_collect PRIVATE
             $<$<AND:$<CONFIG:Release>,$<C_COMPILER_ID:MSVC>>:/SUBSYSTEM:WINDOWS>
             $<$<AND:$<CONFIG:Release>,$<C_COMPILER_ID:MSVC>>:/ENTRY:mainCRTStartup>
             $<$<AND:$<CONFIG:Release>,$<NOT:$<C_COMPILER_ID:MSVC>>>:-mwindows>
