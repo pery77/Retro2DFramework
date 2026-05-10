@@ -22,6 +22,7 @@ typedef struct CollectDemo {
     R2D_AnimPlayer player_anim;
     R2D_AnimPlayer coin_anim;
     R2D_Sfx coin_sfx;
+    R2D_Music music;
     R2D_Context *context;
     R2D_Crt *crt;
     int collision_layer;
@@ -30,6 +31,7 @@ typedef struct CollectDemo {
     Coin coins[COLLECT_MAX_COINS];
     bool facing_left;
     bool debug_draw;
+    bool music_loaded;
 } CollectDemo;
 
 static Texture2D Collect_CreatePlayerTexture(void)
@@ -146,6 +148,7 @@ static void Collect_Init(void *user_data)
     demo->collision_layer = -1;
     demo->coin_count = 0;
     demo->coins_collected = 0;
+    demo->music_loaded = false;
     demo->player_sheet = R2D_SpriteSheetFromTexture(Collect_CreatePlayerTexture(), 16, 16);
     demo->coin_sheet = R2D_LoadSpriteSheet(R2D_AssetPath("textures/Dungeon/Coin Sheet.png"), 16, 16);
     demo->idle_anim = R2D_AnimFrames(0, 2, 3.0f, true);
@@ -156,6 +159,11 @@ static void Collect_Init(void *user_data)
     demo->collision_layer = R2D_TilemapLayerIndex(&demo->tilemap, "Collision");
     Collect_LoadObjects(demo);
     demo->coin_sfx = Collect_LoadCoinSfx();
+    demo->music_loaded = R2D_MusicLoadSong(&demo->music, R2D_AssetPath("audio/music/Mario Bros..r2song"));
+    if (demo->music_loaded) {
+        R2D_MusicSetVolume(&demo->music, 0.45f);
+        R2D_MusicPlay(&demo->music, true);
+    }
 }
 
 static void Collect_Update(float dt, void *user_data)
@@ -166,6 +174,10 @@ static void Collect_Update(float dt, void *user_data)
     Vector2 movement = { 0.0f, 0.0f };
     Vector2 next;
     Rectangle player_bounds;
+
+    if (demo->music_loaded) {
+        R2D_MusicUpdate(&demo->music);
+    }
 
     if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)) {
         movement.x -= 1.0f;
@@ -317,6 +329,7 @@ static void Collect_Shutdown(void *user_data)
     R2D_TilemapUnload(&demo->tilemap);
     R2D_UnloadSpriteSheet(&demo->player_sheet);
     R2D_UnloadSpriteSheet(&demo->coin_sheet);
+    R2D_MusicUnload(&demo->music);
 }
 
 int main(void)
