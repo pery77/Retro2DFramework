@@ -1,6 +1,7 @@
 #include "r2d/r2d.h"
 
 #include <ctype.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -75,20 +76,6 @@ static void R2D_MusicSetError(const char *message, const char *path)
     } else {
         snprintf(r2d_music_last_error, sizeof(r2d_music_last_error), "%s: %s", message, path);
     }
-}
-
-static bool R2D_MusicOpenFile(FILE **file, const char *path, const char *mode)
-{
-    if (file == 0 || path == 0 || mode == 0) {
-        return false;
-    }
-
-#if defined(_MSC_VER)
-    return fopen_s(file, path, mode) == 0 && *file != 0;
-#else
-    *file = fopen(path, mode);
-    return *file != 0;
-#endif
 }
 
 static char *R2D_MusicTrim(char *text)
@@ -453,6 +440,10 @@ bool R2D_MusicLoad(R2D_Music *music, const char *midi_path, const char *soundfon
     tml_message *messages;
     R2D_MusicState *state;
     AudioStream stream;
+    unsigned char *soundfont_data = 0;
+    unsigned char *midi_data = 0;
+    int soundfont_size = 0;
+    int midi_size = 0;
     unsigned int length_ms = 0;
 
     if (music == 0 || midi_path == 0 || soundfont_path == 0) {
@@ -477,7 +468,15 @@ bool R2D_MusicLoad(R2D_Music *music, const char *midi_path, const char *soundfon
         return false;
     }
 
-    soundfont = tsf_load_filename(soundfont_path);
+    if (!R2D_LoadAssetData(soundfont_path, &soundfont_data, &soundfont_size)) {
+        R2D_MusicSetError("soundfont load failed", soundfont_path);
+        TraceLog(LOG_WARNING, "R2D: Failed to load SoundFont data: %s", soundfont_path);
+        free(state);
+        return false;
+    }
+
+    soundfont = tsf_load_memory(soundfont_data, soundfont_size);
+    R2D_UnloadAssetData(soundfont_data);
     if (soundfont == 0) {
         R2D_MusicSetError("soundfont load failed", soundfont_path);
         TraceLog(LOG_WARNING, "R2D: Failed to load SoundFont: %s", soundfont_path);
@@ -485,7 +484,16 @@ bool R2D_MusicLoad(R2D_Music *music, const char *midi_path, const char *soundfon
         return false;
     }
 
-    messages = tml_load_filename(midi_path);
+    if (!R2D_LoadAssetData(midi_path, &midi_data, &midi_size)) {
+        R2D_MusicSetError("midi load failed", midi_path);
+        TraceLog(LOG_WARNING, "R2D: Failed to load MIDI data: %s", midi_path);
+        tsf_close(soundfont);
+        free(state);
+        return false;
+    }
+
+    messages = tml_load_memory(midi_data, midi_size);
+    R2D_UnloadAssetData(midi_data);
     if (messages == 0) {
         R2D_MusicSetError("midi load failed", midi_path);
         TraceLog(LOG_WARNING, "R2D: Failed to load MIDI: %s", midi_path);
@@ -528,7 +536,8 @@ bool R2D_MusicLoad(R2D_Music *music, const char *midi_path, const char *soundfon
 
 bool R2D_MusicLoadSong(R2D_Music *music, const char *song_path)
 {
-    FILE *file = 0;
+    char *file_text;
+    char *cursor;
     char song_directory[1024];
     char line[256];
     char midi_name[256] = "";
@@ -547,7 +556,8 @@ bool R2D_MusicLoadSong(R2D_Music *music, const char *song_path)
         return false;
     }
 
-    if (!R2D_MusicOpenFile(&file, song_path, "rb")) {
+    file_text = R2D_LoadAssetText(song_path);
+    if (file_text == 0) {
         R2D_MusicSetError("song load failed", song_path);
         return false;
     }
@@ -558,13 +568,34 @@ bool R2D_MusicLoadSong(R2D_Music *music, const char *song_path)
         channel_program[channel] = -1;
     }
 
-    while (fgets(line, sizeof(line), file) != 0) {
-        char *text = R2D_MusicTrim(line);
-        char *separator = strchr(text, '=');
+    cursor = file_text;
+    while (*cursor != '\0') {
+        int length = 0;
+        char *text;
+        char *separator;
         char *key;
         char *value;
         int channel = -1;
         char field[32];
+
+        while (cursor[length] != '\0' && cursor[length] != '\n' && length < (int)sizeof(line) - 1) {
+            line[length] = cursor[length];
+            ++length;
+        }
+
+        line[length] = '\0';
+
+        while (cursor[length] != '\0' && cursor[length] != '\n') {
+            ++length;
+        }
+
+        cursor += length;
+        if (*cursor == '\n') {
+            ++cursor;
+        }
+
+        text = R2D_MusicTrim(line);
+        separator = strchr(text, '=');
 
         if (*text == '\0' || *text == '#' || *text == ';' || separator == 0) {
             continue;
@@ -595,7 +626,7 @@ bool R2D_MusicLoadSong(R2D_Music *music, const char *song_path)
         }
     }
 
-    fclose(file);
+    R2D_UnloadAssetText(file_text);
 
     if (midi_name[0] == '\0' || soundfont_name[0] == '\0') {
         R2D_MusicSetError("song missing midi or soundfont", song_path);

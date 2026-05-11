@@ -224,6 +224,16 @@ void R2D_CrtSetEnabled(R2D_Crt *crt, bool enabled);
 void R2D_SetCrt(R2D_Context *ctx, R2D_Crt *crt);
 
 const char *R2D_AssetPath(const char *relative_path);
+bool R2D_MountAssetPack(const char *path);
+void R2D_UnmountAssetPack(void);
+bool R2D_AssetPackMounted(void);
+bool R2D_AssetExists(const char *path);
+bool R2D_LoadAssetData(const char *path, unsigned char **data, int *size);
+void R2D_UnloadAssetData(unsigned char *data);
+char *R2D_LoadAssetText(const char *path);
+void R2D_UnloadAssetText(char *text);
+Texture2D R2D_LoadTexture(const char *path);
+Shader R2D_LoadFragmentShader(const char *path);
 
 int R2D_VirtualWidth(const R2D_Context *ctx);
 int R2D_VirtualHeight(const R2D_Context *ctx);

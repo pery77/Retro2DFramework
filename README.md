@@ -223,21 +223,30 @@ Atajos de ventana incluidos por el framework:
 - `F11` o `Alt+Enter`: alternar pantalla completa.
 - `F12` o `PrintScreen`: guardar captura en `screenshots` junto al ejecutable.
 
-La carpeta `assets` se copia automaticamente junto al ejecutable al compilar. El codigo
-resuelve rutas con `R2D_AssetPath("shaders/crt.fs")`, siempre relativas a esa carpeta
-`assets` del ejecutable. En builds locales generadas por este CMake, primero intenta leer
-la carpeta `assets` del proyecto para que editar shaders en runtime sea directo.
+En `Debug`, el codigo resuelve rutas con `R2D_AssetPath("shaders/crt.fs")` y primero
+intenta leer la carpeta `assets` del proyecto, para que editar shaders, mapas o presets
+en runtime sea directo. En `Release`, los ejemplos empaquetan solo los assets que usa
+cada target en un archivo junto al ejecutable: `r2d_collect.assets`,
+`r2d_sandbox.assets`, etc. El framework monta automaticamente el `.assets` con el mismo
+nombre que el `.exe` y, si no existe, cae al formato clasico `assets` junto al
+ejecutable.
+
+El empaquetado se controla con `R2D_PACKAGE_ASSETS` y esta activado por defecto para los
+ejemplos. Las herramientas de desarrollo siguen copiando la carpeta `assets`, porque
+necesitan listar directorios y guardar archivos editables.
 
 ## Estructura
 
 ```text
 assets                  Recursos que se copian junto al ejecutable
+*.assets                Paquete de assets por ejecutable en Release
 assets/audio/sfx        Presets de sintetizador .r2sfx
 assets/audio/music      Canciones MIDI
 assets/audio/soundfonts Bancos SoundFont .sf2
 external/tinysoundfont  TinySoundFont y TinyMidiLoader
 include/r2d/r2d.h       API publica
 src/r2d.c               Implementacion del framework
+src/r2d_assets.c        Carga desde carpeta o paquete .assets
 src/r2d_camera.c        Camara 2D simple para coordenadas de mundo y pantalla
 src/r2d_crt.c           Postproceso CRT opcional
 src/r2d_audio.c         Sintetizador simple para efectos retro

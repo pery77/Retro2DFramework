@@ -574,7 +574,7 @@ static bool R2D_TilemapParseTileset(R2D_Tilemap *tilemap, const char *text, cons
             const char *image_tag_end;
 
             R2D_TilemapResolvePath(tileset_path, sizeof(tileset_path), path, source);
-            tileset_text = LoadFileText(tileset_path);
+            tileset_text = R2D_LoadAssetText(tileset_path);
 
             if (tileset_text == 0) {
                 TraceLog(LOG_WARNING, "R2D: Failed to load Tiled TSX tileset: %s", tileset_path);
@@ -586,7 +586,7 @@ static bool R2D_TilemapParseTileset(R2D_Tilemap *tilemap, const char *text, cons
             image_tag = strstr(tileset_text, "<image");
 
             if (tileset_tag == 0 || image_tag == 0) {
-                UnloadFileText(tileset_text);
+                R2D_UnloadAssetText(tileset_text);
                 tileset_begin = tileset_end + 1;
                 continue;
             }
@@ -600,13 +600,13 @@ static bool R2D_TilemapParseTileset(R2D_Tilemap *tilemap, const char *text, cons
             R2D_TilemapXmlReadInt(tileset_tag, tileset_tag_end, "tilecount", &tile_count);
 
             if (!R2D_TilemapXmlReadString(image_tag, image_tag_end, "source", image, sizeof(image))) {
-                UnloadFileText(tileset_text);
+                R2D_UnloadAssetText(tileset_text);
                 tileset_begin = tileset_end + 1;
                 continue;
             }
 
             R2D_TilemapResolvePath(image_path, sizeof(image_path), tileset_path, image);
-            UnloadFileText(tileset_text);
+            R2D_UnloadAssetText(tileset_text);
         } else {
             if (!R2D_TilemapReadString(tileset_begin, tileset_end, "image", image, sizeof(image))) {
                 tileset_begin = tileset_end + 1;
@@ -639,7 +639,7 @@ static bool R2D_TilemapParseTileset(R2D_Tilemap *tilemap, const char *text, cons
     tilemap->tile_height = chosen_tile_height;
     tilemap->columns = chosen_columns;
     tilemap->tile_count = chosen_tile_count;
-    tilemap->texture = LoadTexture(chosen_image_path);
+    tilemap->texture = R2D_LoadTexture(chosen_image_path);
 
     if (!IsTextureValid(tilemap->texture)) {
         TraceLog(LOG_WARNING, "R2D: Failed to load tilemap tileset image: %s", chosen_image_path);
@@ -936,7 +936,7 @@ bool R2D_TilemapLoadTiledJson(R2D_Tilemap *tilemap, const char *path)
     }
 
     memset(tilemap, 0, sizeof(*tilemap));
-    text = LoadFileText(path);
+    text = R2D_LoadAssetText(path);
 
     if (text == 0) {
         TraceLog(LOG_WARNING, "R2D: Failed to load tilemap: %s", path);
@@ -962,7 +962,7 @@ bool R2D_TilemapLoadTiledJson(R2D_Tilemap *tilemap, const char *path)
         R2D_TilemapUnload(tilemap);
     }
 
-    UnloadFileText(text);
+    R2D_UnloadAssetText(text);
     return ok;
 }
 

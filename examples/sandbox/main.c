@@ -150,15 +150,15 @@ static void Sandbox_Init(void *user_data)
 
     snprintf(song_path, sizeof(song_path), "%s", R2D_AssetPath("audio/music/touhou-bad-apple.r2song"));
 
-    sandbox->music_loaded = FileExists(song_path) &&
+    sandbox->music_loaded = R2D_AssetExists(song_path) &&
         R2D_MusicLoadSong(&sandbox->music, song_path);
 
     if (!sandbox->music_loaded) {
         snprintf(midi_path, sizeof(midi_path), "%s", R2D_AssetPath("audio/music/touhou-bad-apple.mid"));
         snprintf(soundfont_path, sizeof(soundfont_path), "%s", R2D_AssetPath("audio/soundfonts/8-Bit_Sounds.sf2"));
 
-        sandbox->music_loaded = FileExists(midi_path) &&
-            FileExists(soundfont_path) &&
+        sandbox->music_loaded = R2D_AssetExists(midi_path) &&
+            R2D_AssetExists(soundfont_path) &&
             R2D_MusicLoad(&sandbox->music, midi_path, soundfont_path);
     }
 

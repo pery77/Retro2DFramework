@@ -3,7 +3,7 @@
 static bool R2D_CrtLoadShader(R2D_Crt *crt)
 {
     const char *shader_path = R2D_AssetPath("shaders/crt.fs");
-    Shader shader = LoadShader(0, shader_path);
+    Shader shader = R2D_LoadFragmentShader(shader_path);
 
     if (!IsShaderValid(shader)) {
         TraceLog(LOG_WARNING, "R2D: Failed to load CRT shader: %s", shader_path);
@@ -40,7 +40,7 @@ bool R2D_CrtInit(R2D_Crt *crt)
     }
 
     const char *noise_path = R2D_AssetPath("textures/noise.png");
-    crt->noise = LoadTexture(noise_path);
+    crt->noise = R2D_LoadTexture(noise_path);
 
     if (!IsTextureValid(crt->noise)) {
         TraceLog(LOG_WARNING, "R2D: Failed to load CRT noise texture: %s", noise_path);

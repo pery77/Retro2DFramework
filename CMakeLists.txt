@@ -8,6 +8,7 @@ set(CMAKE_C_EXTENSIONS OFF)
 
 option(R2D_BUILD_EXAMPLES "Build Retro2DFramework examples" ON)
 option(R2D_BUILD_TOOLS "Build Retro2DFramework tools" ON)
+option(R2D_PACKAGE_ASSETS "Package app assets into per-target .assets files" ON)
 
 find_package(raylib CONFIG QUIET)
 
@@ -23,6 +24,7 @@ endif()
 
 add_library(r2d STATIC
     src/r2d.c
+    src/r2d_assets.c
     src/r2d_audio.c
     src/r2d_camera.c
     src/r2d_crt.c
@@ -39,7 +41,7 @@ target_include_directories(r2d
 )
 
 target_compile_definitions(r2d PRIVATE
-    R2D_DEVELOPMENT_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/"
+    $<$<CONFIG:Debug>:R2D_DEVELOPMENT_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/">
 )
 
 target_link_libraries(r2d PUBLIC raylib)
@@ -61,10 +63,35 @@ function(r2d_copy_assets target_name)
     add_dependencies(${target_name} ${target_name}_assets)
 endfunction()
 
+add_executable(r2d_asset_pack tools/r2d_pack/main.c)
+
+function(r2d_package_assets target_name source_file)
+    add_custom_command(TARGET ${target_name} POST_BUILD
+        COMMAND $<TARGET_FILE:r2d_asset_pack>
+            $<CONFIG>
+            ${CMAKE_CURRENT_SOURCE_DIR}/assets
+            $<TARGET_FILE_DIR:${target_name}>/${target_name}.assets
+            ${CMAKE_CURRENT_SOURCE_DIR}/${source_file}
+        DEPENDS r2d_asset_pack
+        COMMENT "Packing release assets for ${target_name}"
+        VERBATIM
+    )
+endfunction()
+
 function(r2d_add_app target_name source_file)
     add_executable(${target_name} ${source_file})
     target_link_libraries(${target_name} PRIVATE r2d)
     r2d_copy_assets(${target_name})
+endfunction()
+
+function(r2d_add_packaged_app target_name source_file)
+    add_executable(${target_name} ${source_file})
+    target_link_libraries(${target_name} PRIVATE r2d)
+    if(R2D_PACKAGE_ASSETS)
+        r2d_package_assets(${target_name} ${source_file})
+    else()
+        r2d_copy_assets(${target_name})
+    endif()
 endfunction()
 
 function(r2d_use_windows_subsystem target_name)
@@ -78,8 +105,8 @@ function(r2d_use_windows_subsystem target_name)
 endfunction()
 
 if(R2D_BUILD_EXAMPLES)
-    r2d_add_app(r2d_sandbox examples/sandbox/main.c)
-    r2d_add_app(r2d_collect examples/collect/main.c)
+    r2d_add_packaged_app(r2d_sandbox examples/sandbox/main.c)
+    r2d_add_packaged_app(r2d_collect examples/collect/main.c)
 
     r2d_use_windows_subsystem(r2d_sandbox)
     r2d_use_windows_subsystem(r2d_collect)

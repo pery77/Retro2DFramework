@@ -698,21 +698,47 @@ R2D_Sfx R2D_SfxPowerup(void)
 
 bool R2D_LoadSfx(const char *path, R2D_Sfx *sfx)
 {
-    FILE *file = 0;
+    char *file_text;
+    char *cursor;
     char line[256];
     R2D_Sfx loaded;
 
-    if (path == 0 || sfx == 0 || !R2D_AudioOpenFile(&file, path, "rb")) {
+    if (path == 0 || sfx == 0) {
+        return false;
+    }
+
+    file_text = R2D_LoadAssetText(path);
+    if (file_text == 0) {
         return false;
     }
 
     loaded = R2D_DefaultSfx();
+    cursor = file_text;
 
-    while (fgets(line, sizeof(line), file) != 0) {
-        char *text = R2D_AudioTrim(line);
+    while (*cursor != '\0') {
+        int length = 0;
+        char *text;
         char *separator;
         char *key;
         char *value;
+
+        while (cursor[length] != '\0' && cursor[length] != '\n' && length < (int)sizeof(line) - 1) {
+            line[length] = cursor[length];
+            ++length;
+        }
+
+        line[length] = '\0';
+
+        while (cursor[length] != '\0' && cursor[length] != '\n') {
+            ++length;
+        }
+
+        cursor += length;
+        if (*cursor == '\n') {
+            ++cursor;
+        }
+
+        text = R2D_AudioTrim(line);
 
         if (*text == '\0' || *text == '#' || *text == ';') {
             continue;
@@ -735,7 +761,7 @@ bool R2D_LoadSfx(const char *path, R2D_Sfx *sfx)
         R2D_AudioApplySfxField(&loaded, key, value);
     }
 
-    fclose(file);
+    R2D_UnloadAssetText(file_text);
     *sfx = loaded;
     return true;
 }

@@ -2,7 +2,12 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 #include <time.h>
+
+#if defined(_WIN32)
+__declspec(dllimport) unsigned long __stdcall GetModuleFileNameA(void *module, char *filename, unsigned long size);
+#endif
 
 static Rectangle R2D_CalculateDestination(int virtual_width, int virtual_height)
 {
@@ -41,6 +46,34 @@ static void R2D_HandleWindowShortcuts(R2D_Context *ctx)
     }
 }
 
+static void R2D_MountDefaultAssetPack(void)
+{
+    char asset_pack_path[1200];
+
+#if defined(_WIN32)
+    char exe_path[1200];
+    unsigned long length = GetModuleFileNameA(0, exe_path, (unsigned long)sizeof(exe_path));
+
+    if (length > 0 && length < (unsigned long)sizeof(exe_path)) {
+        char *dot;
+
+        exe_path[length] = '\0';
+        dot = strrchr(exe_path, '.');
+        if (dot != 0) {
+            *dot = '\0';
+        }
+
+        snprintf(asset_pack_path, sizeof(asset_pack_path), "%s.assets", exe_path);
+        if (R2D_MountAssetPack(asset_pack_path)) {
+            return;
+        }
+    }
+#endif
+
+    snprintf(asset_pack_path, sizeof(asset_pack_path), "%sassets.assets", GetApplicationDirectory());
+    R2D_MountAssetPack(asset_pack_path);
+}
+
 R2D_Config R2D_DefaultConfig(void)
 {
     return (R2D_Config) {
@@ -77,6 +110,8 @@ bool R2D_Init(R2D_Context *ctx, R2D_Config config)
         config.virtual_height * config.window_scale,
         config.title
     );
+
+    R2D_MountDefaultAssetPack();
 
     SetTextureFilter(GetFontDefault().texture, TEXTURE_FILTER_POINT);
 
@@ -142,6 +177,7 @@ void R2D_Close(R2D_Context *ctx)
     }
 
     UnloadRenderTexture(ctx->target);
+    R2D_UnmountAssetPack();
     CloseWindow();
     ctx->is_ready = false;
 }

@@ -26,7 +26,7 @@ R2D_SpriteSheet R2D_LoadSpriteSheet(const char *path, int frame_width, int frame
     Texture2D texture = { 0 };
 
     if (path != 0) {
-        texture = LoadTexture(path);
+        texture = R2D_LoadTexture(path);
     }
 
     if (!IsTextureValid(texture)) {
