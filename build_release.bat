@@ -3,9 +3,5 @@ setlocal
 
 cd /d "%~dp0"
 
-cmake -S . -B build
-if errorlevel 1 exit /b %errorlevel%
-
-cmake --build build --config Release
+call "%~dp0build.bat" release all
 exit /b %errorlevel%
-

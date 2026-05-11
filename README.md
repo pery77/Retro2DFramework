@@ -19,24 +19,46 @@ Objetivos iniciales:
 
 ## Compilar
 
+En Windows, usa `build.bat` como punto unico de entrada:
+
+```powershell
+.\build.bat debug
+.\build.bat release
+.\build.bat debug r2d_collect
+.\build.bat release r2d_sandbox
+.\build.bat debug all
+```
+
+El primer argumento es la configuracion (`debug` o `release`). El segundo argumento es
+opcional: usa `all` por defecto o el nombre de un target CMake (`r2d_sandbox`,
+`r2d_collect`, `r2d_sfx_editor`, `r2d_midi_player`). Para solo regenerar el proyecto:
+
+```powershell
+.\build.bat configure
+```
+
+Los scripts antiguos (`build_debug.bat`, `build_release.bat`, `build_sandbox_debug.bat`,
+`build_sfx_editor_debug.bat` y `build_midi_player_debug.bat`) siguen existiendo como
+wrappers temporales hacia `build.bat` para no romper flujos existentes. La build `Release`
+enlaza las demos como aplicaciones Windows, asi que no abren consola.
+
+Tambien puedes llamar a CMake directamente:
+
 ```powershell
 cmake -S . -B build
-cmake --build build
+cmake --build build --config Debug
+cmake --build build --config Release --target r2d_collect
 ```
 
-O en Windows:
+Si prefieres compilar con una ventana simple de un click:
 
 ```powershell
-.\build_debug.bat
-.\build_release.bat
-.\build_sandbox_debug.bat
-.\build_sfx_editor_debug.bat
+.\build_gui.bat
 ```
 
-`build_debug.bat` y `build_release.bat` compilan todo. Los scripts `build_sandbox_debug.bat`
-`build_sfx_editor_debug.bat` y `build_midi_player_debug.bat` compilan solo el juego de
-prueba, el editor de efectos o el reproductor MIDI. La build `Release` enlaza el ejemplo
-como aplicacion Windows, asi que no abre consola.
+El launcher visual permite elegir `Debug` o `Release`, elegir un target, configurar,
+compilar, y compilar/ejecutar. La lista sale de `tools/build_targets.json`; para anadir
+un ejemplo o herramienta nueva, anade el target a CMake y una entrada a ese JSON.
 
 ## Ejecutar ejemplo
 
@@ -49,6 +71,13 @@ Con Visual Studio/MSVC, el ejecutable queda en:
 ```powershell
 .\build\Debug\r2d_sandbox.exe
 .\build\Release\r2d_sandbox.exe
+```
+
+Tambien se incluye una mini demo jugable de recoger monedas:
+
+```powershell
+.\build\Debug\r2d_collect.exe
+.\build\Release\r2d_collect.exe
 ```
 
 Pulsa `C` en el sandbox para activar o desactivar el efecto CRT. Pulsa `R` para
@@ -69,6 +98,27 @@ La camara del sandbox sigue al jugador y se limita al rectangulo del mapa.
 El dibujado del sandbox usa el rectangulo visible de la camara para no recorrer todo el
 tilemap en mapas grandes.
 
+## Demo collect
+
+`examples/collect` es una mini demo jugable, separada del sandbox, que carga
+`assets/tilemaps/collect.json`. Usa spritesheets reales para el jugador y las monedas,
+musica `.r2song`, SFX al recoger pickups, camara con clamp y CRT fijo.
+
+Controles:
+
+- `WASD` o flechas: mover el jugador.
+- `F3`: mostrar u ocultar debug de colision y objetos.
+
+Convenciones del mapa Tiled:
+
+- Objeto `PlayerStart`: posicion inicial del jugador.
+- Objetos `type=coin`, `type=pickup` o nombre que empiece por `Coin`: monedas recogibles.
+- Capa `Collision`: colision invisible; cualquier tile no cero bloquea.
+- Capas `Foreground`, `Above` u `Over`: se dibujan por encima del jugador.
+- Resto de capas tile: se dibujan por debajo del jugador.
+
+Al recoger todas las monedas, la demo muestra un mensaje `ALL CLEAR`.
+
 El framework tambien puede reproducir musica MIDI con SoundFont usando TinySoundFont y
 TinyMidiLoader. Coloca un MIDI en `assets/audio/music/theme.mid` y una SoundFont en
 `assets/audio/soundfonts/chiptune.sf2`; el sandbox los carga si existen y permite activar
@@ -77,7 +127,7 @@ o parar la musica con `P`.
 ## Reproductor MIDI
 
 ```powershell
-.\build_midi_player_debug.bat
+.\build.bat debug r2d_midi_player
 .\build\Debug\r2d_midi_player.exe
 ```
 
@@ -140,7 +190,7 @@ La idea es usar Tiled como editor potente sin convertir el framework en un motor
 ## Editor de efectos
 
 ```powershell
-.\build_sfx_editor_debug.bat
+.\build.bat debug r2d_sfx_editor
 .\build\Debug\r2d_sfx_editor.exe
 ```
 
@@ -195,6 +245,9 @@ src/r2d_music.c         Reproduccion MIDI + SoundFont
 src/r2d_sprite.c        Spritesheets en grid y animacion simple
 src/r2d_tilemap.c       Carga y dibujado basico de mapas Tiled JSON
 examples/sandbox        Primer juego de prueba
+examples/collect        Mini demo jugable de recoger monedas
 tools/sfx_editor        Editor sencillo de presets de sonido
 tools/midi_player       Reproductor para probar MIDIs con SoundFonts
+tools/build_gui.ps1     Launcher visual simple para builds
+tools/build_targets.json Targets visibles en el launcher
 ```

@@ -6,6 +6,13 @@
 
 #define COLLECT_MAX_COINS 32
 
+typedef enum PlayerDirection {
+    PLAYER_SOUTH = 0,
+    PLAYER_NORTH,
+    PLAYER_EAST,
+    PLAYER_WEST
+} PlayerDirection;
+
 typedef struct Coin {
     Rectangle rect;
     bool collected;
@@ -15,7 +22,7 @@ typedef struct CollectDemo {
     Vector2 player;
     R2D_Camera camera;
     R2D_Tilemap tilemap;
-    R2D_SpriteSheet player_sheet;
+    R2D_SpriteSheet player_sheets[4];
     R2D_SpriteSheet coin_sheet;
     R2D_Anim idle_anim;
     R2D_Anim walk_anim;
@@ -24,39 +31,14 @@ typedef struct CollectDemo {
     R2D_Sfx coin_sfx;
     R2D_Music music;
     R2D_Context *context;
-    R2D_Crt *crt;
     int collision_layer;
     int coin_count;
     int coins_collected;
     Coin coins[COLLECT_MAX_COINS];
-    bool facing_left;
+    PlayerDirection player_direction;
     bool debug_draw;
     bool music_loaded;
 } CollectDemo;
-
-static Texture2D Collect_CreatePlayerTexture(void)
-{
-    Image image = GenImageColor(64, 16, BLANK);
-    Texture2D texture;
-
-    for (int frame = 0; frame < 4; ++frame) {
-        const int x = frame * 16;
-        const int step = frame == 1 ? 1 : frame == 3 ? -1 : 0;
-
-        ImageDrawRectangle(&image, x + 5, 3, 6, 10, R2D_ColorFromHex(0x4cc9f0ff));
-        ImageDrawRectangle(&image, x + 4, 2, 8, 3, R2D_ColorFromHex(0xf72585ff));
-        ImageDrawRectangle(&image, x + 6, 0, 4, 3, R2D_ColorFromHex(0xffd166ff));
-        ImageDrawRectangle(&image, x + 3, 6, 2, 5, R2D_ColorFromHex(0xf8f8f2ff));
-        ImageDrawRectangle(&image, x + 11, 6, 2, 5, R2D_ColorFromHex(0xf8f8f2ff));
-        ImageDrawRectangle(&image, x + 5 + step, 13, 3, 3, R2D_ColorFromHex(0x06d6a0ff));
-        ImageDrawRectangle(&image, x + 9 - step, 13, 3, 3, R2D_ColorFromHex(0x06d6a0ff));
-        ImageDrawPixel(&image, x + 10, 3, BLACK);
-    }
-
-    texture = LoadTextureFromImage(image);
-    UnloadImage(image);
-    return texture;
-}
 
 static R2D_Sfx Collect_LoadCoinSfx(void)
 {
@@ -144,15 +126,18 @@ static void Collect_Init(void *user_data)
     demo->player = (Vector2) { 32.0f, 32.0f };
     demo->camera = R2D_CameraCreate(R2D_VirtualWidth(demo->context), R2D_VirtualHeight(demo->context));
     demo->debug_draw = false;
-    demo->facing_left = false;
+    demo->player_direction = PLAYER_SOUTH;
     demo->collision_layer = -1;
     demo->coin_count = 0;
     demo->coins_collected = 0;
     demo->music_loaded = false;
-    demo->player_sheet = R2D_SpriteSheetFromTexture(Collect_CreatePlayerTexture(), 16, 16);
+    demo->player_sheets[PLAYER_SOUTH] = R2D_LoadSpriteSheet(R2D_AssetPath("textures/Hero/HeroSouth.png"), 16, 16);
+    demo->player_sheets[PLAYER_NORTH] = R2D_LoadSpriteSheet(R2D_AssetPath("textures/Hero/HeroNorth.png"), 16, 16);
+    demo->player_sheets[PLAYER_EAST] = R2D_LoadSpriteSheet(R2D_AssetPath("textures/Hero/HeroEast.png"), 16, 16);
+    demo->player_sheets[PLAYER_WEST] = R2D_LoadSpriteSheet(R2D_AssetPath("textures/Hero/HeroWest.png"), 16, 16);
     demo->coin_sheet = R2D_LoadSpriteSheet(R2D_AssetPath("textures/Dungeon/Coin Sheet.png"), 16, 16);
-    demo->idle_anim = R2D_AnimFrames(0, 2, 3.0f, true);
-    demo->walk_anim = R2D_AnimFrames(0, 4, 10.0f, true);
+    demo->idle_anim = R2D_AnimFrames(0, 1, 1.0f, true);
+    demo->walk_anim = R2D_AnimFrames(0, 7, 10.0f, true);
     R2D_AnimPlay(&demo->player_anim, demo->idle_anim);
     R2D_AnimPlay(&demo->coin_anim, R2D_AnimFrames(0, 8, 10.0f, true));
     R2D_TilemapLoadTiledJson(&demo->tilemap, R2D_AssetPath("tilemaps/collect.json"));
@@ -181,20 +166,26 @@ static void Collect_Update(float dt, void *user_data)
 
     if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)) {
         movement.x -= 1.0f;
-        demo->facing_left = true;
+        demo->player_direction = PLAYER_WEST;
     }
 
     if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) {
         movement.x += 1.0f;
-        demo->facing_left = false;
+        demo->player_direction = PLAYER_EAST;
     }
 
     if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W)) {
         movement.y -= 1.0f;
+        if (movement.x == 0.0f) {
+            demo->player_direction = PLAYER_NORTH;
+        }
     }
 
     if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) {
         movement.y += 1.0f;
+        if (movement.x == 0.0f) {
+            demo->player_direction = PLAYER_SOUTH;
+        }
     }
 
     if (movement.x != 0.0f || movement.y != 0.0f) {
@@ -260,11 +251,24 @@ static void Collect_DrawHud(const CollectDemo *demo)
     DrawRectangleLines(5, 5, 94, 26, R2D_ColorFromHex(0xffd166ff));
     DrawText(text, 10, 11, 10, R2D_ColorFromHex(0xf8f8f2ff));
 
-    if (demo->coins_collected == demo->coin_count && demo->coin_count > 0) {
-        DrawText("ALL CLEAR", 122, 11, 10, R2D_ColorFromHex(0x06d6a0ff));
+    DrawText(demo->debug_draw ? "F3 DEBUG ON" : "F3 DEBUG", 242, 11, 8, R2D_ColorFromHex(0x8ecae6ff));
+}
+
+static void Collect_DrawClearMessage(const CollectDemo *demo)
+{
+    const int panel_width = 132;
+    const int panel_height = 38;
+    const int x = R2D_VirtualWidth(demo->context) / 2 - panel_width / 2;
+    const int y = R2D_VirtualHeight(demo->context) / 2 - panel_height / 2;
+
+    if (demo->coins_collected != demo->coin_count || demo->coin_count <= 0) {
+        return;
     }
 
-    DrawText(demo->debug_draw ? "F3 DEBUG ON" : "F3 DEBUG", 242, 11, 8, R2D_ColorFromHex(0x8ecae6ff));
+    DrawRectangle(x, y, panel_width, panel_height, R2D_ColorFromHex(0x101820dd));
+    DrawRectangleLines(x, y, panel_width, panel_height, R2D_ColorFromHex(0xffd166ff));
+    DrawText("ALL CLEAR", x + 31, y + 8, 12, R2D_ColorFromHex(0x06d6a0ff));
+    DrawText("coins collected", x + 23, y + 23, 8, R2D_ColorFromHex(0xf8f8f2ff));
 }
 
 static void Collect_Draw(void *user_data)
@@ -300,7 +304,7 @@ static void Collect_Draw(void *user_data)
         R2D_DrawAnim(&demo->coin_sheet, &demo->coin_anim, position, false);
     }
 
-    R2D_DrawAnim(&demo->player_sheet, &demo->player_anim, player_screen, demo->facing_left);
+    R2D_DrawAnim(&demo->player_sheets[demo->player_direction], &demo->player_anim, player_screen, false);
     Collect_DrawTileLayers(demo, camera_view, camera_offset, true);
 
     if (demo->debug_draw) {
@@ -320,6 +324,7 @@ static void Collect_Draw(void *user_data)
     }
 
     Collect_DrawHud(demo);
+    Collect_DrawClearMessage(demo);
 }
 
 static void Collect_Shutdown(void *user_data)
@@ -327,7 +332,9 @@ static void Collect_Shutdown(void *user_data)
     CollectDemo *demo = (CollectDemo *)user_data;
 
     R2D_TilemapUnload(&demo->tilemap);
-    R2D_UnloadSpriteSheet(&demo->player_sheet);
+    for (int i = 0; i < 4; ++i) {
+        R2D_UnloadSpriteSheet(&demo->player_sheets[i]);
+    }
     R2D_UnloadSpriteSheet(&demo->coin_sheet);
     R2D_MusicUnload(&demo->music);
 }
@@ -351,7 +358,6 @@ int main(void)
     R2D_CrtSetEnabled(&crt, true);
     R2D_SetCrt(&context, &crt);
     demo.context = &context;
-    demo.crt = &crt;
 
     R2D_Run(&context, (R2D_App) {
         Collect_Init,

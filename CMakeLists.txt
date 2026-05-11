@@ -67,22 +67,22 @@ function(r2d_add_app target_name source_file)
     r2d_copy_assets(${target_name})
 endfunction()
 
-if(R2D_BUILD_EXAMPLES)
-    r2d_add_app(r2d_sandbox examples/sandbox/main.c)
-    r2d_add_app(r2d_collect examples/collect/main.c)
-
+function(r2d_use_windows_subsystem target_name)
     if(WIN32)
-        target_link_options(r2d_sandbox PRIVATE
-            $<$<AND:$<CONFIG:Release>,$<C_COMPILER_ID:MSVC>>:/SUBSYSTEM:WINDOWS>
-            $<$<AND:$<CONFIG:Release>,$<C_COMPILER_ID:MSVC>>:/ENTRY:mainCRTStartup>
-            $<$<AND:$<CONFIG:Release>,$<NOT:$<C_COMPILER_ID:MSVC>>>:-mwindows>
-        )
-        target_link_options(r2d_collect PRIVATE
+        target_link_options(${target_name} PRIVATE
             $<$<AND:$<CONFIG:Release>,$<C_COMPILER_ID:MSVC>>:/SUBSYSTEM:WINDOWS>
             $<$<AND:$<CONFIG:Release>,$<C_COMPILER_ID:MSVC>>:/ENTRY:mainCRTStartup>
             $<$<AND:$<CONFIG:Release>,$<NOT:$<C_COMPILER_ID:MSVC>>>:-mwindows>
         )
     endif()
+endfunction()
+
+if(R2D_BUILD_EXAMPLES)
+    r2d_add_app(r2d_sandbox examples/sandbox/main.c)
+    r2d_add_app(r2d_collect examples/collect/main.c)
+
+    r2d_use_windows_subsystem(r2d_sandbox)
+    r2d_use_windows_subsystem(r2d_collect)
 endif()
 
 if(R2D_BUILD_TOOLS)

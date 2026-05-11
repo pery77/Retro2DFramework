@@ -4,7 +4,11 @@
         {
             "label": "R2D: Build Debug",
             "type": "shell",
-            "command": "${workspaceFolder}\\build_debug.bat",
+            "command": "${workspaceFolder}\\build.bat",
+            "args": [
+                "debug",
+                "all"
+            ],
             "options": {
                 "cwd": "${workspaceFolder}"
             },
@@ -22,7 +26,49 @@
         {
             "label": "R2D: Build Release",
             "type": "shell",
-            "command": "${workspaceFolder}\\build_release.bat",
+            "command": "${workspaceFolder}\\build.bat",
+            "args": [
+                "release",
+                "all"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "build",
+            "problemMatcher": "$msCompile",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            }
+        },
+        {
+            "label": "R2D: Build Debug Sandbox",
+            "type": "shell",
+            "command": "${workspaceFolder}\\build.bat",
+            "args": [
+                "debug",
+                "r2d_sandbox"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "build",
+            "problemMatcher": "$msCompile",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            }
+        },
+        {
+            "label": "R2D: Build Debug Collect",
+            "type": "shell",
+            "command": "${workspaceFolder}\\build.bat",
+            "args": [
+                "debug",
+                "r2d_collect"
+            ],
             "options": {
                 "cwd": "${workspaceFolder}"
             },
@@ -37,17 +83,28 @@
         {
             "label": "R2D: Configure CMake",
             "type": "shell",
-            "command": "cmake",
+            "command": "${workspaceFolder}\\build.bat",
             "args": [
-                "-S",
-                ".",
-                "-B",
-                "build"
+                "configure"
             ],
             "options": {
                 "cwd": "${workspaceFolder}"
             },
             "problemMatcher": "$msCompile",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            }
+        },
+        {
+            "label": "R2D: Open Build GUI",
+            "type": "shell",
+            "command": "${workspaceFolder}\\build_gui.bat",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [],
             "presentation": {
                 "reveal": "always",
                 "panel": "shared",

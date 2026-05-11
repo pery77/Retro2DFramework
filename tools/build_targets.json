@@ -1,0 +1,29 @@
+{
+  "targets": [
+    {
+      "name": "all",
+      "label": "All targets",
+      "run": false
+    },
+    {
+      "name": "r2d_sandbox",
+      "label": "Sandbox",
+      "run": true
+    },
+    {
+      "name": "r2d_collect",
+      "label": "Collect demo",
+      "run": true
+    },
+    {
+      "name": "r2d_sfx_editor",
+      "label": "SFX editor",
+      "run": true
+    },
+    {
+      "name": "r2d_midi_player",
+      "label": "MIDI player",
+      "run": true
+    }
+  ]
+}
