@@ -28,6 +28,7 @@ typedef struct CollectDemo {
     R2D_Anim walk_anim;
     R2D_AnimPlayer player_anim;
     R2D_AnimPlayer coin_anim;
+    R2D_InputMap input;
     R2D_Sfx coin_sfx;
     R2D_Music music;
     R2D_Context *context;
@@ -99,6 +100,34 @@ static bool Collect_PlayerCollides(const CollectDemo *demo, Vector2 position)
     return R2D_TilemapRectCollides(&demo->tilemap, demo->collision_layer, Collect_PlayerBounds(position));
 }
 
+static void Collect_InitInput(CollectDemo *demo)
+{
+    R2D_InputInit(&demo->input);
+
+    R2D_InputBindKey(&demo->input, "move_left", KEY_LEFT);
+    R2D_InputBindKey(&demo->input, "move_left", KEY_A);
+    R2D_InputBindGamepadButton(&demo->input, "move_left", GAMEPAD_BUTTON_LEFT_FACE_LEFT);
+    R2D_InputBindGamepadAxis(&demo->input, "move_left", GAMEPAD_AXIS_LEFT_X, false);
+
+    R2D_InputBindKey(&demo->input, "move_right", KEY_RIGHT);
+    R2D_InputBindKey(&demo->input, "move_right", KEY_D);
+    R2D_InputBindGamepadButton(&demo->input, "move_right", GAMEPAD_BUTTON_LEFT_FACE_RIGHT);
+    R2D_InputBindGamepadAxis(&demo->input, "move_right", GAMEPAD_AXIS_LEFT_X, true);
+
+    R2D_InputBindKey(&demo->input, "move_up", KEY_UP);
+    R2D_InputBindKey(&demo->input, "move_up", KEY_W);
+    R2D_InputBindGamepadButton(&demo->input, "move_up", GAMEPAD_BUTTON_LEFT_FACE_UP);
+    R2D_InputBindGamepadAxis(&demo->input, "move_up", GAMEPAD_AXIS_LEFT_Y, false);
+
+    R2D_InputBindKey(&demo->input, "move_down", KEY_DOWN);
+    R2D_InputBindKey(&demo->input, "move_down", KEY_S);
+    R2D_InputBindGamepadButton(&demo->input, "move_down", GAMEPAD_BUTTON_LEFT_FACE_DOWN);
+    R2D_InputBindGamepadAxis(&demo->input, "move_down", GAMEPAD_AXIS_LEFT_Y, true);
+
+    R2D_InputBindKey(&demo->input, "debug", KEY_F3);
+    R2D_InputBindGamepadButton(&demo->input, "debug", GAMEPAD_BUTTON_MIDDLE_RIGHT);
+}
+
 static void Collect_LoadObjects(CollectDemo *demo)
 {
     const R2D_TilemapObject *player_start = R2D_TilemapFindObject(&demo->tilemap, "PlayerStart");
@@ -131,6 +160,7 @@ static void Collect_Init(void *user_data)
     demo->coin_count = 0;
     demo->coins_collected = 0;
     demo->music_loaded = false;
+    Collect_InitInput(demo);
     demo->player_sheets[PLAYER_SOUTH] = R2D_LoadSpriteSheet(R2D_AssetPath("textures/Hero/HeroSouth.png"), 16, 16);
     demo->player_sheets[PLAYER_NORTH] = R2D_LoadSpriteSheet(R2D_AssetPath("textures/Hero/HeroNorth.png"), 16, 16);
     demo->player_sheets[PLAYER_EAST] = R2D_LoadSpriteSheet(R2D_AssetPath("textures/Hero/HeroEast.png"), 16, 16);
@@ -146,7 +176,7 @@ static void Collect_Init(void *user_data)
     demo->coin_sfx = Collect_LoadCoinSfx();
     demo->music_loaded = R2D_MusicLoadSong(&demo->music, R2D_AssetPath("audio/music/Mario Bros..r2song"));
     if (demo->music_loaded) {
-        R2D_MusicSetVolume(&demo->music, 0.45f);
+        R2D_MusicSetVolume(&demo->music, 0.045f);
         R2D_MusicPlay(&demo->music, true);
     }
 }
@@ -160,29 +190,30 @@ static void Collect_Update(float dt, void *user_data)
     Vector2 next;
     Rectangle player_bounds;
 
+    R2D_InputUpdate(&demo->input);
+
     if (demo->music_loaded) {
         R2D_MusicUpdate(&demo->music);
     }
 
-    if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)) {
-        movement.x -= 1.0f;
+    movement.x = R2D_InputAxis(&demo->input, "move_left", "move_right");
+    movement.y = R2D_InputAxis(&demo->input, "move_up", "move_down");
+
+    if (movement.x < 0.0f) {
         demo->player_direction = PLAYER_WEST;
     }
 
-    if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) {
-        movement.x += 1.0f;
+    if (movement.x > 0.0f) {
         demo->player_direction = PLAYER_EAST;
     }
 
-    if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W)) {
-        movement.y -= 1.0f;
+    if (movement.y < 0.0f) {
         if (movement.x == 0.0f) {
             demo->player_direction = PLAYER_NORTH;
         }
     }
 
-    if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) {
-        movement.y += 1.0f;
+    if (movement.y > 0.0f) {
         if (movement.x == 0.0f) {
             demo->player_direction = PLAYER_SOUTH;
         }
@@ -190,8 +221,14 @@ static void Collect_Update(float dt, void *user_data)
 
     if (movement.x != 0.0f || movement.y != 0.0f) {
         const float length = sqrtf(movement.x * movement.x + movement.y * movement.y);
-        movement.x = movement.x / length * speed * dt;
-        movement.y = movement.y / length * speed * dt;
+
+        if (length > 1.0f) {
+            movement.x /= length;
+            movement.y /= length;
+        }
+
+        movement.x *= speed * dt;
+        movement.y *= speed * dt;
     }
 
     next = (Vector2) { demo->player.x + movement.x, demo->player.y };
@@ -204,7 +241,7 @@ static void Collect_Update(float dt, void *user_data)
         demo->player.y = next.y;
     }
 
-    if (IsKeyPressed(KEY_F3)) {
+    if (R2D_InputPressed(&demo->input, "debug")) {
         demo->debug_draw = !demo->debug_draw;
     }
 

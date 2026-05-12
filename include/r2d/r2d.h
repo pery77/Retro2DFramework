@@ -8,6 +8,9 @@
 #define R2D_DEFAULT_WINDOW_SCALE 4
 #define R2D_AUDIO_SAMPLE_RATE 48000
 #define R2D_AUDIO_MAX_VOICES 16
+#define R2D_INPUT_MAX_ACTIONS 32
+#define R2D_INPUT_MAX_BINDINGS 8
+#define R2D_INPUT_ACTION_NAME_SIZE 32
 
 #ifdef __cplusplus
 extern "C" {
@@ -117,6 +120,37 @@ typedef struct R2D_Camera {
     int viewport_width;
     int viewport_height;
 } R2D_Camera;
+
+typedef enum R2D_InputSource {
+    R2D_INPUT_KEY = 0,
+    R2D_INPUT_MOUSE_BUTTON,
+    R2D_INPUT_GAMEPAD_BUTTON,
+    R2D_INPUT_GAMEPAD_AXIS_NEGATIVE,
+    R2D_INPUT_GAMEPAD_AXIS_POSITIVE
+} R2D_InputSource;
+
+typedef struct R2D_InputBinding {
+    R2D_InputSource source;
+    int code;
+    float deadzone;
+} R2D_InputBinding;
+
+typedef struct R2D_InputAction {
+    char name[R2D_INPUT_ACTION_NAME_SIZE];
+    R2D_InputBinding bindings[R2D_INPUT_MAX_BINDINGS];
+    int binding_count;
+    bool down;
+    bool previous_down;
+    float value;
+    float previous_value;
+} R2D_InputAction;
+
+typedef struct R2D_InputMap {
+    R2D_InputAction actions[R2D_INPUT_MAX_ACTIONS];
+    int action_count;
+    int gamepad;
+    float default_deadzone;
+} R2D_InputMap;
 
 typedef struct R2D_TilemapLayer {
     char name[64];
@@ -248,6 +282,22 @@ Vector2 R2D_CameraPixelPosition(const R2D_Camera *camera);
 Vector2 R2D_CameraWorldToScreen(const R2D_Camera *camera, Vector2 world);
 Vector2 R2D_CameraScreenToWorld(const R2D_Camera *camera, Vector2 screen);
 Rectangle R2D_CameraView(const R2D_Camera *camera);
+void R2D_InputInit(R2D_InputMap *input);
+void R2D_InputClear(R2D_InputMap *input);
+void R2D_InputSetGamepad(R2D_InputMap *input, int gamepad);
+void R2D_InputSetDefaultDeadzone(R2D_InputMap *input, float deadzone);
+int R2D_InputAddAction(R2D_InputMap *input, const char *name);
+int R2D_InputFindAction(const R2D_InputMap *input, const char *name);
+bool R2D_InputBindKey(R2D_InputMap *input, const char *action, int key);
+bool R2D_InputBindMouseButton(R2D_InputMap *input, const char *action, int button);
+bool R2D_InputBindGamepadButton(R2D_InputMap *input, const char *action, int button);
+bool R2D_InputBindGamepadAxis(R2D_InputMap *input, const char *action, int axis, bool positive);
+void R2D_InputUpdate(R2D_InputMap *input);
+bool R2D_InputDown(const R2D_InputMap *input, const char *action);
+bool R2D_InputPressed(const R2D_InputMap *input, const char *action);
+bool R2D_InputReleased(const R2D_InputMap *input, const char *action);
+float R2D_InputValue(const R2D_InputMap *input, const char *action);
+float R2D_InputAxis(const R2D_InputMap *input, const char *negative_action, const char *positive_action);
 R2D_SpriteSheet R2D_LoadSpriteSheet(const char *path, int frame_width, int frame_height);
 R2D_SpriteSheet R2D_SpriteSheetFromTexture(Texture2D texture, int frame_width, int frame_height);
 void R2D_UnloadSpriteSheet(R2D_SpriteSheet *sheet);

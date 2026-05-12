@@ -17,6 +17,7 @@ typedef struct Sandbox {
     R2D_Anim idle_anim;
     R2D_Anim walk_anim;
     R2D_AnimPlayer player_anim;
+    R2D_InputMap input;
     R2D_Tilemap tilemap;
     R2D_Sfx coin;
     R2D_Sfx hit;
@@ -114,6 +115,46 @@ static bool Sandbox_PlayerCollides(const Sandbox *sandbox, Vector2 position)
     return R2D_TilemapRectCollides(&sandbox->tilemap, sandbox->collision_layer, bounds);
 }
 
+static void Sandbox_InitInput(Sandbox *sandbox)
+{
+    R2D_InputInit(&sandbox->input);
+
+    R2D_InputBindKey(&sandbox->input, "move_left", KEY_LEFT);
+    R2D_InputBindKey(&sandbox->input, "move_left", KEY_A);
+    R2D_InputBindGamepadButton(&sandbox->input, "move_left", GAMEPAD_BUTTON_LEFT_FACE_LEFT);
+    R2D_InputBindGamepadAxis(&sandbox->input, "move_left", GAMEPAD_AXIS_LEFT_X, false);
+
+    R2D_InputBindKey(&sandbox->input, "move_right", KEY_RIGHT);
+    R2D_InputBindKey(&sandbox->input, "move_right", KEY_D);
+    R2D_InputBindGamepadButton(&sandbox->input, "move_right", GAMEPAD_BUTTON_LEFT_FACE_RIGHT);
+    R2D_InputBindGamepadAxis(&sandbox->input, "move_right", GAMEPAD_AXIS_LEFT_X, true);
+
+    R2D_InputBindKey(&sandbox->input, "move_up", KEY_UP);
+    R2D_InputBindKey(&sandbox->input, "move_up", KEY_W);
+    R2D_InputBindGamepadButton(&sandbox->input, "move_up", GAMEPAD_BUTTON_LEFT_FACE_UP);
+    R2D_InputBindGamepadAxis(&sandbox->input, "move_up", GAMEPAD_AXIS_LEFT_Y, false);
+
+    R2D_InputBindKey(&sandbox->input, "move_down", KEY_DOWN);
+    R2D_InputBindKey(&sandbox->input, "move_down", KEY_S);
+    R2D_InputBindGamepadButton(&sandbox->input, "move_down", GAMEPAD_BUTTON_LEFT_FACE_DOWN);
+    R2D_InputBindGamepadAxis(&sandbox->input, "move_down", GAMEPAD_AXIS_LEFT_Y, true);
+
+    R2D_InputBindKey(&sandbox->input, "toggle_crt", KEY_C);
+    R2D_InputBindKey(&sandbox->input, "reload_crt", KEY_R);
+    R2D_InputBindKey(&sandbox->input, "debug", KEY_F3);
+    R2D_InputBindKey(&sandbox->input, "coin_sfx", KEY_Z);
+    R2D_InputBindKey(&sandbox->input, "hit_sfx", KEY_X);
+    R2D_InputBindKey(&sandbox->input, "jump_sfx", KEY_V);
+    R2D_InputBindKey(&sandbox->input, "laser_sfx", KEY_B);
+    R2D_InputBindKey(&sandbox->input, "explosion_sfx", KEY_N);
+    R2D_InputBindKey(&sandbox->input, "powerup_sfx", KEY_M);
+    R2D_InputBindKey(&sandbox->input, "music", KEY_P);
+    R2D_InputBindGamepadButton(&sandbox->input, "coin_sfx", GAMEPAD_BUTTON_RIGHT_FACE_DOWN);
+    R2D_InputBindGamepadButton(&sandbox->input, "hit_sfx", GAMEPAD_BUTTON_RIGHT_FACE_RIGHT);
+    R2D_InputBindGamepadButton(&sandbox->input, "jump_sfx", GAMEPAD_BUTTON_RIGHT_FACE_LEFT);
+    R2D_InputBindGamepadButton(&sandbox->input, "music", GAMEPAD_BUTTON_MIDDLE_RIGHT);
+}
+
 static void Sandbox_Init(void *user_data)
 {
     Sandbox *sandbox = (Sandbox *)user_data;
@@ -129,6 +170,7 @@ static void Sandbox_Init(void *user_data)
     sandbox->facing_left = false;
     sandbox->moving = false;
     sandbox->debug_draw = false;
+    Sandbox_InitInput(sandbox);
     sandbox->player_sheet = R2D_SpriteSheetFromTexture(Sandbox_CreatePlayerTexture(), 16, 16);
     sandbox->idle_anim = R2D_AnimFrames(0, 2, 3.0f, true);
     sandbox->walk_anim = R2D_AnimFrames(0, 4, 10.0f, true);
@@ -175,24 +217,30 @@ static void Sandbox_Update(float dt, void *user_data)
     Vector2 movement = { 0.0f, 0.0f };
     Vector2 next;
 
+    R2D_InputUpdate(&sandbox->input);
     R2D_MusicUpdate(&sandbox->music);
 
-    if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)) {
-        movement.x -= speed * dt;
+    movement.x = R2D_InputAxis(&sandbox->input, "move_left", "move_right");
+    movement.y = R2D_InputAxis(&sandbox->input, "move_up", "move_down");
+
+    if (movement.x < 0.0f) {
         sandbox->facing_left = true;
     }
 
-    if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) {
-        movement.x += speed * dt;
+    if (movement.x > 0.0f) {
         sandbox->facing_left = false;
     }
 
-    if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W)) {
-        movement.y -= speed * dt;
-    }
+    if (movement.x != 0.0f || movement.y != 0.0f) {
+        const float length = sqrtf(movement.x * movement.x + movement.y * movement.y);
 
-    if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) {
-        movement.y += speed * dt;
+        if (length > 1.0f) {
+            movement.x /= length;
+            movement.y /= length;
+        }
+
+        movement.x *= speed * dt;
+        movement.y *= speed * dt;
     }
 
     next = (Vector2) { sandbox->player.x + movement.x, sandbox->player.y };
@@ -205,16 +253,16 @@ static void Sandbox_Update(float dt, void *user_data)
         sandbox->player.y = next.y;
     }
 
-    if (IsKeyPressed(KEY_C) && sandbox->crt != 0) {
+    if (R2D_InputPressed(&sandbox->input, "toggle_crt") && sandbox->crt != 0) {
         R2D_CrtSetEnabled(sandbox->crt, !sandbox->crt->enabled);
     }
 
-    if (IsKeyPressed(KEY_R) && sandbox->crt != 0) {
+    if (R2D_InputPressed(&sandbox->input, "reload_crt") && sandbox->crt != 0) {
         sandbox->reload_ok = R2D_CrtReload(sandbox->crt);
         sandbox->reload_message_timer = 1.25f;
     }
 
-    if (IsKeyPressed(KEY_F3)) {
+    if (R2D_InputPressed(&sandbox->input, "debug")) {
         sandbox->debug_draw = !sandbox->debug_draw;
     }
 
@@ -222,31 +270,31 @@ static void Sandbox_Update(float dt, void *user_data)
         sandbox->reload_message_timer -= dt;
     }
 
-    if (IsKeyPressed(KEY_Z)) {
+    if (R2D_InputPressed(&sandbox->input, "coin_sfx")) {
         R2D_PlaySfx(sandbox->coin);
     }
 
-    if (IsKeyPressed(KEY_X)) {
+    if (R2D_InputPressed(&sandbox->input, "hit_sfx")) {
         R2D_PlaySfx(sandbox->hit);
     }
 
-    if (IsKeyPressed(KEY_V)) {
+    if (R2D_InputPressed(&sandbox->input, "jump_sfx")) {
         R2D_PlaySfx(sandbox->jump);
     }
 
-    if (IsKeyPressed(KEY_B)) {
+    if (R2D_InputPressed(&sandbox->input, "laser_sfx")) {
         R2D_PlaySfx(sandbox->laser);
     }
 
-    if (IsKeyPressed(KEY_N)) {
+    if (R2D_InputPressed(&sandbox->input, "explosion_sfx")) {
         R2D_PlaySfx(sandbox->explosion);
     }
 
-    if (IsKeyPressed(KEY_M)) {
+    if (R2D_InputPressed(&sandbox->input, "powerup_sfx")) {
         R2D_PlaySfx(sandbox->powerup);
     }
 
-    if (IsKeyPressed(KEY_P) && sandbox->music_loaded) {
+    if (R2D_InputPressed(&sandbox->input, "music") && sandbox->music_loaded) {
         if (R2D_MusicIsPlaying(&sandbox->music)) {
             R2D_MusicStop(&sandbox->music);
         } else {

@@ -26,6 +26,9 @@ float vignetteForce = 0.3;
 float mask = 0.06;
 
 float noiseAmount = 0.025;
+float brightness = 0.035;
+float contrast = 1.1;
+float saturation = 1.3;
 
 float scan_line_strength = -8.0;
 float scan_line_amount = 1.0;
@@ -144,6 +147,22 @@ vec3 grille(vec2 uv)
     return mix(vec3(1.0, 0.0, 1.0), vec3(0.0, 1.0, 0.0), gaus(dst, -20.0));
 }
 
+vec3 colorMatrix(vec3 color)
+{
+    const vec3 luminance = vec3(0.2126, 0.7152, 0.0722);
+    float invSaturation = 1.0 - saturation;
+    float offset = 0.5 * (1.0 - contrast) + brightness;
+
+    mat4 adjust = mat4(
+        vec4((luminance.r * invSaturation + saturation) * contrast, luminance.r * invSaturation * contrast, luminance.r * invSaturation * contrast, 0.0),
+        vec4(luminance.g * invSaturation * contrast, (luminance.g * invSaturation + saturation) * contrast, luminance.g * invSaturation * contrast, 0.0),
+        vec4(luminance.b * invSaturation * contrast, luminance.b * invSaturation * contrast, (luminance.b * invSaturation + saturation) * contrast, 0.0),
+        vec4(offset, offset, offset, 1.0)
+    );
+
+    return clamp((adjust * vec4(color, 1.0)).rgb, 0.0, 1.0);
+}
+
 void main()
 {
     float rnd1 = rnd / 100.0;
@@ -191,6 +210,7 @@ void main()
     color *= mix(vec3(1.0), grille(uv), mask);
     color *= vec3(vignette(uv));
     color += mix(vec3(0.0), blur, border(uv)) * vec3(0.0078, 0.1412, 0.1569);
+    color = colorMatrix(color);
 
     finalColor = vec4(color, 1.0);
 }
