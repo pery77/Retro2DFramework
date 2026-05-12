@@ -2,108 +2,47 @@
 
 #include <math.h>
 #include <stdio.h>
-#include <stdlib.h>
+
+typedef enum SandboxPage {
+    SANDBOX_PAGE_INPUT = 0,
+    SANDBOX_PAGE_AUDIO,
+    SANDBOX_PAGE_TILEMAP,
+    SANDBOX_PAGE_RUNTIME,
+    SANDBOX_PAGE_COUNT
+} SandboxPage;
 
 typedef struct Sandbox {
-    Vector2 player;
-    float blink_timer;
-    float reload_message_timer;
-    int collision_layer;
-    R2D_Camera camera;
-    bool debug_draw;
-    bool facing_left;
-    bool moving;
-    R2D_SpriteSheet player_sheet;
-    R2D_Anim idle_anim;
-    R2D_Anim walk_anim;
-    R2D_AnimPlayer player_anim;
+    R2D_Context *context;
+    R2D_Crt *crt;
     R2D_InputMap input;
     R2D_StateMachine states;
     R2D_Tilemap tilemap;
+    R2D_SpriteSheet hero_sheet;
+    R2D_SpriteSheet coin_sheet;
+    R2D_AnimPlayer hero_anim;
+    R2D_AnimPlayer coin_anim;
     R2D_Sfx coin;
     R2D_Sfx hit;
     R2D_Sfx jump;
     R2D_Sfx laser;
-    R2D_Sfx explosion;
-    R2D_Sfx powerup;
     R2D_Music music;
-    bool reload_ok;
+    SandboxPage page;
+    float time;
+    float input_flash;
+    float message_timer;
     bool music_loaded;
     bool music_was_playing_before_pause;
-    R2D_Context *context;
-    R2D_Crt *crt;
+    bool debug_draw;
+    bool reload_ok;
 } Sandbox;
 
-static R2D_State Sandbox_GameState(void);
+static R2D_State Sandbox_ShowcaseState(void);
 static R2D_State Sandbox_PauseState(void);
-static void Sandbox_GameDraw(void *state_data, void *user_data);
+static void Sandbox_ShowcaseDraw(void *state_data, void *user_data);
 
-static void Sandbox_AddFallbackCollision(R2D_Tilemap *tilemap)
+static Color Sandbox_Color(bool active, unsigned int on, unsigned int off)
 {
-    R2D_TilemapLayer *layers;
-    R2D_TilemapLayer *collision;
-    const int old_count = tilemap->layer_count;
-
-    if (!R2D_TilemapIsReady(tilemap) || R2D_TilemapLayerIndex(tilemap, "Collision") >= 0) {
-        return;
-    }
-
-    layers = (R2D_TilemapLayer *)realloc(
-        tilemap->layers,
-        (size_t)(old_count + 1) * sizeof(R2D_TilemapLayer)
-    );
-
-    if (layers == 0) {
-        return;
-    }
-
-    tilemap->layers = layers;
-    collision = &tilemap->layers[old_count];
-    *collision = (R2D_TilemapLayer) { 0 };
-    snprintf(collision->name, sizeof(collision->name), "%s", "Collision");
-    collision->width = tilemap->width;
-    collision->height = tilemap->height;
-    collision->visible = false;
-    collision->tiles = (unsigned int *)calloc((size_t)collision->width * (size_t)collision->height, sizeof(unsigned int));
-
-    if (collision->tiles == 0) {
-        return;
-    }
-
-    for (int y = 0; y < collision->height; ++y) {
-        for (int x = 0; x < collision->width; ++x) {
-            const bool border = x == 0 || y == 0 || x == collision->width - 1 || y == collision->height - 1;
-            const bool block = (x >= 9 && x <= 12 && y >= 10 && y <= 12) || (x >= 18 && x <= 21 && y >= 18 && y <= 20);
-
-            collision->tiles[y * collision->width + x] = border || block ? 1u : 0u;
-        }
-    }
-
-    tilemap->layer_count = old_count + 1;
-}
-
-static Texture2D Sandbox_CreatePlayerTexture(void)
-{
-    Image image = GenImageColor(64, 16, BLANK);
-    Texture2D texture;
-
-    for (int frame = 0; frame < 4; ++frame) {
-        const int x = frame * 16;
-        const int step = frame == 1 ? 1 : frame == 3 ? -1 : 0;
-
-        ImageDrawRectangle(&image, x + 5, 3, 6, 10, R2D_ColorFromHex(0xff5555ff));
-        ImageDrawRectangle(&image, x + 4, 2, 8, 3, R2D_ColorFromHex(0xf1fa8cff));
-        ImageDrawRectangle(&image, x + 6, 0, 4, 3, R2D_ColorFromHex(0xffb86cff));
-        ImageDrawRectangle(&image, x + 3, 6, 2, 5, R2D_ColorFromHex(0x8be9fdff));
-        ImageDrawRectangle(&image, x + 11, 6, 2, 5, R2D_ColorFromHex(0x8be9fdff));
-        ImageDrawRectangle(&image, x + 5 + step, 13, 3, 3, R2D_ColorFromHex(0x50fa7bff));
-        ImageDrawRectangle(&image, x + 9 - step, 13, 3, 3, R2D_ColorFromHex(0x50fa7bff));
-        ImageDrawPixel(&image, x + 10, 3, BLACK);
-    }
-
-    texture = LoadTextureFromImage(image);
-    UnloadImage(image);
-    return texture;
+    return R2D_ColorFromHex(active ? on : off);
 }
 
 static R2D_Sfx Sandbox_LoadSfx(const char *path, R2D_Sfx fallback)
@@ -114,199 +53,135 @@ static R2D_Sfx Sandbox_LoadSfx(const char *path, R2D_Sfx fallback)
     return sfx;
 }
 
-static bool Sandbox_PlayerCollides(const Sandbox *sandbox, Vector2 position)
-{
-    const Rectangle bounds = R2D_Rect(position.x + 3.0f, position.y + 2.0f, 10.0f, 13.0f);
-
-    return R2D_TilemapRectCollides(&sandbox->tilemap, sandbox->collision_layer, bounds);
-}
-
 static void Sandbox_InitInput(Sandbox *sandbox)
 {
     R2D_InputInit(&sandbox->input);
 
-    R2D_InputBindKey(&sandbox->input, "move_left", KEY_LEFT);
-    R2D_InputBindKey(&sandbox->input, "move_left", KEY_A);
-    R2D_InputBindGamepadButton(&sandbox->input, "move_left", GAMEPAD_BUTTON_LEFT_FACE_LEFT);
-    R2D_InputBindGamepadAxis(&sandbox->input, "move_left", GAMEPAD_AXIS_LEFT_X, false);
+    /* Each action can have several bindings. Keep game code action-driven. */
+    R2D_InputBindKey(&sandbox->input, "left", KEY_LEFT);
+    R2D_InputBindKey(&sandbox->input, "left", KEY_A);
+    R2D_InputBindGamepadButton(&sandbox->input, "left", GAMEPAD_BUTTON_LEFT_FACE_LEFT);
+    R2D_InputBindGamepadAxis(&sandbox->input, "left", GAMEPAD_AXIS_LEFT_X, false);
 
-    R2D_InputBindKey(&sandbox->input, "move_right", KEY_RIGHT);
-    R2D_InputBindKey(&sandbox->input, "move_right", KEY_D);
-    R2D_InputBindGamepadButton(&sandbox->input, "move_right", GAMEPAD_BUTTON_LEFT_FACE_RIGHT);
-    R2D_InputBindGamepadAxis(&sandbox->input, "move_right", GAMEPAD_AXIS_LEFT_X, true);
+    R2D_InputBindKey(&sandbox->input, "right", KEY_RIGHT);
+    R2D_InputBindKey(&sandbox->input, "right", KEY_D);
+    R2D_InputBindGamepadButton(&sandbox->input, "right", GAMEPAD_BUTTON_LEFT_FACE_RIGHT);
+    R2D_InputBindGamepadAxis(&sandbox->input, "right", GAMEPAD_AXIS_LEFT_X, true);
 
-    R2D_InputBindKey(&sandbox->input, "move_up", KEY_UP);
-    R2D_InputBindKey(&sandbox->input, "move_up", KEY_W);
-    R2D_InputBindGamepadButton(&sandbox->input, "move_up", GAMEPAD_BUTTON_LEFT_FACE_UP);
-    R2D_InputBindGamepadAxis(&sandbox->input, "move_up", GAMEPAD_AXIS_LEFT_Y, false);
+    R2D_InputBindKey(&sandbox->input, "up", KEY_UP);
+    R2D_InputBindKey(&sandbox->input, "up", KEY_W);
+    R2D_InputBindGamepadButton(&sandbox->input, "up", GAMEPAD_BUTTON_LEFT_FACE_UP);
+    R2D_InputBindGamepadAxis(&sandbox->input, "up", GAMEPAD_AXIS_LEFT_Y, false);
 
-    R2D_InputBindKey(&sandbox->input, "move_down", KEY_DOWN);
-    R2D_InputBindKey(&sandbox->input, "move_down", KEY_S);
-    R2D_InputBindGamepadButton(&sandbox->input, "move_down", GAMEPAD_BUTTON_LEFT_FACE_DOWN);
-    R2D_InputBindGamepadAxis(&sandbox->input, "move_down", GAMEPAD_AXIS_LEFT_Y, true);
+    R2D_InputBindKey(&sandbox->input, "down", KEY_DOWN);
+    R2D_InputBindKey(&sandbox->input, "down", KEY_S);
+    R2D_InputBindGamepadButton(&sandbox->input, "down", GAMEPAD_BUTTON_LEFT_FACE_DOWN);
+    R2D_InputBindGamepadAxis(&sandbox->input, "down", GAMEPAD_AXIS_LEFT_Y, true);
 
-    R2D_InputBindKey(&sandbox->input, "toggle_crt", KEY_C);
-    R2D_InputBindKey(&sandbox->input, "reload_crt", KEY_R);
-    R2D_InputBindKey(&sandbox->input, "debug", KEY_F3);
+    R2D_InputBindKey(&sandbox->input, "primary", KEY_Z);
+    R2D_InputBindMouseButton(&sandbox->input, "primary", MOUSE_BUTTON_LEFT);
+    R2D_InputBindGamepadButton(&sandbox->input, "primary", GAMEPAD_BUTTON_RIGHT_FACE_DOWN);
+
+    R2D_InputBindKey(&sandbox->input, "secondary", KEY_X);
+    R2D_InputBindGamepadButton(&sandbox->input, "secondary", GAMEPAD_BUTTON_RIGHT_FACE_RIGHT);
+
+    R2D_InputBindKey(&sandbox->input, "tertiary", KEY_V);
+    R2D_InputBindGamepadButton(&sandbox->input, "tertiary", GAMEPAD_BUTTON_RIGHT_FACE_LEFT);
+
+    R2D_InputBindKey(&sandbox->input, "laser", KEY_B);
+    R2D_InputBindGamepadButton(&sandbox->input, "laser", GAMEPAD_BUTTON_RIGHT_FACE_UP);
+
+    R2D_InputBindKey(&sandbox->input, "next_page", KEY_TAB);
+    R2D_InputBindKey(&sandbox->input, "next_page", KEY_E);
+    R2D_InputBindGamepadButton(&sandbox->input, "next_page", GAMEPAD_BUTTON_RIGHT_TRIGGER_1);
+
+    R2D_InputBindKey(&sandbox->input, "prev_page", KEY_Q);
+    R2D_InputBindGamepadButton(&sandbox->input, "prev_page", GAMEPAD_BUTTON_LEFT_TRIGGER_1);
+
     R2D_InputBindKey(&sandbox->input, "pause", KEY_ESCAPE);
-    R2D_InputBindKey(&sandbox->input, "coin_sfx", KEY_Z);
-    R2D_InputBindKey(&sandbox->input, "hit_sfx", KEY_X);
-    R2D_InputBindKey(&sandbox->input, "jump_sfx", KEY_V);
-    R2D_InputBindKey(&sandbox->input, "laser_sfx", KEY_B);
-    R2D_InputBindKey(&sandbox->input, "explosion_sfx", KEY_N);
-    R2D_InputBindKey(&sandbox->input, "powerup_sfx", KEY_M);
-    R2D_InputBindKey(&sandbox->input, "music", KEY_P);
-    R2D_InputBindGamepadButton(&sandbox->input, "coin_sfx", GAMEPAD_BUTTON_RIGHT_FACE_DOWN);
-    R2D_InputBindGamepadButton(&sandbox->input, "hit_sfx", GAMEPAD_BUTTON_RIGHT_FACE_RIGHT);
-    R2D_InputBindGamepadButton(&sandbox->input, "jump_sfx", GAMEPAD_BUTTON_RIGHT_FACE_LEFT);
     R2D_InputBindGamepadButton(&sandbox->input, "pause", GAMEPAD_BUTTON_MIDDLE_LEFT);
-    R2D_InputBindGamepadButton(&sandbox->input, "music", GAMEPAD_BUTTON_MIDDLE_RIGHT);
+
+    R2D_InputBindKey(&sandbox->input, "music", KEY_P);
+    R2D_InputBindKey(&sandbox->input, "crt", KEY_C);
+    R2D_InputBindKey(&sandbox->input, "reload", KEY_R);
+    R2D_InputBindKey(&sandbox->input, "debug", KEY_F3);
+}
+
+static void Sandbox_SetPage(Sandbox *sandbox, int page)
+{
+    if (page < 0) {
+        page = SANDBOX_PAGE_COUNT - 1;
+    } else if (page >= SANDBOX_PAGE_COUNT) {
+        page = 0;
+    }
+
+    sandbox->page = (SandboxPage)page;
+    sandbox->message_timer = 0.9f;
+}
+
+static const char *Sandbox_PageTitle(SandboxPage page)
+{
+    switch (page) {
+        case SANDBOX_PAGE_INPUT: return "INPUT";
+        case SANDBOX_PAGE_AUDIO: return "AUDIO";
+        case SANDBOX_PAGE_TILEMAP: return "TILEMAP";
+        case SANDBOX_PAGE_RUNTIME: return "RUNTIME";
+        default: return "";
+    }
 }
 
 static void Sandbox_Init(void *user_data)
 {
     Sandbox *sandbox = (Sandbox *)user_data;
-    const R2D_TilemapObject *player_start;
-    char midi_path[1024];
-    char soundfont_path[1024];
-    char song_path[1024];
 
-    sandbox->player = (Vector2) { 152.0f, 82.0f };
-    sandbox->camera = R2D_CameraCreate(R2D_VirtualWidth(sandbox->context), R2D_VirtualHeight(sandbox->context));
-    sandbox->blink_timer = 0.0f;
-    sandbox->reload_message_timer = 0.0f;
-    sandbox->facing_left = false;
-    sandbox->moving = false;
-    sandbox->debug_draw = false;
     Sandbox_InitInput(sandbox);
-    sandbox->player_sheet = R2D_SpriteSheetFromTexture(Sandbox_CreatePlayerTexture(), 16, 16);
-    sandbox->idle_anim = R2D_AnimFrames(0, 2, 3.0f, true);
-    sandbox->walk_anim = R2D_AnimFrames(0, 4, 10.0f, true);
-    R2D_AnimPlay(&sandbox->player_anim, sandbox->idle_anim);
+
+    sandbox->page = SANDBOX_PAGE_INPUT;
+    sandbox->time = 0.0f;
+    sandbox->input_flash = 0.0f;
+    sandbox->message_timer = 1.2f;
+    sandbox->debug_draw = false;
+    sandbox->reload_ok = false;
+
+    sandbox->hero_sheet = R2D_LoadSpriteSheet(R2D_AssetPath("textures/Hero/HeroSouth.png"), 16, 16);
+    sandbox->coin_sheet = R2D_LoadSpriteSheet(R2D_AssetPath("textures/Dungeon/Coin Sheet.png"), 16, 16);
+    R2D_AnimPlay(&sandbox->hero_anim, R2D_AnimFrames(0, 7, 10.0f, true));
+    R2D_AnimPlay(&sandbox->coin_anim, R2D_AnimFrames(0, 8, 10.0f, true));
+
     R2D_TilemapLoadTiledJson(&sandbox->tilemap, R2D_AssetPath("tilemaps/r2d_sandbox.json"));
-    Sandbox_AddFallbackCollision(&sandbox->tilemap);
-    sandbox->collision_layer = R2D_TilemapLayerIndex(&sandbox->tilemap, "Collision");
-    player_start = R2D_TilemapFindObject(&sandbox->tilemap, "PlayerStart");
-    if (player_start != 0) {
-        sandbox->player = (Vector2) { player_start->rect.x, player_start->rect.y };
-    }
     sandbox->coin = Sandbox_LoadSfx("audio/sfx/coin.r2sfx", R2D_SfxCoin());
     sandbox->hit = Sandbox_LoadSfx("audio/sfx/hit.r2sfx", R2D_SfxHit());
     sandbox->jump = Sandbox_LoadSfx("audio/sfx/jump.r2sfx", R2D_SfxJump());
     sandbox->laser = Sandbox_LoadSfx("audio/sfx/laser.r2sfx", R2D_SfxLaser());
-    sandbox->explosion = Sandbox_LoadSfx("audio/sfx/explosion.r2sfx", R2D_SfxExplosion());
-    sandbox->powerup = Sandbox_LoadSfx("audio/sfx/powerup.r2sfx", R2D_SfxPowerup());
-    sandbox->reload_ok = false;
 
-    snprintf(song_path, sizeof(song_path), "%s", R2D_AssetPath("audio/music/touhou-bad-apple.r2song"));
-
-    sandbox->music_loaded = R2D_AssetExists(song_path) &&
-        R2D_MusicLoadSong(&sandbox->music, song_path);
-
-    if (!sandbox->music_loaded) {
-        snprintf(midi_path, sizeof(midi_path), "%s", R2D_AssetPath("audio/music/touhou-bad-apple.mid"));
-        snprintf(soundfont_path, sizeof(soundfont_path), "%s", R2D_AssetPath("audio/soundfonts/8-Bit_Sounds.sf2"));
-
-        sandbox->music_loaded = R2D_AssetExists(midi_path) &&
-            R2D_AssetExists(soundfont_path) &&
-            R2D_MusicLoad(&sandbox->music, midi_path, soundfont_path);
-    }
-
+    sandbox->music_loaded = R2D_MusicLoadSong(
+        &sandbox->music,
+        R2D_AssetPath("audio/music/touhou-bad-apple.r2song")
+    );
     if (sandbox->music_loaded) {
-        R2D_MusicPlay(&sandbox->music, true);
+        R2D_MusicSetVolume(&sandbox->music, 0.18f);
     }
 
     R2D_StateMachineInit(&sandbox->states, sandbox);
-    R2D_StateMachineSet(&sandbox->states, Sandbox_GameState());
+    R2D_StateMachineSet(&sandbox->states, Sandbox_ShowcaseState());
 }
 
-static void Sandbox_GameUpdate(float dt, void *state_data, void *user_data)
+static void Sandbox_UpdateAudioPage(Sandbox *sandbox)
 {
-    (void)state_data;
-
-    Sandbox *sandbox = (Sandbox *)user_data;
-    const float speed = 80.0f;
-    const Vector2 previous = sandbox->player;
-    Vector2 movement = { 0.0f, 0.0f };
-    Vector2 next;
-
-    if (R2D_InputPressed(&sandbox->input, "pause")) {
-        R2D_StateMachinePush(&sandbox->states, Sandbox_PauseState());
-        return;
-    }
-
-    movement.x = R2D_InputAxis(&sandbox->input, "move_left", "move_right");
-    movement.y = R2D_InputAxis(&sandbox->input, "move_up", "move_down");
-
-    if (movement.x < 0.0f) {
-        sandbox->facing_left = true;
-    }
-
-    if (movement.x > 0.0f) {
-        sandbox->facing_left = false;
-    }
-
-    if (movement.x != 0.0f || movement.y != 0.0f) {
-        const float length = sqrtf(movement.x * movement.x + movement.y * movement.y);
-
-        if (length > 1.0f) {
-            movement.x /= length;
-            movement.y /= length;
-        }
-
-        movement.x *= speed * dt;
-        movement.y *= speed * dt;
-    }
-
-    next = (Vector2) { sandbox->player.x + movement.x, sandbox->player.y };
-    if (!Sandbox_PlayerCollides(sandbox, next)) {
-        sandbox->player.x = next.x;
-    }
-
-    next = (Vector2) { sandbox->player.x, sandbox->player.y + movement.y };
-    if (!Sandbox_PlayerCollides(sandbox, next)) {
-        sandbox->player.y = next.y;
-    }
-
-    if (R2D_InputPressed(&sandbox->input, "toggle_crt") && sandbox->crt != 0) {
-        R2D_CrtSetEnabled(sandbox->crt, !sandbox->crt->enabled);
-    }
-
-    if (R2D_InputPressed(&sandbox->input, "reload_crt") && sandbox->crt != 0) {
-        sandbox->reload_ok = R2D_CrtReload(sandbox->crt);
-        sandbox->reload_message_timer = 1.25f;
-    }
-
-    if (R2D_InputPressed(&sandbox->input, "debug")) {
-        sandbox->debug_draw = !sandbox->debug_draw;
-    }
-
-    if (sandbox->reload_message_timer > 0.0f) {
-        sandbox->reload_message_timer -= dt;
-    }
-
-    if (R2D_InputPressed(&sandbox->input, "coin_sfx")) {
+    if (R2D_InputPressed(&sandbox->input, "primary")) {
         R2D_PlaySfx(sandbox->coin);
     }
 
-    if (R2D_InputPressed(&sandbox->input, "hit_sfx")) {
+    if (R2D_InputPressed(&sandbox->input, "secondary")) {
         R2D_PlaySfx(sandbox->hit);
     }
 
-    if (R2D_InputPressed(&sandbox->input, "jump_sfx")) {
+    if (R2D_InputPressed(&sandbox->input, "tertiary")) {
         R2D_PlaySfx(sandbox->jump);
     }
 
-    if (R2D_InputPressed(&sandbox->input, "laser_sfx")) {
+    if (R2D_InputPressed(&sandbox->input, "laser")) {
         R2D_PlaySfx(sandbox->laser);
-    }
-
-    if (R2D_InputPressed(&sandbox->input, "explosion_sfx")) {
-        R2D_PlaySfx(sandbox->explosion);
-    }
-
-    if (R2D_InputPressed(&sandbox->input, "powerup_sfx")) {
-        R2D_PlaySfx(sandbox->powerup);
     }
 
     if (R2D_InputPressed(&sandbox->input, "music") && sandbox->music_loaded) {
@@ -316,28 +191,61 @@ static void Sandbox_GameUpdate(float dt, void *state_data, void *user_data)
             R2D_MusicPlay(&sandbox->music, true);
         }
     }
+}
 
-    sandbox->moving = previous.x != sandbox->player.x || previous.y != sandbox->player.y;
-    if (sandbox->moving && sandbox->player_anim.anim.frame_count != sandbox->walk_anim.frame_count) {
-        R2D_AnimPlay(&sandbox->player_anim, sandbox->walk_anim);
-    } else if (!sandbox->moving && sandbox->player_anim.anim.frame_count != sandbox->idle_anim.frame_count) {
-        R2D_AnimPlay(&sandbox->player_anim, sandbox->idle_anim);
+static void Sandbox_UpdateRuntimePage(Sandbox *sandbox)
+{
+    if (R2D_InputPressed(&sandbox->input, "crt") && sandbox->crt != 0) {
+        R2D_CrtSetEnabled(sandbox->crt, !sandbox->crt->enabled);
     }
 
-    R2D_AnimUpdate(&sandbox->player_anim, dt);
-    R2D_CameraFollow(&sandbox->camera, (Vector2) { sandbox->player.x + 8.0f, sandbox->player.y + 8.0f });
-    if (R2D_TilemapIsReady(&sandbox->tilemap)) {
-        R2D_CameraClampToRect(
-            &sandbox->camera,
-            R2D_Rect(
-                0.0f,
-                0.0f,
-                (float)(sandbox->tilemap.width * sandbox->tilemap.tile_width),
-                (float)(sandbox->tilemap.height * sandbox->tilemap.tile_height)
-            )
-        );
+    if (R2D_InputPressed(&sandbox->input, "reload") && sandbox->crt != 0) {
+        sandbox->reload_ok = R2D_CrtReload(sandbox->crt);
+        sandbox->message_timer = 1.1f;
     }
-    sandbox->blink_timer += dt;
+
+    if (R2D_InputPressed(&sandbox->input, "debug")) {
+        sandbox->debug_draw = !sandbox->debug_draw;
+    }
+}
+
+static void Sandbox_ShowcaseUpdate(float dt, void *state_data, void *user_data)
+{
+    (void)state_data;
+
+    Sandbox *sandbox = (Sandbox *)user_data;
+
+    if (R2D_InputPressed(&sandbox->input, "pause")) {
+        R2D_StateMachinePush(&sandbox->states, Sandbox_PauseState());
+        return;
+    }
+
+    if (R2D_InputPressed(&sandbox->input, "next_page")) {
+        Sandbox_SetPage(sandbox, (int)sandbox->page + 1);
+    }
+
+    if (R2D_InputPressed(&sandbox->input, "prev_page")) {
+        Sandbox_SetPage(sandbox, (int)sandbox->page - 1);
+    }
+
+    if (R2D_InputPressed(&sandbox->input, "primary") ||
+        R2D_InputPressed(&sandbox->input, "secondary") ||
+        R2D_InputPressed(&sandbox->input, "tertiary") ||
+        R2D_InputPressed(&sandbox->input, "laser")) {
+        sandbox->input_flash = 0.18f;
+    }
+
+    if (sandbox->page == SANDBOX_PAGE_AUDIO) {
+        Sandbox_UpdateAudioPage(sandbox);
+    } else if (sandbox->page == SANDBOX_PAGE_RUNTIME) {
+        Sandbox_UpdateRuntimePage(sandbox);
+    }
+
+    sandbox->time += dt;
+    sandbox->input_flash = fmaxf(0.0f, sandbox->input_flash - dt);
+    sandbox->message_timer = fmaxf(0.0f, sandbox->message_timer - dt);
+    R2D_AnimUpdate(&sandbox->hero_anim, dt);
+    R2D_AnimUpdate(&sandbox->coin_anim, dt);
 }
 
 static void Sandbox_PauseEnter(void *state_data, void *user_data)
@@ -369,14 +277,12 @@ static void Sandbox_PauseDraw(void *state_data, void *user_data)
     (void)state_data;
 
     const Sandbox *sandbox = (const Sandbox *)user_data;
-    const int panel_width = 110;
-    const int panel_height = 42;
-    const int x = R2D_VirtualWidth(sandbox->context) / 2 - panel_width / 2;
-    const int y = R2D_VirtualHeight(sandbox->context) / 2 - panel_height / 2;
+    const int x = 105;
+    const int y = 76;
 
     DrawRectangle(0, 0, R2D_VirtualWidth(sandbox->context), R2D_VirtualHeight(sandbox->context), R2D_ColorFromHex(0x00000099));
-    DrawRectangle(x, y, panel_width, panel_height, R2D_ColorFromHex(0x101820ee));
-    DrawRectangleLines(x, y, panel_width, panel_height, R2D_ColorFromHex(0xffd166ff));
+    DrawRectangle(x, y, 110, 42, R2D_ColorFromHex(0x101820ee));
+    DrawRectangleLines(x, y, 110, 42, R2D_ColorFromHex(0xffd166ff));
     DrawText("PAUSED", x + 33, y + 9, 12, R2D_ColorFromHex(0xf8f8f2ff));
     DrawText("ESC / SELECT", x + 20, y + 26, 8, R2D_ColorFromHex(0x8ecae6ff));
 }
@@ -393,13 +299,13 @@ static void Sandbox_PauseExit(void *state_data, void *user_data)
     sandbox->music_was_playing_before_pause = false;
 }
 
-static R2D_State Sandbox_GameState(void)
+static R2D_State Sandbox_ShowcaseState(void)
 {
     return (R2D_State) {
-        "Game",
+        "Showcase",
         0,
-        Sandbox_GameUpdate,
-        Sandbox_GameDraw,
+        Sandbox_ShowcaseUpdate,
+        Sandbox_ShowcaseDraw,
         0,
         0
     };
@@ -417,97 +323,177 @@ static R2D_State Sandbox_PauseState(void)
     };
 }
 
-static void Sandbox_DrawGrid(const R2D_Context *context, Vector2 camera_position)
+static void Sandbox_DrawPanel(Rectangle rect)
 {
-    const Color grid = R2D_ColorFromHex(0x2a2a3aff);
-    const int width = R2D_VirtualWidth(context);
-    const int height = R2D_VirtualHeight(context);
-    const int offset_x = -((int)camera_position.x % 16);
-    const int offset_y = -((int)camera_position.y % 16);
+    DrawRectangleRec(rect, R2D_ColorFromHex(0x101820dd));
+    DrawRectangleLinesEx(rect, 1.0f, R2D_ColorFromHex(0x3a506bff));
+}
 
-    for (int x = offset_x; x <= width; x += 16) {
-        DrawLine(x, 0, x, height, grid);
-    }
+static void Sandbox_DrawHeader(const Sandbox *sandbox)
+{
+    char text[80];
 
-    for (int y = offset_y; y <= height; y += 16) {
-        DrawLine(0, y, width, y, grid);
+    DrawText("Retro2D Hello World", 8, 6, 12, R2D_ColorFromHex(0xf8f8f2ff));
+    snprintf(text, sizeof(text), "%d/%d  %s", (int)sandbox->page + 1, SANDBOX_PAGE_COUNT, Sandbox_PageTitle(sandbox->page));
+    DrawText(text, 218, 8, 8, R2D_ColorFromHex(0xffd166ff));
+    DrawLine(8, 22, 312, 22, R2D_ColorFromHex(0x3a506bff));
+}
+
+static void Sandbox_DrawFooter(const Sandbox *sandbox)
+{
+    (void)sandbox;
+
+    DrawLine(8, 178, 312, 178, R2D_ColorFromHex(0x3a506bff));
+    DrawText("TAB/E next  Q prev  ESC pause", 8, 184, 8, R2D_ColorFromHex(0x8ecae6ff));
+}
+
+static void Sandbox_DrawButton(int x, int y, const char *label, bool active)
+{
+    DrawRectangle(x, y, 38, 18, Sandbox_Color(active, 0xffd166ff, 0x1b263bff));
+    DrawRectangleLines(x, y, 38, 18, R2D_ColorFromHex(0xf8f8f2ff));
+    DrawText(label, x + 6, y + 6, 8, Sandbox_Color(active, 0x101820ff, 0xf8f8f2ff));
+}
+
+static void Sandbox_DrawInputPage(const Sandbox *sandbox)
+{
+    const float axis_x = R2D_InputAxis(&sandbox->input, "left", "right");
+    const float axis_y = R2D_InputAxis(&sandbox->input, "up", "down");
+    const int center_x = 234;
+    const int center_y = 98;
+    const int dot_x = center_x + (int)(axis_x * 36.0f);
+    const int dot_y = center_y + (int)(axis_y * 36.0f);
+    char text[80];
+
+    DrawText("Actions are names, not raw keys.", 16, 34, 8, R2D_ColorFromHex(0xf8f8f2ff));
+    DrawText("WASD / arrows / gamepad move the dot.", 16, 46, 8, R2D_ColorFromHex(0x8ecae6ff));
+    DrawText("Z, X, V, B and mouse click flash buttons.", 16, 58, 8, R2D_ColorFromHex(0x8ecae6ff));
+
+    Sandbox_DrawPanel(R2D_Rect(18, 82, 116, 66));
+    Sandbox_DrawButton(57, 88, "UP", R2D_InputDown(&sandbox->input, "up"));
+    Sandbox_DrawButton(57, 124, "DOWN", R2D_InputDown(&sandbox->input, "down"));
+    Sandbox_DrawButton(18, 106, "LEFT", R2D_InputDown(&sandbox->input, "left"));
+    Sandbox_DrawButton(96, 106, "RGT", R2D_InputDown(&sandbox->input, "right"));
+
+    Sandbox_DrawPanel(R2D_Rect(170, 58, 112, 94));
+    DrawCircleLines(center_x, center_y, 38.0f, R2D_ColorFromHex(0x8ecae6ff));
+    DrawLine(center_x - 38, center_y, center_x + 38, center_y, R2D_ColorFromHex(0x3a506bff));
+    DrawLine(center_x, center_y - 38, center_x, center_y + 38, R2D_ColorFromHex(0x3a506bff));
+    DrawCircle(dot_x, dot_y, 5.0f, R2D_ColorFromHex(0xffd166ff));
+    snprintf(text, sizeof(text), "axis %.2f %.2f", axis_x, axis_y);
+    DrawText(text, 190, 136, 8, R2D_ColorFromHex(0xf8f8f2ff));
+
+    Sandbox_DrawButton(36, 154, "Z", R2D_InputDown(&sandbox->input, "primary"));
+    Sandbox_DrawButton(80, 154, "X", R2D_InputDown(&sandbox->input, "secondary"));
+    Sandbox_DrawButton(124, 154, "V", R2D_InputDown(&sandbox->input, "tertiary"));
+    Sandbox_DrawButton(168, 154, "B", R2D_InputDown(&sandbox->input, "laser"));
+}
+
+static void Sandbox_DrawAudioPage(const Sandbox *sandbox)
+{
+    const bool playing = sandbox->music_loaded && R2D_MusicIsPlaying(&sandbox->music);
+    char text[96];
+
+    DrawText("Tiny SFX presets and MIDI music live together.", 16, 34, 8, R2D_ColorFromHex(0xf8f8f2ff));
+    DrawText("Press the keys to trigger short retro sounds.", 16, 46, 8, R2D_ColorFromHex(0x8ecae6ff));
+
+    Sandbox_DrawButton(28, 70, "COIN", R2D_InputDown(&sandbox->input, "primary"));
+    Sandbox_DrawButton(76, 70, "HIT", R2D_InputDown(&sandbox->input, "secondary"));
+    Sandbox_DrawButton(124, 70, "JUMP", R2D_InputDown(&sandbox->input, "tertiary"));
+    Sandbox_DrawButton(172, 70, "LASR", R2D_InputDown(&sandbox->input, "laser"));
+
+    Sandbox_DrawPanel(R2D_Rect(32, 106, 256, 46));
+    DrawText(playing ? "MUSIC PLAYING" : "P: START MUSIC", 44, 116, 10, Sandbox_Color(playing, 0x50fa7bff, 0xffd166ff));
+    snprintf(text, sizeof(text), "position %.1fs / %.1fs", R2D_MusicPosition(&sandbox->music), R2D_MusicLength(&sandbox->music));
+    DrawText(sandbox->music_loaded ? text : "song file not loaded", 44, 134, 8, R2D_ColorFromHex(0xf8f8f2ff));
+
+    if (sandbox->input_flash > 0.0f) {
+        DrawRectangleLinesEx(R2D_Rect(24, 64, 202, 30), 2.0f, R2D_ColorFromHex(0xffd166ff));
     }
 }
 
-static void Sandbox_GameDraw(void *state_data, void *user_data)
+static void Sandbox_DrawTilemapPage(const Sandbox *sandbox)
+{
+    const float pan = sinf(sandbox->time * 0.35f) * 24.0f + 32.0f;
+    const Rectangle view = R2D_Rect(pan, 18.0f, 150.0f, 92.0f);
+    const Vector2 offset = { 22.0f - view.x, 58.0f - view.y };
+    const int collision_layer = R2D_TilemapLayerIndex(&sandbox->tilemap, "Collision");
+
+    DrawText("A loaded Tiled map can be drawn through a camera-sized view.", 16, 34, 8, R2D_ColorFromHex(0xf8f8f2ff));
+    DrawText("No player needed here: just the reusable bits.", 16, 46, 8, R2D_ColorFromHex(0x8ecae6ff));
+
+    Sandbox_DrawPanel(R2D_Rect(18, 54, 164, 112));
+    if (R2D_TilemapIsReady(&sandbox->tilemap)) {
+        BeginScissorMode(22, 58, 154, 92);
+        R2D_TilemapDrawVisible(&sandbox->tilemap, view, offset);
+        if (sandbox->debug_draw && collision_layer >= 0) {
+            R2D_TilemapDrawCollisionDebugVisible(&sandbox->tilemap, collision_layer, view, offset, R2D_ColorFromHex(0xff5555bb));
+        }
+        EndScissorMode();
+    }
+    DrawRectangleLines(22, 58, 154, 92, R2D_ColorFromHex(0xffd166ff));
+
+    Sandbox_DrawPanel(R2D_Rect(202, 58, 84, 92));
+    R2D_DrawAnim(&sandbox->hero_sheet, &sandbox->hero_anim, (Vector2) { 214.0f, 76.0f }, false);
+    R2D_DrawAnim(&sandbox->coin_sheet, &sandbox->coin_anim, (Vector2) { 246.0f, 76.0f }, false);
+    DrawText("sprites", 222, 106, 8, R2D_ColorFromHex(0xf8f8f2ff));
+    DrawText("anim players", 214, 120, 8, R2D_ColorFromHex(0x8ecae6ff));
+    DrawText("F3 debug", 216, 136, 8, Sandbox_Color(sandbox->debug_draw, 0x50fa7bff, 0x8ecae6ff));
+}
+
+static void Sandbox_DrawRuntimePage(const Sandbox *sandbox)
+{
+    const bool crt_on = sandbox->crt != 0 && sandbox->crt->enabled;
+    char text[80];
+
+    DrawText("Core helpers stay small and explicit.", 16, 34, 8, R2D_ColorFromHex(0xf8f8f2ff));
+    DrawText("CRT, screenshots, states and overlays are opt-in pieces.", 16, 46, 8, R2D_ColorFromHex(0x8ecae6ff));
+
+    Sandbox_DrawPanel(R2D_Rect(26, 66, 268, 78));
+    DrawText(crt_on ? "C: CRT ON" : "C: CRT OFF", 42, 78, 10, Sandbox_Color(crt_on, 0x50fa7bff, 0xffd166ff));
+    DrawText("R: reload CRT shader", 42, 96, 8, R2D_ColorFromHex(0xf8f8f2ff));
+    DrawText("F12 / PrintScreen: screenshot", 42, 108, 8, R2D_ColorFromHex(0xf8f8f2ff));
+    DrawText("ESC: state stack pause overlay", 42, 120, 8, R2D_ColorFromHex(0xf8f8f2ff));
+
+    snprintf(text, sizeof(text), "current state: %s", R2D_StateMachineCurrentName(&sandbox->states));
+    DrawText(text, 42, 154, 8, R2D_ColorFromHex(0x8ecae6ff));
+
+    if (sandbox->message_timer > 0.0f && sandbox->page == SANDBOX_PAGE_RUNTIME) {
+        DrawText(
+            sandbox->reload_ok ? "shader reload ok" : "runtime page",
+            198,
+            154,
+            8,
+            sandbox->reload_ok ? R2D_ColorFromHex(0x50fa7bff) : R2D_ColorFromHex(0xffd166ff)
+        );
+    }
+}
+
+static void Sandbox_ShowcaseDraw(void *state_data, void *user_data)
 {
     (void)state_data;
 
     const Sandbox *sandbox = (const Sandbox *)user_data;
-    const bool blink = ((int)(sandbox->blink_timer * 4.0f) % 2) == 0;
-    const Vector2 camera_pixel = R2D_CameraPixelPosition(&sandbox->camera);
-    const Vector2 camera_offset = {
-        -camera_pixel.x,
-        -camera_pixel.y
-    };
-    const Rectangle camera_view = R2D_Rect(
-        camera_pixel.x,
-        camera_pixel.y,
-        (float)sandbox->camera.viewport_width,
-        (float)sandbox->camera.viewport_height
-    );
-    const Vector2 player_screen = {
-        floorf(sandbox->player.x - camera_pixel.x),
-        floorf(sandbox->player.y - camera_pixel.y)
-    };
 
-    if (R2D_TilemapIsReady(&sandbox->tilemap)) {
-        R2D_TilemapDrawVisible(&sandbox->tilemap, camera_view, camera_offset);
+    Sandbox_DrawHeader(sandbox);
+
+    switch (sandbox->page) {
+        case SANDBOX_PAGE_INPUT:
+            Sandbox_DrawInputPage(sandbox);
+            break;
+        case SANDBOX_PAGE_AUDIO:
+            Sandbox_DrawAudioPage(sandbox);
+            break;
+        case SANDBOX_PAGE_TILEMAP:
+            Sandbox_DrawTilemapPage(sandbox);
+            break;
+        case SANDBOX_PAGE_RUNTIME:
+            Sandbox_DrawRuntimePage(sandbox);
+            break;
+        default:
+            break;
     }
 
-    //Sandbox_DrawGrid(sandbox->context, camera_pixel);
-    DrawText("Retro2DFramework", 8, 8, 10, R2D_ColorFromHex(0xf8f8f2ff));
-    DrawText("WASD / Arrows", 8, 22, 8, R2D_ColorFromHex(0x8be9fdff));
-    if (sandbox->crt != 0) {
-        DrawText(sandbox->crt->enabled ? "C: CRT ON" : "C: CRT OFF", 8, 34, 8, R2D_ColorFromHex(0x50fa7bff));
-        DrawText("R: RELOAD CRT", 8, 46, 8, R2D_ColorFromHex(0xffb86cff));
-        DrawText(sandbox->debug_draw ? "F3: DEBUG ON" : "F3: DEBUG OFF", 8, 58, 8, R2D_ColorFromHex(0x50fa7bff));
-        DrawText("Z/X/V/B/N/M: SFX", 8, 70, 8, R2D_ColorFromHex(0xffb86cff));
-        DrawText("ESC: PAUSE", 8, 82, 8, R2D_ColorFromHex(0x8ecae6ff));
-        DrawText(sandbox->music_loaded ? "P: MUSIC" : "MUSIC: ADD theme.mid + chiptune.sf2", 8, 94, 8, R2D_ColorFromHex(0xffb86cff));
-    }
-
-    if (sandbox->reload_message_timer > 0.0f) {
-        DrawText(
-            sandbox->reload_ok ? "SHADER RELOADED" : "SHADER ERROR",
-            8,
-            106,
-            8,
-            sandbox->reload_ok ? R2D_ColorFromHex(0x50fa7bff) : R2D_ColorFromHex(0xff5555ff)
-        );
-    }
-
-    if (sandbox->debug_draw) {
-        R2D_TilemapDrawCollisionDebugVisible(
-            &sandbox->tilemap,
-            sandbox->collision_layer,
-            camera_view,
-            camera_offset,
-            R2D_ColorFromHex(0xff5555cc)
-        );
-        R2D_TilemapDrawObjectsDebug(
-            &sandbox->tilemap,
-            camera_offset,
-            R2D_ColorFromHex(0x8be9fdcc)
-        );
-        DrawRectangleLinesEx(
-            R2D_Rect(0.0f, 0.0f, (float)R2D_VirtualWidth(sandbox->context), (float)R2D_VirtualHeight(sandbox->context)),
-            1.0f,
-            R2D_ColorFromHex(0xf1fa8cff)
-        );
-    }
-
-    R2D_DrawAnim(&sandbox->player_sheet, &sandbox->player_anim, player_screen, sandbox->facing_left);
-    DrawRectangleLinesEx(R2D_Rect(player_screen.x, player_screen.y, 16.0f, 16.0f), 1.0f, R2D_ColorFromHex(0xf1fa8cff));
-
-    if (blink) {
-        DrawPixel((int)player_screen.x + 11, (int)player_screen.y + 5, BLACK);
-    }
+    Sandbox_DrawFooter(sandbox);
 }
 
 static void Sandbox_Update(float dt, void *user_data)
@@ -533,7 +519,8 @@ static void Sandbox_Shutdown(void *user_data)
     R2D_StateMachineClear(&sandbox->states);
     R2D_MusicUnload(&sandbox->music);
     R2D_TilemapUnload(&sandbox->tilemap);
-    R2D_UnloadSpriteSheet(&sandbox->player_sheet);
+    R2D_UnloadSpriteSheet(&sandbox->hero_sheet);
+    R2D_UnloadSpriteSheet(&sandbox->coin_sheet);
 }
 
 int main(void)
@@ -543,7 +530,7 @@ int main(void)
     R2D_Config config = R2D_DefaultConfig();
     Sandbox sandbox = { 0 };
 
-    config.title = "Retro2DFramework Sandbox";
+    config.title = "Retro2DFramework Hello World";
     config.clear_color = R2D_ColorFromHex(0x15151fff);
 
     if (!R2D_Init(&context, config)) {

@@ -92,7 +92,7 @@ cualquier chat o sesion futura pueda entender el proyecto de un vistazo.
 - [x] Seleccion de targets concretos.
 - [x] `build_gui.bat` con launcher visual.
 - [x] Lista de targets en `tools/build_targets.json`.
-- [x] Sandbox general de pruebas vivas.
+- [x] Sandbox como hello world/onboarding de sistemas Retro2D.
 - [x] Demo jugable `collect`.
 - [x] Editor de SFX.
 - [x] Reproductor MIDI.
@@ -279,3 +279,6 @@ cualquier chat o sesion futura pueda entender el proyecto de un vistazo.
 - 2026-05-12: Estados/escenas iniciales implementados con `R2D_StateMachine`,
   callbacks `enter/update/draw/exit`, cambio de estado y stack para overlays.
   `sandbox` usa un estado `Game` y un overlay `Pause`.
+- 2026-05-12: `sandbox` deja de ser una mini demo jugable y pasa a ser el
+  onboarding de Retro2D: pantallas simples para input, audio/musica, sprites/tilemap
+  y runtime/estados, con feedback visual y comentarios en ingles en el codigo.
