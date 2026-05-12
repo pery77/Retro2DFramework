@@ -33,6 +33,7 @@ add_library(r2d STATIC
     src/r2d_state.c
     src/r2d_sprite.c
     src/r2d_tilemap.c
+    src/r2d_ui.c
 )
 
 target_include_directories(r2d

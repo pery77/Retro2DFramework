@@ -173,6 +173,37 @@ typedef struct R2D_StateMachine {
     void *user_data;
 } R2D_StateMachine;
 
+typedef enum R2D_TextAlign {
+    R2D_TEXT_ALIGN_LEFT = 0,
+    R2D_TEXT_ALIGN_CENTER,
+    R2D_TEXT_ALIGN_RIGHT
+} R2D_TextAlign;
+
+typedef struct R2D_TextStyle {
+    Font font;
+    int font_size;
+    int spacing;
+    int line_spacing;
+    Color tint;
+    Color shadow;
+    Color outline;
+    Vector2 shadow_offset;
+    bool use_shadow;
+    bool use_outline;
+} R2D_TextStyle;
+
+typedef struct R2D_UiStyle {
+    Color panel;
+    Color border;
+    Color text;
+    Color accent;
+    Color hot;
+    Color disabled;
+    Color fill;
+    int font_size;
+    int border_size;
+} R2D_UiStyle;
+
 typedef struct R2D_TilemapLayer {
     char name[64];
     unsigned int *tiles;
@@ -331,6 +362,19 @@ const R2D_State *R2D_StateMachineCurrent(const R2D_StateMachine *machine);
 int R2D_StateMachineCount(const R2D_StateMachine *machine);
 bool R2D_StateMachineIsEmpty(const R2D_StateMachine *machine);
 const char *R2D_StateMachineCurrentName(const R2D_StateMachine *machine);
+R2D_TextStyle R2D_DefaultTextStyle(int font_size, Color tint);
+Font R2D_LoadBitmapFont(const char *path);
+void R2D_UnloadBitmapFont(Font *font);
+Vector2 R2D_MeasureTextStyled(const char *text, R2D_TextStyle style);
+void R2D_DrawTextStyled(const char *text, Vector2 position, R2D_TextStyle style);
+void R2D_DrawTextAligned(const char *text, Rectangle bounds, R2D_TextStyle style, R2D_TextAlign align);
+void R2D_DrawTextWrapped(const char *text, Rectangle bounds, R2D_TextStyle style);
+R2D_UiStyle R2D_DefaultUiStyle(void);
+void R2D_DrawUiPanel(Rectangle rect, R2D_UiStyle style);
+void R2D_DrawUiButton(Rectangle rect, const char *text, bool focused, bool pressed, R2D_UiStyle style);
+void R2D_DrawUiToggle(Rectangle rect, const char *text, bool value, bool focused, R2D_UiStyle style);
+void R2D_DrawUiSlider(Rectangle rect, const char *text, float value, bool focused, R2D_UiStyle style);
+void R2D_DrawUiBar(Rectangle rect, float value, Color fill, R2D_UiStyle style);
 R2D_SpriteSheet R2D_LoadSpriteSheet(const char *path, int frame_width, int frame_height);
 R2D_SpriteSheet R2D_SpriteSheetFromTexture(Texture2D texture, int frame_width, int frame_height);
 void R2D_UnloadSpriteSheet(R2D_SpriteSheet *sheet);

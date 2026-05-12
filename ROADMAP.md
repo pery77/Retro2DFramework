@@ -114,17 +114,18 @@ cualquier chat o sesion futura pueda entender el proyecto de un vistazo.
   - [x] Cambio de estado y stack opcional para overlays como pausa.
 
 - [ ] UI retro basica.
-  - Menus, botones, selectores, sliders y toggles.
-  - HUDs, barras de vida, contadores e iconos.
-  - Ventanas 9-slice y cajas de dialogo.
-  - Navegacion por teclado/gamepad.
+  - [ ] Menus y selectores.
+  - [x] Botones, sliders y toggles dibujados.
+  - [x] HUDs, barras, paneles y contadores simples.
+  - [ ] Ventanas 9-slice y cajas de dialogo.
+  - [ ] Navegacion por teclado/gamepad para menus completos.
 
 - [ ] Texto y fuentes bitmap.
-  - Carga de fuentes pixel.
-  - Medicion de texto, alineacion y wrapping.
-  - Sombra/outline/tint.
-  - Texto progresivo tipo RPG.
-  - Control de espaciado entre letras y lineas.
+  - [x] Carga de fuentes pixel.
+  - [x] Medicion de texto, alineacion y wrapping.
+  - [x] Sombra/outline/tint.
+  - [ ] Texto progresivo tipo RPG.
+  - [x] Control de espaciado entre letras y lineas.
 
 - [ ] Colision 2D mas completa.
   - AABB generico.
@@ -282,3 +283,8 @@ cualquier chat o sesion futura pueda entender el proyecto de un vistazo.
 - 2026-05-12: `sandbox` deja de ser una mini demo jugable y pasa a ser el
   onboarding de Retro2D: pantallas simples para input, audio/musica, sprites/tilemap
   y runtime/estados, con feedback visual y comentarios en ingles en el codigo.
+- 2026-05-12: Texto/UI inicial implementado con `R2D_TextStyle`, carga de fuentes
+  bitmap, medicion, alineacion, wrapping, sombra/outline y helpers dibujados para
+  paneles, botones, toggles, sliders y barras. `sandbox` suma pantalla `UI`.
+- 2026-05-12: `R2D_LoadBitmapFont` usa `LoadFont` para PNG bitmap/XNA-style;
+  `sandbox` prueba fuentes de `assets/fonts` con tamanos legibles.

@@ -7,6 +7,7 @@ typedef enum SandboxPage {
     SANDBOX_PAGE_INPUT = 0,
     SANDBOX_PAGE_AUDIO,
     SANDBOX_PAGE_TILEMAP,
+    SANDBOX_PAGE_UI,
     SANDBOX_PAGE_RUNTIME,
     SANDBOX_PAGE_COUNT
 } SandboxPage;
@@ -17,6 +18,9 @@ typedef struct Sandbox {
     R2D_InputMap input;
     R2D_StateMachine states;
     R2D_Tilemap tilemap;
+    Font font_alagard;
+    Font font_mecha;
+    Font font_pixantiqua;
     R2D_SpriteSheet hero_sheet;
     R2D_SpriteSheet coin_sheet;
     R2D_AnimPlayer hero_anim;
@@ -34,6 +38,8 @@ typedef struct Sandbox {
     bool music_was_playing_before_pause;
     bool debug_draw;
     bool reload_ok;
+    bool ui_toggle;
+    float ui_slider;
 } Sandbox;
 
 static R2D_State Sandbox_ShowcaseState(void);
@@ -125,6 +131,7 @@ static const char *Sandbox_PageTitle(SandboxPage page)
         case SANDBOX_PAGE_INPUT: return "INPUT";
         case SANDBOX_PAGE_AUDIO: return "AUDIO";
         case SANDBOX_PAGE_TILEMAP: return "TILEMAP";
+        case SANDBOX_PAGE_UI: return "UI";
         case SANDBOX_PAGE_RUNTIME: return "RUNTIME";
         default: return "";
     }
@@ -142,9 +149,14 @@ static void Sandbox_Init(void *user_data)
     sandbox->message_timer = 1.2f;
     sandbox->debug_draw = false;
     sandbox->reload_ok = false;
+    sandbox->ui_toggle = true;
+    sandbox->ui_slider = 0.65f;
 
     sandbox->hero_sheet = R2D_LoadSpriteSheet(R2D_AssetPath("textures/Hero/HeroSouth.png"), 16, 16);
     sandbox->coin_sheet = R2D_LoadSpriteSheet(R2D_AssetPath("textures/Dungeon/Coin Sheet.png"), 16, 16);
+    sandbox->font_alagard = R2D_LoadBitmapFont("fonts/alagard.png");
+    sandbox->font_mecha = R2D_LoadBitmapFont("fonts/mecha.png");
+    sandbox->font_pixantiqua = R2D_LoadBitmapFont("fonts/pixantiqua.png");
     R2D_AnimPlay(&sandbox->hero_anim, R2D_AnimFrames(0, 7, 10.0f, true));
     R2D_AnimPlay(&sandbox->coin_anim, R2D_AnimFrames(0, 8, 10.0f, true));
 
@@ -209,6 +221,21 @@ static void Sandbox_UpdateRuntimePage(Sandbox *sandbox)
     }
 }
 
+static void Sandbox_UpdateUiPage(Sandbox *sandbox)
+{
+    if (R2D_InputPressed(&sandbox->input, "primary")) {
+        sandbox->ui_toggle = !sandbox->ui_toggle;
+    }
+
+    if (R2D_InputDown(&sandbox->input, "left")) {
+        sandbox->ui_slider = fmaxf(0.0f, sandbox->ui_slider - 0.02f);
+    }
+
+    if (R2D_InputDown(&sandbox->input, "right")) {
+        sandbox->ui_slider = fminf(1.0f, sandbox->ui_slider + 0.02f);
+    }
+}
+
 static void Sandbox_ShowcaseUpdate(float dt, void *state_data, void *user_data)
 {
     (void)state_data;
@@ -237,6 +264,8 @@ static void Sandbox_ShowcaseUpdate(float dt, void *state_data, void *user_data)
 
     if (sandbox->page == SANDBOX_PAGE_AUDIO) {
         Sandbox_UpdateAudioPage(sandbox);
+    } else if (sandbox->page == SANDBOX_PAGE_UI) {
+        Sandbox_UpdateUiPage(sandbox);
     } else if (sandbox->page == SANDBOX_PAGE_RUNTIME) {
         Sandbox_UpdateRuntimePage(sandbox);
     }
@@ -325,17 +354,19 @@ static R2D_State Sandbox_PauseState(void)
 
 static void Sandbox_DrawPanel(Rectangle rect)
 {
-    DrawRectangleRec(rect, R2D_ColorFromHex(0x101820dd));
-    DrawRectangleLinesEx(rect, 1.0f, R2D_ColorFromHex(0x3a506bff));
+    R2D_DrawUiPanel(rect, R2D_DefaultUiStyle());
 }
 
 static void Sandbox_DrawHeader(const Sandbox *sandbox)
 {
     char text[80];
+    R2D_TextStyle title = R2D_DefaultTextStyle(12, R2D_ColorFromHex(0xf8f8f2ff));
 
-    DrawText("Retro2D Hello World", 8, 6, 12, R2D_ColorFromHex(0xf8f8f2ff));
+    title.use_shadow = true;
+
+    R2D_DrawTextStyled("Retro2D Hello World", (Vector2) { 8.0f, 6.0f }, title);
     snprintf(text, sizeof(text), "%d/%d  %s", (int)sandbox->page + 1, SANDBOX_PAGE_COUNT, Sandbox_PageTitle(sandbox->page));
-    DrawText(text, 218, 8, 8, R2D_ColorFromHex(0xffd166ff));
+    R2D_DrawTextStyled(text, (Vector2) { 218.0f, 8.0f }, R2D_DefaultTextStyle(10, R2D_ColorFromHex(0xffd166ff)));
     DrawLine(8, 22, 312, 22, R2D_ColorFromHex(0x3a506bff));
 }
 
@@ -349,9 +380,7 @@ static void Sandbox_DrawFooter(const Sandbox *sandbox)
 
 static void Sandbox_DrawButton(int x, int y, const char *label, bool active)
 {
-    DrawRectangle(x, y, 38, 18, Sandbox_Color(active, 0xffd166ff, 0x1b263bff));
-    DrawRectangleLines(x, y, 38, 18, R2D_ColorFromHex(0xf8f8f2ff));
-    DrawText(label, x + 6, y + 6, 8, Sandbox_Color(active, 0x101820ff, 0xf8f8f2ff));
+    R2D_DrawUiButton(R2D_Rect((float)x, (float)y, 38.0f, 18.0f), label, false, active, R2D_DefaultUiStyle());
 }
 
 static void Sandbox_DrawInputPage(const Sandbox *sandbox)
@@ -440,6 +469,35 @@ static void Sandbox_DrawTilemapPage(const Sandbox *sandbox)
     DrawText("F3 debug", 216, 136, 8, Sandbox_Color(sandbox->debug_draw, 0x50fa7bff, 0x8ecae6ff));
 }
 
+static void Sandbox_DrawUiPage(const Sandbox *sandbox)
+{
+    R2D_UiStyle ui = R2D_DefaultUiStyle();
+    R2D_TextStyle text = R2D_DefaultTextStyle(10, R2D_ColorFromHex(0xf8f8f2ff));
+    R2D_TextStyle title = R2D_DefaultTextStyle(18, R2D_ColorFromHex(0xffd166ff));
+    R2D_TextStyle mecha = R2D_DefaultTextStyle(16, R2D_ColorFromHex(0x8ecae6ff));
+    R2D_TextStyle pix = R2D_DefaultTextStyle(14, R2D_ColorFromHex(0x50fa7bff));
+    const char *wrapped =
+        "Text helpers provide shadow, outline, alignment and simple wrapping. "
+        "The UI helpers only draw controls; your game still owns input and state.";
+
+    title.font = sandbox->font_alagard;
+    title.use_outline = true;
+    mecha.font = sandbox->font_mecha;
+    pix.font = sandbox->font_pixantiqua;
+
+    R2D_DrawTextStyled("Bitmap fonts", (Vector2) { 16.0f, 32.0f }, title);
+    R2D_DrawTextStyled("XNA PNG fonts loaded with LoadFont", (Vector2) { 16.0f, 52.0f }, mecha);
+    R2D_DrawTextWrapped(wrapped, R2D_Rect(16.0f, 68.0f, 288.0f, 22.0f), text);
+
+    R2D_DrawUiPanel(R2D_Rect(20.0f, 96.0f, 280.0f, 64.0f), ui);
+    R2D_DrawUiButton(R2D_Rect(34.0f, 108.0f, 64.0f, 18.0f), "START", true, R2D_InputDown(&sandbox->input, "primary"), ui);
+    R2D_DrawUiToggle(R2D_Rect(116.0f, 108.0f, 88.0f, 18.0f), "CRT ready", sandbox->ui_toggle, false, ui);
+    R2D_DrawUiSlider(R2D_Rect(34.0f, 134.0f, 170.0f, 18.0f), "volume", sandbox->ui_slider, true, ui);
+    R2D_DrawUiBar(R2D_Rect(220.0f, 134.0f, 54.0f, 10.0f), sandbox->ui_slider, R2D_ColorFromHex(0x50fa7bff), ui);
+
+    R2D_DrawTextStyled("Z toggles  left/right slider", (Vector2) { 70.0f, 164.0f }, pix);
+}
+
 static void Sandbox_DrawRuntimePage(const Sandbox *sandbox)
 {
     const bool crt_on = sandbox->crt != 0 && sandbox->crt->enabled;
@@ -486,6 +544,9 @@ static void Sandbox_ShowcaseDraw(void *state_data, void *user_data)
         case SANDBOX_PAGE_TILEMAP:
             Sandbox_DrawTilemapPage(sandbox);
             break;
+        case SANDBOX_PAGE_UI:
+            Sandbox_DrawUiPage(sandbox);
+            break;
         case SANDBOX_PAGE_RUNTIME:
             Sandbox_DrawRuntimePage(sandbox);
             break;
@@ -519,6 +580,9 @@ static void Sandbox_Shutdown(void *user_data)
     R2D_StateMachineClear(&sandbox->states);
     R2D_MusicUnload(&sandbox->music);
     R2D_TilemapUnload(&sandbox->tilemap);
+    R2D_UnloadBitmapFont(&sandbox->font_alagard);
+    R2D_UnloadBitmapFont(&sandbox->font_mecha);
+    R2D_UnloadBitmapFont(&sandbox->font_pixantiqua);
     R2D_UnloadSpriteSheet(&sandbox->hero_sheet);
     R2D_UnloadSpriteSheet(&sandbox->coin_sheet);
 }
