@@ -18,6 +18,7 @@ typedef struct Sandbox {
     R2D_Anim walk_anim;
     R2D_AnimPlayer player_anim;
     R2D_InputMap input;
+    R2D_StateMachine states;
     R2D_Tilemap tilemap;
     R2D_Sfx coin;
     R2D_Sfx hit;
@@ -28,9 +29,14 @@ typedef struct Sandbox {
     R2D_Music music;
     bool reload_ok;
     bool music_loaded;
+    bool music_was_playing_before_pause;
     R2D_Context *context;
     R2D_Crt *crt;
 } Sandbox;
+
+static R2D_State Sandbox_GameState(void);
+static R2D_State Sandbox_PauseState(void);
+static void Sandbox_GameDraw(void *state_data, void *user_data);
 
 static void Sandbox_AddFallbackCollision(R2D_Tilemap *tilemap)
 {
@@ -142,6 +148,7 @@ static void Sandbox_InitInput(Sandbox *sandbox)
     R2D_InputBindKey(&sandbox->input, "toggle_crt", KEY_C);
     R2D_InputBindKey(&sandbox->input, "reload_crt", KEY_R);
     R2D_InputBindKey(&sandbox->input, "debug", KEY_F3);
+    R2D_InputBindKey(&sandbox->input, "pause", KEY_ESCAPE);
     R2D_InputBindKey(&sandbox->input, "coin_sfx", KEY_Z);
     R2D_InputBindKey(&sandbox->input, "hit_sfx", KEY_X);
     R2D_InputBindKey(&sandbox->input, "jump_sfx", KEY_V);
@@ -152,6 +159,7 @@ static void Sandbox_InitInput(Sandbox *sandbox)
     R2D_InputBindGamepadButton(&sandbox->input, "coin_sfx", GAMEPAD_BUTTON_RIGHT_FACE_DOWN);
     R2D_InputBindGamepadButton(&sandbox->input, "hit_sfx", GAMEPAD_BUTTON_RIGHT_FACE_RIGHT);
     R2D_InputBindGamepadButton(&sandbox->input, "jump_sfx", GAMEPAD_BUTTON_RIGHT_FACE_LEFT);
+    R2D_InputBindGamepadButton(&sandbox->input, "pause", GAMEPAD_BUTTON_MIDDLE_LEFT);
     R2D_InputBindGamepadButton(&sandbox->input, "music", GAMEPAD_BUTTON_MIDDLE_RIGHT);
 }
 
@@ -207,18 +215,25 @@ static void Sandbox_Init(void *user_data)
     if (sandbox->music_loaded) {
         R2D_MusicPlay(&sandbox->music, true);
     }
+
+    R2D_StateMachineInit(&sandbox->states, sandbox);
+    R2D_StateMachineSet(&sandbox->states, Sandbox_GameState());
 }
 
-static void Sandbox_Update(float dt, void *user_data)
+static void Sandbox_GameUpdate(float dt, void *state_data, void *user_data)
 {
+    (void)state_data;
+
     Sandbox *sandbox = (Sandbox *)user_data;
     const float speed = 80.0f;
     const Vector2 previous = sandbox->player;
     Vector2 movement = { 0.0f, 0.0f };
     Vector2 next;
 
-    R2D_InputUpdate(&sandbox->input);
-    R2D_MusicUpdate(&sandbox->music);
+    if (R2D_InputPressed(&sandbox->input, "pause")) {
+        R2D_StateMachinePush(&sandbox->states, Sandbox_PauseState());
+        return;
+    }
 
     movement.x = R2D_InputAxis(&sandbox->input, "move_left", "move_right");
     movement.y = R2D_InputAxis(&sandbox->input, "move_up", "move_down");
@@ -325,6 +340,83 @@ static void Sandbox_Update(float dt, void *user_data)
     sandbox->blink_timer += dt;
 }
 
+static void Sandbox_PauseEnter(void *state_data, void *user_data)
+{
+    (void)state_data;
+
+    Sandbox *sandbox = (Sandbox *)user_data;
+
+    sandbox->music_was_playing_before_pause = sandbox->music_loaded && R2D_MusicIsPlaying(&sandbox->music);
+    if (sandbox->music_was_playing_before_pause) {
+        R2D_MusicPause(&sandbox->music);
+    }
+}
+
+static void Sandbox_PauseUpdate(float dt, void *state_data, void *user_data)
+{
+    (void)dt;
+    (void)state_data;
+
+    Sandbox *sandbox = (Sandbox *)user_data;
+
+    if (R2D_InputPressed(&sandbox->input, "pause")) {
+        R2D_StateMachinePop(&sandbox->states);
+    }
+}
+
+static void Sandbox_PauseDraw(void *state_data, void *user_data)
+{
+    (void)state_data;
+
+    const Sandbox *sandbox = (const Sandbox *)user_data;
+    const int panel_width = 110;
+    const int panel_height = 42;
+    const int x = R2D_VirtualWidth(sandbox->context) / 2 - panel_width / 2;
+    const int y = R2D_VirtualHeight(sandbox->context) / 2 - panel_height / 2;
+
+    DrawRectangle(0, 0, R2D_VirtualWidth(sandbox->context), R2D_VirtualHeight(sandbox->context), R2D_ColorFromHex(0x00000099));
+    DrawRectangle(x, y, panel_width, panel_height, R2D_ColorFromHex(0x101820ee));
+    DrawRectangleLines(x, y, panel_width, panel_height, R2D_ColorFromHex(0xffd166ff));
+    DrawText("PAUSED", x + 33, y + 9, 12, R2D_ColorFromHex(0xf8f8f2ff));
+    DrawText("ESC / SELECT", x + 20, y + 26, 8, R2D_ColorFromHex(0x8ecae6ff));
+}
+
+static void Sandbox_PauseExit(void *state_data, void *user_data)
+{
+    (void)state_data;
+
+    Sandbox *sandbox = (Sandbox *)user_data;
+
+    if (sandbox->music_was_playing_before_pause) {
+        R2D_MusicResume(&sandbox->music);
+    }
+    sandbox->music_was_playing_before_pause = false;
+}
+
+static R2D_State Sandbox_GameState(void)
+{
+    return (R2D_State) {
+        "Game",
+        0,
+        Sandbox_GameUpdate,
+        Sandbox_GameDraw,
+        0,
+        0
+    };
+}
+
+static R2D_State Sandbox_PauseState(void)
+{
+    return (R2D_State) {
+        "Pause",
+        Sandbox_PauseEnter,
+        Sandbox_PauseUpdate,
+        Sandbox_PauseDraw,
+        Sandbox_PauseExit,
+        0
+    };
+}
+
 static void Sandbox_DrawGrid(const R2D_Context *context, Vector2 camera_position)
 {
     const Color grid = R2D_ColorFromHex(0x2a2a3aff);
@@ -342,8 +434,10 @@ static void Sandbox_DrawGrid(const R2D_Context *context, Vector2 camera_position
     }
 }
 
-static void Sandbox_Draw(void *user_data)
+static void Sandbox_GameDraw(void *state_data, void *user_data)
 {
+    (void)state_data;
+
     const Sandbox *sandbox = (const Sandbox *)user_data;
     const bool blink = ((int)(sandbox->blink_timer * 4.0f) % 2) == 0;
     const Vector2 camera_pixel = R2D_CameraPixelPosition(&sandbox->camera);
@@ -374,14 +468,15 @@ static void Sandbox_Draw(void *user_data)
         DrawText("R: RELOAD CRT", 8, 46, 8, R2D_ColorFromHex(0xffb86cff));
         DrawText(sandbox->debug_draw ? "F3: DEBUG ON" : "F3: DEBUG OFF", 8, 58, 8, R2D_ColorFromHex(0x50fa7bff));
         DrawText("Z/X/V/B/N/M: SFX", 8, 70, 8, R2D_ColorFromHex(0xffb86cff));
-        DrawText(sandbox->music_loaded ? "P: MUSIC" : "MUSIC: ADD theme.mid + chiptune.sf2", 8, 82, 8, R2D_ColorFromHex(0xffb86cff));
+        DrawText("ESC: PAUSE", 8, 82, 8, R2D_ColorFromHex(0x8ecae6ff));
+        DrawText(sandbox->music_loaded ? "P: MUSIC" : "MUSIC: ADD theme.mid + chiptune.sf2", 8, 94, 8, R2D_ColorFromHex(0xffb86cff));
     }
 
     if (sandbox->reload_message_timer > 0.0f) {
         DrawText(
             sandbox->reload_ok ? "SHADER RELOADED" : "SHADER ERROR",
             8,
-            94,
+            106,
             8,
             sandbox->reload_ok ? R2D_ColorFromHex(0x50fa7bff) : R2D_ColorFromHex(0xff5555ff)
         );
@@ -415,10 +510,27 @@ static void Sandbox_Draw(void *user_data)
     }
 }
 
+static void Sandbox_Update(float dt, void *user_data)
+{
+    Sandbox *sandbox = (Sandbox *)user_data;
+
+    R2D_InputUpdate(&sandbox->input);
+    R2D_MusicUpdate(&sandbox->music);
+    R2D_StateMachineUpdate(&sandbox->states, dt);
+}
+
+static void Sandbox_Draw(void *user_data)
+{
+    Sandbox *sandbox = (Sandbox *)user_data;
+
+    R2D_StateMachineDrawStack(&sandbox->states);
+}
+
 static void Sandbox_Shutdown(void *user_data)
 {
     Sandbox *sandbox = (Sandbox *)user_data;
 
+    R2D_StateMachineClear(&sandbox->states);
     R2D_MusicUnload(&sandbox->music);
     R2D_TilemapUnload(&sandbox->tilemap);
     R2D_UnloadSpriteSheet(&sandbox->player_sheet);

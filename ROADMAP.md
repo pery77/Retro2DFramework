@@ -108,10 +108,10 @@ cualquier chat o sesion futura pueda entender el proyecto de un vistazo.
   - [x] Remapping en memoria y perfiles por jugador mediante mapas separados.
   - [x] Deadzones para sticks.
 
-- [ ] Sistema de estados o escenas.
-  - Estados tipo `Title`, `Game`, `Pause`, `GameOver`, `Options`.
-  - Callbacks `enter`, `update`, `draw`, `exit`.
-  - Cambio de estado y stack opcional para overlays como pausa.
+- [x] Sistema de estados o escenas.
+  - [x] Estados tipo `Title`, `Game`, `Pause`, `GameOver`, `Options`.
+  - [x] Callbacks `enter`, `update`, `draw`, `exit`.
+  - [x] Cambio de estado y stack opcional para overlays como pausa.
 
 - [ ] UI retro basica.
   - Menus, botones, selectores, sliders y toggles.
@@ -256,15 +256,14 @@ cualquier chat o sesion futura pueda entender el proyecto de un vistazo.
 
 ## Orden sugerido de implementacion
 
-1. Estados/escenas.
-2. Texto bitmap y UI retro basica.
-3. Asset manager con cache.
-4. Entidades y colision 2D mas completa.
-5. Timers, tweens, shake y particulas.
-6. Save data y configuracion.
-7. Ampliacion de Tiled con propiedades custom y tiles animados.
-8. Mixer de audio por grupos.
-9. Packaging final de juegos.
+1. Texto bitmap y UI retro basica.
+2. Asset manager con cache.
+3. Entidades y colision 2D mas completa.
+4. Timers, tweens, shake y particulas.
+5. Save data y configuracion.
+6. Ampliacion de Tiled con propiedades custom y tiles animados.
+7. Mixer de audio por grupos.
+8. Packaging final de juegos.
 
 ## Notas de direccion
 
@@ -277,3 +276,6 @@ cualquier chat o sesion futura pueda entender el proyecto de un vistazo.
 - 2026-05-12: Input inicial implementado con `R2D_InputMap`, acciones nombradas,
   bindings de teclado/raton/gamepad, sticks con deadzone y consultas `down/pressed/released/value`.
   `sandbox` y `collect` ya lo usan para movimiento y acciones basicas.
+- 2026-05-12: Estados/escenas iniciales implementados con `R2D_StateMachine`,
+  callbacks `enter/update/draw/exit`, cambio de estado y stack para overlays.
+  `sandbox` usa un estado `Game` y un overlay `Pause`.

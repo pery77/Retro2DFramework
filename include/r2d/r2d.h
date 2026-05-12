@@ -11,6 +11,7 @@
 #define R2D_INPUT_MAX_ACTIONS 32
 #define R2D_INPUT_MAX_BINDINGS 8
 #define R2D_INPUT_ACTION_NAME_SIZE 32
+#define R2D_STATE_STACK_MAX 8
 
 #ifdef __cplusplus
 extern "C" {
@@ -151,6 +152,26 @@ typedef struct R2D_InputMap {
     int gamepad;
     float default_deadzone;
 } R2D_InputMap;
+
+typedef void (*R2D_StateEnterCallback)(void *state_data, void *user_data);
+typedef void (*R2D_StateUpdateCallback)(float dt, void *state_data, void *user_data);
+typedef void (*R2D_StateDrawCallback)(void *state_data, void *user_data);
+typedef void (*R2D_StateExitCallback)(void *state_data, void *user_data);
+
+typedef struct R2D_State {
+    const char *name;
+    R2D_StateEnterCallback enter;
+    R2D_StateUpdateCallback update;
+    R2D_StateDrawCallback draw;
+    R2D_StateExitCallback exit;
+    void *data;
+} R2D_State;
+
+typedef struct R2D_StateMachine {
+    R2D_State stack[R2D_STATE_STACK_MAX];
+    int count;
+    void *user_data;
+} R2D_StateMachine;
 
 typedef struct R2D_TilemapLayer {
     char name[64];
@@ -298,6 +319,18 @@ bool R2D_InputPressed(const R2D_InputMap *input, const char *action);
 bool R2D_InputReleased(const R2D_InputMap *input, const char *action);
 float R2D_InputValue(const R2D_InputMap *input, const char *action);
 float R2D_InputAxis(const R2D_InputMap *input, const char *negative_action, const char *positive_action);
+void R2D_StateMachineInit(R2D_StateMachine *machine, void *user_data);
+void R2D_StateMachineClear(R2D_StateMachine *machine);
+bool R2D_StateMachineSet(R2D_StateMachine *machine, R2D_State state);
+bool R2D_StateMachinePush(R2D_StateMachine *machine, R2D_State state);
+bool R2D_StateMachinePop(R2D_StateMachine *machine);
+void R2D_StateMachineUpdate(R2D_StateMachine *machine, float dt);
+void R2D_StateMachineDraw(R2D_StateMachine *machine);
+void R2D_StateMachineDrawStack(R2D_StateMachine *machine);
+const R2D_State *R2D_StateMachineCurrent(const R2D_StateMachine *machine);
+int R2D_StateMachineCount(const R2D_StateMachine *machine);
+bool R2D_StateMachineIsEmpty(const R2D_StateMachine *machine);
+const char *R2D_StateMachineCurrentName(const R2D_StateMachine *machine);
 R2D_SpriteSheet R2D_LoadSpriteSheet(const char *path, int frame_width, int frame_height);
 R2D_SpriteSheet R2D_SpriteSheetFromTexture(Texture2D texture, int frame_width, int frame_height);
 void R2D_UnloadSpriteSheet(R2D_SpriteSheet *sheet);

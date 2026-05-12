@@ -110,6 +110,7 @@ bool R2D_Init(R2D_Context *ctx, R2D_Config config)
         config.virtual_height * config.window_scale,
         config.title
     );
+    SetExitKey(KEY_NULL);
 
     R2D_MountDefaultAssetPack();
 
