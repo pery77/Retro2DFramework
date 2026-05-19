@@ -40,14 +40,15 @@ cualquier chat o sesion futura pueda entender el proyecto de un vistazo.
 - [x] Dibujado de sprites, frames y animaciones.
 - [x] Flip horizontal.
 - [x] Demo con spritesheet procedural.
-- [x] Demo con spritesheets reales de personaje y monedas.
+- [x] Demo con spritesheets reales migrada al set grafico comun definitivo.
+- [x] Demo con spritesheets procedurales para evitar dependencias temporales de arte.
 
 ### Tilemaps
 
 - [x] Carga inicial de mapas Tiled JSON ortogonales y finitos.
 - [x] Soporte de capas `tilelayer`.
 - [x] Soporte de capas `objectgroup`.
-- [x] Soporte de tilesets incrustados con imagen unica.
+- [x] Soporte de multiples tilesets incrustados con imagen unica.
 - [x] Soporte de tilesets externos `.tsx` simples.
 - [x] Busqueda de capas por nombre.
 - [x] Busqueda de objetos por nombre y tipo.
@@ -92,8 +93,12 @@ cualquier chat o sesion futura pueda entender el proyecto de un vistazo.
 - [x] Seleccion de targets concretos.
 - [x] `build_gui.bat` con launcher visual.
 - [x] Lista de targets en `tools/build_targets.json`.
-- [x] Sandbox como hello world/onboarding de sistemas Retro2D.
-- [x] Demo jugable `collect`.
+- [x] Sandbox como hello world/indice de ejemplos Retro2D.
+- [x] Ejemplo dedicado de input.
+- [x] Ejemplo dedicado de UI/texto.
+- [x] Ejemplo dedicado de audio.
+- [x] Ejemplo dedicado de estados.
+- [x] Demo jugable `collect` migrada al set grafico comun definitivo.
 - [x] Editor de SFX.
 - [x] Reproductor MIDI.
 
@@ -113,18 +118,19 @@ cualquier chat o sesion futura pueda entender el proyecto de un vistazo.
   - [x] Callbacks `enter`, `update`, `draw`, `exit`.
   - [x] Cambio de estado y stack opcional para overlays como pausa.
 
-- [ ] UI retro basica.
-  - [ ] Menus y selectores.
+- [x] UI retro basica.
+  - [x] Menus y selectores.
   - [x] Botones, sliders y toggles dibujados.
   - [x] HUDs, barras, paneles y contadores simples.
-  - [ ] Ventanas 9-slice y cajas de dialogo.
-  - [ ] Navegacion por teclado/gamepad para menus completos.
+  - [x] Ventanas 9-slice.
+  - [x] Cajas de dialogo simples.
+  - [x] Navegacion por teclado/gamepad para menus simples.
 
-- [ ] Texto y fuentes bitmap.
+- [x] Texto y fuentes bitmap.
   - [x] Carga de fuentes pixel.
   - [x] Medicion de texto, alineacion y wrapping.
   - [x] Sombra/outline/tint.
-  - [ ] Texto progresivo tipo RPG.
+  - [x] Texto progresivo tipo RPG.
   - [x] Control de espaciado entre letras y lineas.
 
 - [ ] Colision 2D mas completa.
@@ -241,8 +247,10 @@ cualquier chat o sesion futura pueda entender el proyecto de un vistazo.
 
 - [ ] Mas ejemplos de referencia.
   - Template de juego limpio.
-  - Ejemplo input.
-  - Ejemplo UI/dialogo.
+  - [x] Ejemplo input.
+  - [x] Ejemplo UI/dialogo.
+  - [x] Ejemplo audio.
+  - [x] Ejemplo estados.
   - Ejemplo platformer.
   - Ejemplo top-down.
   - Ejemplo particulas.
@@ -257,14 +265,13 @@ cualquier chat o sesion futura pueda entender el proyecto de un vistazo.
 
 ## Orden sugerido de implementacion
 
-1. Texto bitmap y UI retro basica.
-2. Asset manager con cache.
-3. Entidades y colision 2D mas completa.
-4. Timers, tweens, shake y particulas.
-5. Save data y configuracion.
-6. Ampliacion de Tiled con propiedades custom y tiles animados.
-7. Mixer de audio por grupos.
-8. Packaging final de juegos.
+1. Asset manager con cache.
+2. Entidades y colision 2D mas completa.
+3. Timers, tweens, shake y particulas.
+4. Save data y configuracion.
+5. Ampliacion de Tiled con propiedades custom y tiles animados.
+6. Mixer de audio por grupos.
+7. Packaging final de juegos.
 
 ## Notas de direccion
 
@@ -288,3 +295,41 @@ cualquier chat o sesion futura pueda entender el proyecto de un vistazo.
   paneles, botones, toggles, sliders y barras. `sandbox` suma pantalla `UI`.
 - 2026-05-12: `R2D_LoadBitmapFont` usa `LoadFont` para PNG bitmap/XNA-style;
   `sandbox` prueba fuentes de `assets/fonts` con tamanos legibles.
+- 2026-05-18: UI ampliada con `R2D_UiNav`, items de menu, selector y dialogo
+  simple. `sandbox` tiene controles navegables con up/down, left/right y submit.
+- 2026-05-18: UI/texto cerrados en primera version con `R2D_NineSlice` para
+  ventanas escalables y `R2D_Typewriter` para texto progresivo tipo RPG. `sandbox`
+  los muestra en la pantalla `UI`.
+- 2026-05-18: Nueva direccion de ejemplos: cada sistema debe tener un ejemplo
+  dedicado que funcione como documentacion viva. `sandbox` vuelve a ser un indice
+  pequeno/hello, y se crean `r2d_input_example` y `r2d_ui_example`. Evitar depender
+  de graficos temporales; el proyecto usara un set comun de assets libres elegido
+  aparte.
+- 2026-05-18: Se suman `r2d_audio_example` y `r2d_state_example`, ambos sin
+  dependencia de graficos externos para mantenerlos como documentacion clara.
+- 2026-05-19: Cambio de direccion de assets por licencias. Los ejemplos base
+  deben depender solo de graficos con licencia clara para redistribucion dentro
+  del repo. `r2d_input_example`, `r2d_ui_example`, `r2d_audio_example` y
+  `r2d_state_example` siguen sanos; `r2d_collect` pasa a usar sprites
+  procedurales y el tilemap seguro `r2d_sandbox.json` mientras queda pendiente
+  su migracion visual definitiva. Se retiran `tilemaps/collect.json` y
+  `tilemaps/Set 1.tsx` porque dependian del tileset retirado. Evitar usar
+  `assets/textures/Hero/Full Spritesheet.png` en ejemplos del framework hasta
+  confirmar si se puede redistribuir en el repositorio. Se anade
+  `assets/ATTRIBUTION.md` como indice corto de creditos/licencias.
+- 2026-05-19: `r2d_collect` vuelve a usar graficos reales del set comun:
+  `textures/DawnLike/Commissions/Mage.png` para el jugador y `textures/Coin.png`
+  para monedas. El mapa usado por la demo es `tilemaps/r2d_sandbox.json`; si el
+  mapa no define objetos `Coin*`, la demo crea monedas de fallback para seguir
+  siendo jugable.
+- 2026-05-19: Tilemaps actualizados para cargar y dibujar multiples tilesets
+  en el mismo mapa. Antes `R2D_Tilemap` elegia un unico tileset por `firstgid`,
+  asi que mapas de Tiled con walls/floors/props en imagenes distintas solo
+  renderizaban una parte.
+- 2026-05-19: UI/texto suma `R2D_LoadFont` y `R2D_UnloadFont` como wrappers
+  simples sobre raylib `LoadFont`/`UnloadFont`, validos para TTF/OTF/PNG. El
+  ejemplo `r2d_ui_example` carga una TTF de DawnLike y la muestra dentro de la
+  ventana 9-slice.
+- 2026-05-19: Core suma `R2D_RequestClose` para pedir el cierre limpio desde
+  juego/estados. `r2d_state_example` anade un estado `Exit`: desde `Pause`,
+  `Esc` quita el overlay y `Submit` cambia a `Exit` y cierra la app.

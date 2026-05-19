@@ -7,7 +7,27 @@
     },
     {
       "name": "r2d_sandbox",
-      "label": "Sandbox",
+      "label": "Hello / index",
+      "run": true
+    },
+    {
+      "name": "r2d_input_example",
+      "label": "Input example",
+      "run": true
+    },
+    {
+      "name": "r2d_ui_example",
+      "label": "UI example",
+      "run": true
+    },
+    {
+      "name": "r2d_audio_example",
+      "label": "Audio example",
+      "run": true
+    },
+    {
+      "name": "r2d_state_example",
+      "label": "State example",
       "run": true
     },
     {

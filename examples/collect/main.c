@@ -22,7 +22,7 @@ typedef struct CollectDemo {
     Vector2 player;
     R2D_Camera camera;
     R2D_Tilemap tilemap;
-    R2D_SpriteSheet player_sheets[4];
+    R2D_SpriteSheet player_sheet;
     R2D_SpriteSheet coin_sheet;
     R2D_Anim idle_anim;
     R2D_Anim walk_anim;
@@ -47,6 +47,22 @@ static R2D_Sfx Collect_LoadCoinSfx(void)
 
     R2D_LoadSfx(R2D_AssetPath("audio/sfx/coin.r2sfx"), &sfx);
     return sfx;
+}
+
+static int Collect_PlayerDirectionRow(PlayerDirection direction)
+{
+    switch (direction) {
+    case PLAYER_SOUTH:
+        return 0;
+    case PLAYER_WEST:
+        return 1;
+    case PLAYER_EAST:
+        return 2;
+    case PLAYER_NORTH:
+        return 3;
+    default:
+        return 0;
+    }
 }
 
 static bool Collect_ObjectIsCoin(const R2D_TilemapObject *object)
@@ -132,6 +148,14 @@ static void Collect_LoadObjects(CollectDemo *demo)
 {
     const R2D_TilemapObject *player_start = R2D_TilemapFindObject(&demo->tilemap, "PlayerStart");
     const int object_count = R2D_TilemapObjectCount(&demo->tilemap);
+    static const Vector2 fallback_coins[] = {
+        { 96.0f, 48.0f },
+        { 192.0f, 64.0f },
+        { 320.0f, 96.0f },
+        { 112.0f, 176.0f },
+        { 256.0f, 240.0f },
+        { 384.0f, 288.0f }
+    };
 
     if (player_start != 0) {
         demo->player = (Vector2) { player_start->rect.x, player_start->rect.y };
@@ -142,6 +166,17 @@ static void Collect_LoadObjects(CollectDemo *demo)
 
         if (object != 0 && Collect_ObjectIsCoin(object)) {
             demo->coins[demo->coin_count].rect = object->rect;
+            demo->coins[demo->coin_count].collected = false;
+            demo->coin_count++;
+        }
+    }
+
+    /* Keep the sample playable even when a map only defines the player spawn. */
+    if (demo->coin_count == 0) {
+        const int fallback_count = (int)(sizeof(fallback_coins) / sizeof(fallback_coins[0]));
+
+        for (int i = 0; i < fallback_count && demo->coin_count < COLLECT_MAX_COINS; ++i) {
+            demo->coins[demo->coin_count].rect = R2D_Rect(fallback_coins[i].x, fallback_coins[i].y, 12.0f, 12.0f);
             demo->coins[demo->coin_count].collected = false;
             demo->coin_count++;
         }
@@ -161,16 +196,13 @@ static void Collect_Init(void *user_data)
     demo->coins_collected = 0;
     demo->music_loaded = false;
     Collect_InitInput(demo);
-    demo->player_sheets[PLAYER_SOUTH] = R2D_LoadSpriteSheet(R2D_AssetPath("textures/Hero/HeroSouth.png"), 16, 16);
-    demo->player_sheets[PLAYER_NORTH] = R2D_LoadSpriteSheet(R2D_AssetPath("textures/Hero/HeroNorth.png"), 16, 16);
-    demo->player_sheets[PLAYER_EAST] = R2D_LoadSpriteSheet(R2D_AssetPath("textures/Hero/HeroEast.png"), 16, 16);
-    demo->player_sheets[PLAYER_WEST] = R2D_LoadSpriteSheet(R2D_AssetPath("textures/Hero/HeroWest.png"), 16, 16);
-    demo->coin_sheet = R2D_LoadSpriteSheet(R2D_AssetPath("textures/Dungeon/Coin Sheet.png"), 16, 16);
+    demo->player_sheet = R2D_LoadSpriteSheet(R2D_AssetPath("textures/DawnLike/Commissions/Mage.png"), 16, 16);
+    demo->coin_sheet = R2D_LoadSpriteSheet(R2D_AssetPath("textures/Coin.png"), 16, 16);
     demo->idle_anim = R2D_AnimFrames(0, 1, 1.0f, true);
-    demo->walk_anim = R2D_AnimFrames(0, 7, 10.0f, true);
+    demo->walk_anim = R2D_AnimFrames(0, 4, 8.0f, true);
     R2D_AnimPlay(&demo->player_anim, demo->idle_anim);
-    R2D_AnimPlay(&demo->coin_anim, R2D_AnimFrames(0, 8, 10.0f, true));
-    R2D_TilemapLoadTiledJson(&demo->tilemap, R2D_AssetPath("tilemaps/collect.json"));
+    R2D_AnimPlay(&demo->coin_anim, R2D_AnimFrames(0, 7, 10.0f, true));
+    R2D_TilemapLoadTiledJson(&demo->tilemap, R2D_AssetPath("tilemaps/r2d_sandbox.json"));
     demo->collision_layer = R2D_TilemapLayerIndex(&demo->tilemap, "Collision");
     Collect_LoadObjects(demo);
     demo->coin_sfx = Collect_LoadCoinSfx();
@@ -323,6 +355,9 @@ static void Collect_Draw(void *user_data)
         floorf(demo->player.x - camera_pixel.x),
         floorf(demo->player.y - camera_pixel.y)
     };
+    const int player_frame =
+        Collect_PlayerDirectionRow(demo->player_direction) * 4 +
+        (R2D_AnimFrame(&demo->player_anim) % 4);
 
     Collect_DrawTileLayers(demo, camera_view, camera_offset, false);
 
@@ -341,7 +376,7 @@ static void Collect_Draw(void *user_data)
         R2D_DrawAnim(&demo->coin_sheet, &demo->coin_anim, position, false);
     }
 
-    R2D_DrawAnim(&demo->player_sheets[demo->player_direction], &demo->player_anim, player_screen, false);
+    R2D_DrawSheetFrame(&demo->player_sheet, player_frame, player_screen, false);
     Collect_DrawTileLayers(demo, camera_view, camera_offset, true);
 
     if (demo->debug_draw) {
@@ -369,9 +404,7 @@ static void Collect_Shutdown(void *user_data)
     CollectDemo *demo = (CollectDemo *)user_data;
 
     R2D_TilemapUnload(&demo->tilemap);
-    for (int i = 0; i < 4; ++i) {
-        R2D_UnloadSpriteSheet(&demo->player_sheets[i]);
-    }
+    R2D_UnloadSpriteSheet(&demo->player_sheet);
     R2D_UnloadSpriteSheet(&demo->coin_sheet);
     R2D_MusicUnload(&demo->music);
 }

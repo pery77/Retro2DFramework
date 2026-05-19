@@ -131,6 +131,7 @@ bool R2D_Init(R2D_Context *ctx, R2D_Config config)
     ctx->windowed_position = GetWindowPosition();
     ctx->crt = 0;
     ctx->screenshot_requested = false;
+    ctx->close_requested = false;
     ctx->is_ready = IsRenderTextureValid(ctx->target);
 
     SetTextureFilter(ctx->target.texture, TEXTURE_FILTER_POINT);
@@ -148,7 +149,7 @@ void R2D_Run(R2D_Context *ctx, R2D_App app)
         app.init(app.user_data);
     }
 
-    while (!WindowShouldClose()) {
+    while (!ctx->close_requested && !WindowShouldClose()) {
         const float dt = GetFrameTime();
 
         R2D_HandleWindowShortcuts(ctx);
@@ -168,6 +169,13 @@ void R2D_Run(R2D_Context *ctx, R2D_App app)
 
     if (app.shutdown != 0) {
         app.shutdown(app.user_data);
+    }
+}
+
+void R2D_RequestClose(R2D_Context *ctx)
+{
+    if (ctx != 0) {
+        ctx->close_requested = true;
     }
 }
 

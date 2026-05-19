@@ -433,45 +433,6 @@ static const char *R2D_TilemapFindFirstObjectInArray(const char *begin, const ch
     return 0;
 }
 
-static unsigned int R2D_TilemapMaxGid(const char *text)
-{
-    const char *cursor = text;
-    unsigned int max_gid = 0;
-
-    while ((cursor = R2D_TilemapFindKey(cursor, 0, "data")) != 0) {
-        const char *data_end;
-
-        if (*cursor != '[') {
-            ++cursor;
-            continue;
-        }
-
-        data_end = R2D_TilemapFindMatching(cursor, '[', ']');
-        if (data_end == 0) {
-            break;
-        }
-
-        ++cursor;
-        while (cursor < data_end) {
-            char *next = 0;
-            const unsigned int gid = (unsigned int)strtoul(cursor, &next, 10) & R2D_TILED_GID_MASK;
-
-            if (next == cursor) {
-                ++cursor;
-                continue;
-            }
-
-            if (gid > max_gid) {
-                max_gid = gid;
-            }
-
-            cursor = next;
-        }
-    }
-
-    return max_gid;
-}
-
 static bool R2D_TilemapParseTileData(const char *layer_begin, const char *layer_end, R2D_TilemapLayer *layer)
 {
     const char *data = R2D_TilemapFindKey(layer_begin, layer_end, "data");
@@ -517,18 +478,81 @@ static bool R2D_TilemapParseTileData(const char *layer_begin, const char *layer_
     return index == count;
 }
 
+static bool R2D_TilemapAppendTileset(
+    R2D_Tilemap *tilemap,
+    int first_gid,
+    int tile_width,
+    int tile_height,
+    int columns,
+    int tile_count,
+    const char *image_path
+)
+{
+    Texture2D texture;
+    R2D_TilemapTileset *tilesets;
+    R2D_TilemapTileset *tileset;
+
+    if (tilemap == 0 || first_gid <= 0 || tile_width <= 0 || tile_height <= 0 || image_path == 0 || image_path[0] == '\0') {
+        return false;
+    }
+
+    texture = R2D_LoadTexture(image_path);
+    if (!IsTextureValid(texture)) {
+        TraceLog(LOG_WARNING, "R2D: Failed to load tilemap tileset image: %s", image_path);
+        return false;
+    }
+
+    SetTextureFilter(texture, TEXTURE_FILTER_POINT);
+
+    if (columns <= 0) {
+        columns = texture.width / tile_width;
+    }
+
+    if (tile_count <= 0) {
+        tile_count = (texture.width / tile_width) * (texture.height / tile_height);
+    }
+
+    if (columns <= 0 || tile_count <= 0) {
+        UnloadTexture(texture);
+        return false;
+    }
+
+    tilesets = (R2D_TilemapTileset *)realloc(
+        tilemap->tilesets,
+        (size_t)(tilemap->tileset_count + 1) * sizeof(R2D_TilemapTileset)
+    );
+    if (tilesets == 0) {
+        UnloadTexture(texture);
+        return false;
+    }
+
+    tilemap->tilesets = tilesets;
+    tileset = &tilemap->tilesets[tilemap->tileset_count];
+    *tileset = (R2D_TilemapTileset) {
+        texture,
+        first_gid,
+        tile_width,
+        tile_height,
+        columns,
+        tile_count
+    };
+
+    if (tilemap->tileset_count == 0) {
+        tilemap->texture = texture;
+        tilemap->first_gid = first_gid;
+        tilemap->columns = columns;
+        tilemap->tile_count = tile_count;
+    }
+
+    tilemap->tileset_count++;
+    return true;
+}
+
 static bool R2D_TilemapParseTileset(R2D_Tilemap *tilemap, const char *text, const char *path)
 {
     const char *tilesets = R2D_TilemapFindKey(text, 0, "tilesets");
     const char *tilesets_end;
     const char *tileset_begin;
-    const unsigned int max_gid = R2D_TilemapMaxGid(text);
-    int chosen_first_gid = -1;
-    int chosen_tile_width = 0;
-    int chosen_tile_height = 0;
-    int chosen_columns = 0;
-    int chosen_tile_count = 0;
-    char chosen_image_path[1200] = { 0 };
 
     if (tilesets == 0 || *tilesets != '[') {
         return false;
@@ -556,11 +580,6 @@ static bool R2D_TilemapParseTileset(R2D_Tilemap *tilemap, const char *text, cons
         }
 
         if (!R2D_TilemapReadInt(tileset_begin, tileset_end, "firstgid", &first_gid)) {
-            tileset_begin = tileset_end + 1;
-            continue;
-        }
-
-        if (first_gid <= chosen_first_gid || (max_gid != 0 && (unsigned int)first_gid > max_gid)) {
             tileset_begin = tileset_end + 1;
             continue;
         }
@@ -621,43 +640,19 @@ static bool R2D_TilemapParseTileset(R2D_Tilemap *tilemap, const char *text, cons
         R2D_TilemapReadInt(tileset_begin, tileset_end, "tilewidth", &tile_width);
         R2D_TilemapReadInt(tileset_begin, tileset_end, "tileheight", &tile_height);
 
-        chosen_first_gid = first_gid;
-        chosen_tile_width = tile_width;
-        chosen_tile_height = tile_height;
-        chosen_columns = columns;
-        chosen_tile_count = tile_count;
-        snprintf(chosen_image_path, sizeof(chosen_image_path), "%s", image_path);
+        R2D_TilemapAppendTileset(
+            tilemap,
+            first_gid,
+            tile_width,
+            tile_height,
+            columns,
+            tile_count,
+            image_path
+        );
         tileset_begin = tileset_end + 1;
     }
 
-    if (chosen_first_gid < 0 || chosen_image_path[0] == '\0') {
-        return false;
-    }
-
-    tilemap->first_gid = chosen_first_gid;
-    tilemap->tile_width = chosen_tile_width;
-    tilemap->tile_height = chosen_tile_height;
-    tilemap->columns = chosen_columns;
-    tilemap->tile_count = chosen_tile_count;
-    tilemap->texture = R2D_LoadTexture(chosen_image_path);
-
-    if (!IsTextureValid(tilemap->texture)) {
-        TraceLog(LOG_WARNING, "R2D: Failed to load tilemap tileset image: %s", chosen_image_path);
-        return false;
-    }
-
-    SetTextureFilter(tilemap->texture, TEXTURE_FILTER_POINT);
-
-    if (tilemap->columns <= 0 && tilemap->tile_width > 0) {
-        tilemap->columns = tilemap->texture.width / tilemap->tile_width;
-    }
-
-    if (tilemap->tile_count <= 0 && tilemap->tile_width > 0 && tilemap->tile_height > 0) {
-        tilemap->tile_count = (tilemap->texture.width / tilemap->tile_width) *
-            (tilemap->texture.height / tilemap->tile_height);
-    }
-
-    return tilemap->columns > 0 && tilemap->tile_count > 0;
+    return tilemap->tileset_count > 0;
 }
 
 static bool R2D_TilemapParseLayer(const char *layer_begin, const char *layer_end, R2D_TilemapLayer *layer)
@@ -984,8 +979,14 @@ void R2D_TilemapUnload(R2D_Tilemap *tilemap)
         free(tilemap->objects);
     }
 
-    if (IsTextureValid(tilemap->texture)) {
-        UnloadTexture(tilemap->texture);
+    if (tilemap->tilesets != 0) {
+        for (int i = 0; i < tilemap->tileset_count; ++i) {
+            if (IsTextureValid(tilemap->tilesets[i].texture)) {
+                UnloadTexture(tilemap->tilesets[i].texture);
+            }
+        }
+
+        free(tilemap->tilesets);
     }
 
     memset(tilemap, 0, sizeof(*tilemap));
@@ -993,7 +994,10 @@ void R2D_TilemapUnload(R2D_Tilemap *tilemap)
 
 bool R2D_TilemapIsReady(const R2D_Tilemap *tilemap)
 {
-    return tilemap != 0 && tilemap->is_ready && IsTextureValid(tilemap->texture);
+    return tilemap != 0 &&
+        tilemap->is_ready &&
+        tilemap->tilesets != 0 &&
+        tilemap->tileset_count > 0;
 }
 
 int R2D_TilemapLayerIndex(const R2D_Tilemap *tilemap, const char *name)
@@ -1168,6 +1172,26 @@ static void R2D_TilemapVisibleRange(
     *end_y = bottom;
 }
 
+static const R2D_TilemapTileset *R2D_TilemapTilesetForGid(const R2D_Tilemap *tilemap, unsigned int gid)
+{
+    const R2D_TilemapTileset *match = 0;
+
+    if (tilemap == 0 || gid == 0) {
+        return 0;
+    }
+
+    for (int i = 0; i < tilemap->tileset_count; ++i) {
+        const R2D_TilemapTileset *tileset = &tilemap->tilesets[i];
+        const int tile = (int)gid - tileset->first_gid;
+
+        if (tile >= 0 && tile < tileset->tile_count) {
+            match = tileset;
+        }
+    }
+
+    return match;
+}
+
 static void R2D_TilemapDrawLayerRange(
     const R2D_Tilemap *tilemap,
     int layer_index,
@@ -1213,19 +1237,21 @@ static void R2D_TilemapDrawLayerRange(
         for (int x = start_x; x <= end_x; ++x) {
             const unsigned int raw_gid = layer->tiles[y * layer->width + x];
             const unsigned int gid = raw_gid & R2D_TILED_GID_MASK;
-            const int tile = (int)gid - tilemap->first_gid;
+            const R2D_TilemapTileset *tileset = R2D_TilemapTilesetForGid(tilemap, gid);
+            int tile;
             Rectangle source;
             Rectangle destination;
 
-            if (gid == 0 || tile < 0 || tile >= tilemap->tile_count) {
+            if (tileset == 0) {
                 continue;
             }
 
+            tile = (int)gid - tileset->first_gid;
             source = (Rectangle) {
-                (float)((tile % tilemap->columns) * tilemap->tile_width),
-                (float)((tile / tilemap->columns) * tilemap->tile_height),
-                (float)tilemap->tile_width,
-                (float)tilemap->tile_height
+                (float)((tile % tileset->columns) * tileset->tile_width),
+                (float)((tile / tileset->columns) * tileset->tile_height),
+                (float)tileset->tile_width,
+                (float)tileset->tile_height
             };
 
             if ((raw_gid & R2D_TILED_FLIP_HORIZONTAL) != 0) {
@@ -1246,7 +1272,7 @@ static void R2D_TilemapDrawLayerRange(
             };
 
             DrawTexturePro(
-                tilemap->texture,
+                tileset->texture,
                 source,
                 destination,
                 (Vector2) { 0.0f, 0.0f },

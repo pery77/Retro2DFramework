@@ -109,9 +109,17 @@ endfunction()
 
 if(R2D_BUILD_EXAMPLES)
     r2d_add_packaged_app(r2d_sandbox examples/sandbox/main.c)
+    r2d_add_packaged_app(r2d_input_example examples/input/main.c)
+    r2d_add_packaged_app(r2d_ui_example examples/ui/main.c)
+    r2d_add_packaged_app(r2d_audio_example examples/audio/main.c)
+    r2d_add_packaged_app(r2d_state_example examples/state/main.c)
     r2d_add_packaged_app(r2d_collect examples/collect/main.c)
 
     r2d_use_windows_subsystem(r2d_sandbox)
+    r2d_use_windows_subsystem(r2d_input_example)
+    r2d_use_windows_subsystem(r2d_ui_example)
+    r2d_use_windows_subsystem(r2d_audio_example)
+    r2d_use_windows_subsystem(r2d_state_example)
     r2d_use_windows_subsystem(r2d_collect)
 endif()
 
