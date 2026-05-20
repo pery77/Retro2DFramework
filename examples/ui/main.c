@@ -14,6 +14,7 @@ typedef enum UiItem {
 typedef struct UiExample {
     R2D_InputMap input;
     R2D_UiNav nav;
+    R2D_AssetCache assets;
     R2D_NineSlice window;
     R2D_Typewriter typewriter;
     Texture2D ui_texture;
@@ -61,6 +62,7 @@ static void UiExample_Init(void *user_data)
     UiExample *example = (UiExample *)user_data;
 
     UiExample_InitInput(example);
+    R2D_AssetCacheInit(&example->assets);
     R2D_UiNavInit(&example->nav, UI_ITEM_COUNT);
     example->toggle = true;
     example->slider = 0.55f;
@@ -68,7 +70,7 @@ static void UiExample_Init(void *user_data)
 
     example->title_font = R2D_LoadBitmapFont("fonts/alagard.png");
     example->box_font = R2D_LoadFont("textures/DawnLike/GUI/SDS_6x6.ttf");
-    example->ui_texture = R2D_LoadTexture("textures/DawnLike/GUI/GUI0.png");
+    example->ui_texture = R2D_AssetCacheLoadTexture(&example->assets, "textures/DawnLike/GUI/GUI0.png", 1);
 
     /* This source rectangle is one of the flat panels in the UI sheet. */
     example->window = R2D_NineSliceCreate(
@@ -165,7 +167,7 @@ static void UiExample_Shutdown(void *user_data)
 
     R2D_UnloadBitmapFont(&example->title_font);
     R2D_UnloadFont(&example->box_font);
-    UnloadTexture(example->ui_texture);
+    R2D_AssetCacheClear(&example->assets);
 }
 
 int main(void)

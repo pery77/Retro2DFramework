@@ -14,19 +14,6 @@ static Font R2D_ResolveFont(Font font)
     return font;
 }
 
-static float R2D_Clamp01(float value)
-{
-    if (value < 0.0f) {
-        return 0.0f;
-    }
-
-    if (value > 1.0f) {
-        return 1.0f;
-    }
-
-    return value;
-}
-
 static int R2D_TextLineHeight(R2D_TextStyle style)
 {
     const int extra = style.line_spacing > 0 ? style.line_spacing : 2;
@@ -65,6 +52,8 @@ static void R2D_DrawTextLine(const char *text, Vector2 position, R2D_TextStyle s
     DrawTextEx(font, text, position, font_size, spacing, style.tint);
 }
 
+static float R2D_DrawWrappedLongWord(const char *word, Rectangle bounds, float y, R2D_TextStyle style);
+
 static float R2D_DrawWrappedLine(const char *line, Rectangle bounds, float y, R2D_TextStyle style)
 {
     char word[128];
@@ -101,9 +90,19 @@ static float R2D_DrawWrappedLine(const char *line, Rectangle bounds, float y, R2
                         R2D_DrawTextLine(current, (Vector2) { bounds.x, line_y }, style);
                     }
                     line_y += line_height;
-                    snprintf(current, sizeof(current), "%s", word);
+                    if (R2D_MeasureTextStyled(word, style).x > bounds.width) {
+                        line_y = R2D_DrawWrappedLongWord(word, bounds, line_y, style);
+                        current[0] = '\0';
+                    } else {
+                        snprintf(current, sizeof(current), "%s", word);
+                    }
                 } else {
-                    snprintf(current, sizeof(current), "%s", candidate);
+                    if (current_length == 0 && R2D_MeasureTextStyled(word, style).x > bounds.width) {
+                        line_y = R2D_DrawWrappedLongWord(word, bounds, line_y, style);
+                        current[0] = '\0';
+                    } else {
+                        snprintf(current, sizeof(current), "%s", candidate);
+                    }
                 }
 
                 current_length = (int)strlen(current);
@@ -119,6 +118,54 @@ static float R2D_DrawWrappedLine(const char *line, Rectangle bounds, float y, R2
     if (current_length > 0) {
         if (line_y + line_height <= max_y) {
             R2D_DrawTextLine(current, (Vector2) { bounds.x, line_y }, style);
+        }
+        line_y += line_height;
+    }
+
+    return line_y;
+}
+
+static float R2D_DrawWrappedLongWord(const char *word, Rectangle bounds, float y, R2D_TextStyle style)
+{
+    char chunk[256];
+    int chunk_length = 0;
+    float line_y = y;
+    const float max_y = bounds.y + bounds.height;
+    const float line_height = (float)R2D_TextLineHeight(style);
+
+    chunk[0] = '\0';
+
+    for (const char *at = word; *at != '\0'; ++at) {
+        char candidate[256];
+
+        if (chunk_length >= (int)sizeof(chunk) - 2) {
+            if (line_y + line_height <= max_y) {
+                R2D_DrawTextLine(chunk, (Vector2) { bounds.x, line_y }, style);
+            }
+            line_y += line_height;
+            chunk_length = 0;
+            chunk[0] = '\0';
+        }
+
+        snprintf(candidate, sizeof(candidate), "%s%c", chunk, *at);
+
+        if (chunk_length > 0 && R2D_MeasureTextStyled(candidate, style).x > bounds.width) {
+            if (line_y + line_height <= max_y) {
+                R2D_DrawTextLine(chunk, (Vector2) { bounds.x, line_y }, style);
+            }
+            line_y += line_height;
+            chunk[0] = *at;
+            chunk[1] = '\0';
+            chunk_length = 1;
+        } else {
+            snprintf(chunk, sizeof(chunk), "%s", candidate);
+            chunk_length = (int)strlen(chunk);
+        }
+    }
+
+    if (chunk_length > 0) {
+        if (line_y + line_height <= max_y) {
+            R2D_DrawTextLine(chunk, (Vector2) { bounds.x, line_y }, style);
         }
         line_y += line_height;
     }

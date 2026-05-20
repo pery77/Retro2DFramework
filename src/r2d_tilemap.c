@@ -1091,6 +1091,99 @@ bool R2D_TilemapRectCollides(const R2D_Tilemap *tilemap, int layer_index, Rectan
     return false;
 }
 
+int R2D_TilemapCollisionRects(
+    const R2D_Tilemap *tilemap,
+    int layer_index,
+    Rectangle area,
+    R2D_Collider *colliders,
+    int max_colliders,
+    unsigned int layer,
+    unsigned int mask
+)
+{
+    int left;
+    int right;
+    int top;
+    int bottom;
+    int count = 0;
+
+    if (!R2D_TilemapIsReady(tilemap) ||
+        layer_index < 0 ||
+        layer_index >= tilemap->layer_count ||
+        colliders == 0 ||
+        max_colliders <= 0 ||
+        area.width <= 0.0f ||
+        area.height <= 0.0f) {
+        return 0;
+    }
+
+    left = (int)floorf(area.x / (float)tilemap->tile_width);
+    right = (int)floorf((area.x + area.width - 0.001f) / (float)tilemap->tile_width);
+    top = (int)floorf(area.y / (float)tilemap->tile_height);
+    bottom = (int)floorf((area.y + area.height - 0.001f) / (float)tilemap->tile_height);
+
+    for (int y = top; y <= bottom; ++y) {
+        for (int x = left; x <= right; ++x) {
+            if (R2D_TilemapTileAt(tilemap, layer_index, x, y) == 0) {
+                continue;
+            }
+
+            colliders[count++] = R2D_ColliderRect(
+                R2D_TilemapTileBounds(tilemap, x, y),
+                layer,
+                mask,
+                false,
+                0
+            );
+
+            if (count >= max_colliders) {
+                return count;
+            }
+        }
+    }
+
+    return count;
+}
+
+Vector2 R2D_TilemapMoveAndSlide(
+    const R2D_Tilemap *tilemap,
+    int layer_index,
+    Rectangle bounds,
+    Vector2 movement,
+    R2D_CollisionResult *result
+)
+{
+    R2D_Collider colliders[128];
+    Rectangle sweep = bounds;
+    int collider_count;
+
+    if (movement.x < 0.0f) {
+        sweep.x += movement.x;
+        sweep.width -= movement.x;
+    } else {
+        sweep.width += movement.x;
+    }
+
+    if (movement.y < 0.0f) {
+        sweep.y += movement.y;
+        sweep.height -= movement.y;
+    } else {
+        sweep.height += movement.y;
+    }
+
+    collider_count = R2D_TilemapCollisionRects(
+        tilemap,
+        layer_index,
+        sweep,
+        colliders,
+        (int)(sizeof(colliders) / sizeof(colliders[0])),
+        1u,
+        1u
+    );
+
+    return R2D_MoveAndSlide(bounds, movement, 1u, 1u, colliders, collider_count, result);
+}
+
 int R2D_TilemapObjectCount(const R2D_Tilemap *tilemap)
 {
     return tilemap != 0 ? tilemap->object_count : 0;

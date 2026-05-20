@@ -6,8 +6,8 @@ typedef struct Hello {
 
 static void Hello_DrawLine(int y, const char *title, const char *target, Color color)
 {
-    DrawText(title, 24, y, 10, color);
-    DrawText(target, 168, y, 10, R2D_ColorFromHex(0x8ecae6ff));
+    DrawText(title, 24, y, 8, color);
+    DrawText(target, 150, y, 8, R2D_ColorFromHex(0x8ecae6ff));
 }
 
 static void Hello_Draw(void *user_data)
@@ -33,14 +33,19 @@ static void Hello_Draw(void *user_data)
     );
 
     DrawLine(24, 76, 296, 76, R2D_ColorFromHex(0x3a506bff));
-    Hello_DrawLine(84, "Collect game", "r2d_collect", R2D_ColorFromHex(0xf8f8f2ff));
-    Hello_DrawLine(100, "Input actions", "r2d_input_example", R2D_ColorFromHex(0xf8f8f2ff));
-    Hello_DrawLine(116, "Retro UI/text", "r2d_ui_example", R2D_ColorFromHex(0xf8f8f2ff));
-    Hello_DrawLine(132, "Audio", "r2d_audio_example", R2D_ColorFromHex(0xf8f8f2ff));
-    Hello_DrawLine(148, "States", "r2d_state_example", R2D_ColorFromHex(0xf8f8f2ff));
+    Hello_DrawLine(80, "Collect game", "r2d_collect", R2D_ColorFromHex(0xf8f8f2ff));
+    Hello_DrawLine(91, "Input actions", "r2d_input_example", R2D_ColorFromHex(0xf8f8f2ff));
+    Hello_DrawLine(102, "Retro UI/text", "r2d_ui_example", R2D_ColorFromHex(0xf8f8f2ff));
+    Hello_DrawLine(113, "Audio", "r2d_audio_example", R2D_ColorFromHex(0xf8f8f2ff));
+    Hello_DrawLine(124, "States", "r2d_state_example", R2D_ColorFromHex(0xf8f8f2ff));
+    Hello_DrawLine(135, "Collision", "r2d_collision_example", R2D_ColorFromHex(0xf8f8f2ff));
+    Hello_DrawLine(146, "Particles", "r2d_particle_example", R2D_ColorFromHex(0xf8f8f2ff));
+    Hello_DrawLine(157, "Palettes", "r2d_palette_example", R2D_ColorFromHex(0xf8f8f2ff));
+    Hello_DrawLine(168, "Time effects", "r2d_time_example", R2D_ColorFromHex(0xf8f8f2ff));
+    Hello_DrawLine(179, "Save data", "r2d_save_example", R2D_ColorFromHex(0xf8f8f2ff));
     // If need more space, we can use scrolling or some other solution, but for now we just need to fit the content.
 
-    DrawText("Alt+Enter or F11 fullscreen   F12 screenshot", 46, 185, 8, R2D_ColorFromHex(0x8ecae6ff));
+    DrawText("Alt+Enter/F11 fullscreen   F12 screenshot", 54, 191, 8, R2D_ColorFromHex(0x8ecae6ff));
 }
 
 int main(void)

@@ -24,14 +24,21 @@ endif()
 
 add_library(r2d STATIC
     src/r2d.c
+    src/r2d_asset_cache.c
     src/r2d_assets.c
     src/r2d_audio.c
     src/r2d_camera.c
+    src/r2d_collision.c
     src/r2d_crt.c
+    src/r2d_entity.c
     src/r2d_input.c
     src/r2d_music.c
+    src/r2d_palette.c
+    src/r2d_particle.c
+    src/r2d_save.c
     src/r2d_state.c
     src/r2d_sprite.c
+    src/r2d_time.c
     src/r2d_tilemap.c
     src/r2d_ui.c
 )
@@ -108,18 +115,28 @@ function(r2d_use_windows_subsystem target_name)
 endfunction()
 
 if(R2D_BUILD_EXAMPLES)
-    r2d_add_packaged_app(r2d_sandbox examples/sandbox/main.c)
+    r2d_add_packaged_app(r2d_hello_index examples/hello_index/main.c)
     r2d_add_packaged_app(r2d_input_example examples/input/main.c)
     r2d_add_packaged_app(r2d_ui_example examples/ui/main.c)
     r2d_add_packaged_app(r2d_audio_example examples/audio/main.c)
     r2d_add_packaged_app(r2d_state_example examples/state/main.c)
+    r2d_add_packaged_app(r2d_collision_example examples/collision/main.c)
+    r2d_add_packaged_app(r2d_particle_example examples/particles/main.c)
+    r2d_add_packaged_app(r2d_palette_example examples/palette/main.c)
+    r2d_add_packaged_app(r2d_time_example examples/time/main.c)
+    r2d_add_packaged_app(r2d_save_example examples/save/main.c)
     r2d_add_packaged_app(r2d_collect examples/collect/main.c)
 
-    r2d_use_windows_subsystem(r2d_sandbox)
+    r2d_use_windows_subsystem(r2d_hello_index)
     r2d_use_windows_subsystem(r2d_input_example)
     r2d_use_windows_subsystem(r2d_ui_example)
     r2d_use_windows_subsystem(r2d_audio_example)
     r2d_use_windows_subsystem(r2d_state_example)
+    r2d_use_windows_subsystem(r2d_collision_example)
+    r2d_use_windows_subsystem(r2d_particle_example)
+    r2d_use_windows_subsystem(r2d_palette_example)
+    r2d_use_windows_subsystem(r2d_time_example)
+    r2d_use_windows_subsystem(r2d_save_example)
     r2d_use_windows_subsystem(r2d_collect)
 endif()
 

@@ -6,7 +6,7 @@
       "run": false
     },
     {
-      "name": "r2d_sandbox",
+      "name": "r2d_hello_index",
       "label": "Hello / index",
       "run": true
     },
@@ -28,6 +28,31 @@
     {
       "name": "r2d_state_example",
       "label": "State example",
+      "run": true
+    },
+    {
+      "name": "r2d_collision_example",
+      "label": "Collision example",
+      "run": true
+    },
+    {
+      "name": "r2d_particle_example",
+      "label": "Particle example",
+      "run": true
+    },
+    {
+      "name": "r2d_palette_example",
+      "label": "Palette example",
+      "run": true
+    },
+    {
+      "name": "r2d_time_example",
+      "label": "Time effects example",
+      "run": true
+    },
+    {
+      "name": "r2d_save_example",
+      "label": "Save data example",
       "run": true
     },
     {

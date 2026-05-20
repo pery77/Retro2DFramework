@@ -12,6 +12,16 @@
 #define R2D_INPUT_MAX_BINDINGS 8
 #define R2D_INPUT_ACTION_NAME_SIZE 32
 #define R2D_STATE_STACK_MAX 8
+#define R2D_COLLISION_MAX_HITS 8
+#define R2D_ENTITY_MAX 256
+#define R2D_PARTICLE_MAX 512
+#define R2D_TIMER_MAX 64
+#define R2D_TWEEN_MAX 64
+#define R2D_PALETTE_MAX_COLORS 32
+#define R2D_ASSET_CACHE_MAX_TEXTURES 128
+#define R2D_ASSET_CACHE_MAX_SHADERS 32
+#define R2D_ASSET_CACHE_PATH_SIZE 256
+#define R2D_SAVE_PATH_SIZE 512
 
 #ifdef __cplusplus
 extern "C" {
@@ -229,6 +239,206 @@ typedef struct R2D_Typewriter {
     bool done;
 } R2D_Typewriter;
 
+typedef struct R2D_Collider {
+    Rectangle rect;
+    unsigned int layer;
+    unsigned int mask;
+    bool trigger;
+    void *user_data;
+} R2D_Collider;
+
+typedef struct R2D_CollisionHit {
+    int collider_index;
+    Rectangle rect;
+    Vector2 normal;
+    float penetration;
+    bool trigger;
+    void *user_data;
+} R2D_CollisionHit;
+
+typedef struct R2D_CollisionResult {
+    Vector2 position;
+    Vector2 movement;
+    bool collided_x;
+    bool collided_y;
+    int hit_count;
+    R2D_CollisionHit hits[R2D_COLLISION_MAX_HITS];
+} R2D_CollisionResult;
+
+typedef unsigned int R2D_EntityId;
+
+typedef struct R2D_Entity R2D_Entity;
+
+typedef void (*R2D_EntityUpdateCallback)(R2D_Entity *entity, float dt, void *world_data);
+typedef void (*R2D_EntityDrawCallback)(const R2D_Entity *entity, void *world_data);
+
+struct R2D_Entity {
+    R2D_EntityId id;
+    Vector2 position;
+    Vector2 velocity;
+    Rectangle bounds;
+    int type;
+    unsigned int layer;
+    unsigned int flags;
+    bool active;
+    void *user_data;
+    R2D_EntityUpdateCallback update;
+    R2D_EntityDrawCallback draw;
+};
+
+typedef struct R2D_EntityWorld {
+    R2D_Entity entities[R2D_ENTITY_MAX];
+    unsigned int generations[R2D_ENTITY_MAX];
+    int count;
+    void *user_data;
+} R2D_EntityWorld;
+
+typedef enum R2D_ParticleShape {
+    R2D_PARTICLE_SHAPE_PIXEL = 0,
+    R2D_PARTICLE_SHAPE_CIRCLE
+} R2D_ParticleShape;
+
+typedef enum R2D_ParticlePreset {
+    R2D_PARTICLE_PRESET_DUST = 0,
+    R2D_PARTICLE_PRESET_HIT,
+    R2D_PARTICLE_PRESET_SPARK,
+    R2D_PARTICLE_PRESET_SMOKE,
+    R2D_PARTICLE_PRESET_COIN,
+    R2D_PARTICLE_PRESET_STAR
+} R2D_ParticlePreset;
+
+typedef struct R2D_Particle {
+    Vector2 position;
+    Vector2 velocity;
+    Vector2 acceleration;
+    float life;
+    float age;
+    float start_size;
+    float end_size;
+    Color start_color;
+    Color end_color;
+    R2D_ParticleShape shape;
+    bool active;
+} R2D_Particle;
+
+typedef struct R2D_ParticleEmitter {
+    Vector2 position;
+    Vector2 velocity_min;
+    Vector2 velocity_max;
+    Vector2 acceleration;
+    float life_min;
+    float life_max;
+    float size_min;
+    float size_max;
+    float end_size_min;
+    float end_size_max;
+    float emit_rate;
+    float emit_timer;
+    Color start_color;
+    Color end_color;
+    R2D_ParticleShape shape;
+    bool active;
+} R2D_ParticleEmitter;
+
+typedef struct R2D_ParticleSystem {
+    R2D_Particle particles[R2D_PARTICLE_MAX];
+    int count;
+} R2D_ParticleSystem;
+
+typedef void (*R2D_TimerCallback)(void *user_data);
+
+typedef struct R2D_Timer {
+    float duration;
+    float elapsed;
+    int repeat_count;
+    int fired_count;
+    bool active;
+    R2D_TimerCallback callback;
+    void *user_data;
+} R2D_Timer;
+
+typedef struct R2D_TimerSystem {
+    R2D_Timer timers[R2D_TIMER_MAX];
+    int count;
+} R2D_TimerSystem;
+
+typedef enum R2D_Ease {
+    R2D_EASE_LINEAR = 0,
+    R2D_EASE_IN,
+    R2D_EASE_OUT,
+    R2D_EASE_IN_OUT
+} R2D_Ease;
+
+typedef struct R2D_Tween {
+    float *target;
+    float start;
+    float end;
+    float duration;
+    float elapsed;
+    R2D_Ease ease;
+    bool active;
+} R2D_Tween;
+
+typedef struct R2D_TweenSystem {
+    R2D_Tween tweens[R2D_TWEEN_MAX];
+    int count;
+} R2D_TweenSystem;
+
+typedef struct R2D_Shake {
+    float duration;
+    float elapsed;
+    float strength;
+    Vector2 offset;
+    bool active;
+} R2D_Shake;
+
+typedef struct R2D_TimeEffects {
+    float hitstop_timer;
+    float slow_timer;
+    float slow_scale;
+    float flash_timer;
+    float flash_duration;
+    float fade_alpha;
+    Color flash_color;
+} R2D_TimeEffects;
+
+typedef struct R2D_Palette {
+    Color colors[R2D_PALETTE_MAX_COLORS];
+    int count;
+} R2D_Palette;
+
+typedef struct R2D_SaveData {
+    int version;
+    int window_scale;
+    bool fullscreen;
+    float master_volume;
+    float music_volume;
+    float sfx_volume;
+    int progress;
+    int high_score;
+} R2D_SaveData;
+
+typedef struct R2D_CachedTexture {
+    char path[R2D_ASSET_CACHE_PATH_SIZE];
+    Texture2D texture;
+    int group;
+    bool loaded;
+} R2D_CachedTexture;
+
+typedef struct R2D_CachedShader {
+    char path[R2D_ASSET_CACHE_PATH_SIZE];
+    Shader shader;
+    int group;
+    bool loaded;
+} R2D_CachedShader;
+
+typedef struct R2D_AssetCache {
+    R2D_CachedTexture textures[R2D_ASSET_CACHE_MAX_TEXTURES];
+    R2D_CachedShader shaders[R2D_ASSET_CACHE_MAX_SHADERS];
+    int texture_count;
+    int shader_count;
+} R2D_AssetCache;
+
 typedef struct R2D_TilemapLayer {
     char name[64];
     unsigned int *tiles;
@@ -358,6 +568,13 @@ char *R2D_LoadAssetText(const char *path);
 void R2D_UnloadAssetText(char *text);
 Texture2D R2D_LoadTexture(const char *path);
 Shader R2D_LoadFragmentShader(const char *path);
+void R2D_AssetCacheInit(R2D_AssetCache *cache);
+void R2D_AssetCacheClear(R2D_AssetCache *cache);
+void R2D_AssetCacheReleaseGroup(R2D_AssetCache *cache, int group);
+Texture2D R2D_AssetCacheLoadTexture(R2D_AssetCache *cache, const char *path, int group);
+Shader R2D_AssetCacheLoadFragmentShader(R2D_AssetCache *cache, const char *path, int group);
+int R2D_AssetCacheTextureCount(const R2D_AssetCache *cache);
+int R2D_AssetCacheShaderCount(const R2D_AssetCache *cache);
 
 int R2D_VirtualWidth(const R2D_Context *ctx);
 int R2D_VirtualHeight(const R2D_Context *ctx);
@@ -432,6 +649,77 @@ void R2D_TypewriterUpdate(R2D_Typewriter *typewriter, float dt);
 void R2D_TypewriterComplete(R2D_Typewriter *typewriter);
 bool R2D_TypewriterDone(const R2D_Typewriter *typewriter);
 void R2D_DrawTypewriter(R2D_Typewriter typewriter, Rectangle bounds, R2D_TextStyle style);
+R2D_Collider R2D_ColliderRect(Rectangle rect, unsigned int layer, unsigned int mask, bool trigger, void *user_data);
+bool R2D_AabbIntersects(Rectangle a, Rectangle b);
+bool R2D_CollisionLayersMatch(unsigned int layer, unsigned int mask, unsigned int other_layer, unsigned int other_mask);
+int R2D_CollisionQueryRect(Rectangle rect, unsigned int layer, unsigned int mask, const R2D_Collider *colliders, int collider_count, R2D_CollisionHit *hits, int max_hits);
+int R2D_CollisionQueryPoint(Vector2 point, unsigned int layer, unsigned int mask, const R2D_Collider *colliders, int collider_count, R2D_CollisionHit *hits, int max_hits);
+int R2D_CollisionQueryCircle(Vector2 center, float radius, unsigned int layer, unsigned int mask, const R2D_Collider *colliders, int collider_count, R2D_CollisionHit *hits, int max_hits);
+Vector2 R2D_MoveAndSlide(Rectangle bounds, Vector2 movement, unsigned int layer, unsigned int mask, const R2D_Collider *colliders, int collider_count, R2D_CollisionResult *result);
+void R2D_EntityWorldInit(R2D_EntityWorld *world, void *user_data);
+void R2D_EntityWorldClear(R2D_EntityWorld *world);
+R2D_Entity *R2D_EntitySpawn(R2D_EntityWorld *world, int type, Vector2 position);
+bool R2D_EntityDestroy(R2D_EntityWorld *world, R2D_EntityId id);
+bool R2D_EntityAlive(const R2D_EntityWorld *world, R2D_EntityId id);
+R2D_Entity *R2D_EntityGet(R2D_EntityWorld *world, R2D_EntityId id);
+const R2D_Entity *R2D_EntityGetConst(const R2D_EntityWorld *world, R2D_EntityId id);
+int R2D_EntityCount(const R2D_EntityWorld *world);
+R2D_Entity *R2D_EntityAt(R2D_EntityWorld *world, int active_index);
+const R2D_Entity *R2D_EntityAtConst(const R2D_EntityWorld *world, int active_index);
+R2D_Entity *R2D_EntityFindByType(R2D_EntityWorld *world, int type, int *cursor);
+R2D_Entity *R2D_EntityFindByLayer(R2D_EntityWorld *world, unsigned int layer_mask, int *cursor);
+void R2D_EntityWorldUpdate(R2D_EntityWorld *world, float dt);
+void R2D_EntityWorldDraw(const R2D_EntityWorld *world);
+void R2D_ParticleSystemInit(R2D_ParticleSystem *system);
+void R2D_ParticleSystemClear(R2D_ParticleSystem *system);
+R2D_ParticleEmitter R2D_ParticleEmitterPreset(R2D_ParticlePreset preset, Vector2 position);
+bool R2D_ParticleEmit(R2D_ParticleSystem *system, const R2D_ParticleEmitter *emitter);
+int R2D_ParticleBurst(R2D_ParticleSystem *system, const R2D_ParticleEmitter *emitter, int count);
+void R2D_ParticleEmitterUpdate(R2D_ParticleSystem *system, R2D_ParticleEmitter *emitter, float dt);
+void R2D_ParticleSystemUpdate(R2D_ParticleSystem *system, float dt);
+void R2D_ParticleSystemDraw(const R2D_ParticleSystem *system);
+int R2D_ParticleSystemAliveCount(const R2D_ParticleSystem *system);
+float R2D_Clamp01(float value);
+float R2D_Lerp(float a, float b, float t);
+Color R2D_LerpColor(Color a, Color b, float t);
+float R2D_EaseValue(R2D_Ease ease, float t);
+void R2D_TimerSystemInit(R2D_TimerSystem *system);
+void R2D_TimerSystemClear(R2D_TimerSystem *system);
+int R2D_TimerAfter(R2D_TimerSystem *system, float delay, R2D_TimerCallback callback, void *user_data);
+int R2D_TimerEvery(R2D_TimerSystem *system, float interval, int repeat_count, R2D_TimerCallback callback, void *user_data);
+bool R2D_TimerCancel(R2D_TimerSystem *system, int timer_index);
+void R2D_TimerSystemUpdate(R2D_TimerSystem *system, float dt);
+int R2D_TimerSystemActiveCount(const R2D_TimerSystem *system);
+void R2D_TweenSystemInit(R2D_TweenSystem *system);
+void R2D_TweenSystemClear(R2D_TweenSystem *system);
+int R2D_TweenFloat(R2D_TweenSystem *system, float *target, float end, float duration, R2D_Ease ease);
+bool R2D_TweenCancel(R2D_TweenSystem *system, int tween_index);
+void R2D_TweenSystemUpdate(R2D_TweenSystem *system, float dt);
+int R2D_TweenSystemActiveCount(const R2D_TweenSystem *system);
+void R2D_ShakeStart(R2D_Shake *shake, float duration, float strength);
+void R2D_ShakeUpdate(R2D_Shake *shake, float dt);
+Vector2 R2D_ShakeOffset(const R2D_Shake *shake);
+void R2D_TimeEffectsInit(R2D_TimeEffects *effects);
+float R2D_TimeEffectsUpdate(R2D_TimeEffects *effects, float dt);
+void R2D_TimeEffectsHitstop(R2D_TimeEffects *effects, float duration);
+void R2D_TimeEffectsSlowMotion(R2D_TimeEffects *effects, float duration, float scale);
+void R2D_TimeEffectsFlash(R2D_TimeEffects *effects, float duration, Color color);
+void R2D_TimeEffectsFade(R2D_TimeEffects *effects, float alpha);
+Color R2D_TimeEffectsFlashColor(const R2D_TimeEffects *effects);
+float R2D_TimeEffectsFadeAlpha(const R2D_TimeEffects *effects);
+R2D_Palette R2D_PaletteCreate(const Color *colors, int count);
+R2D_Palette R2D_PaletteFromHex(const unsigned int *rgba, int count);
+Color R2D_PaletteColor(const R2D_Palette *palette, int index, Color fallback);
+int R2D_PaletteNearestIndex(const R2D_Palette *palette, Color color);
+Color R2D_PaletteNearestColor(const R2D_Palette *palette, Color color, Color fallback);
+Color R2D_PaletteMixColor(Color color, Color target, float amount);
+Color R2D_PaletteFadeColor(Color color, Color target, float amount);
+Image R2D_ImageRecolorPalette(Image image, const R2D_Palette *from, const R2D_Palette *to, float amount);
+Texture2D R2D_LoadTextureFromPalette(Image image, const R2D_Palette *from, const R2D_Palette *to, float amount);
+const char *R2D_UserDataPath(const char *app_name, const char *file_name);
+R2D_SaveData R2D_SaveDataDefault(void);
+bool R2D_SaveDataLoad(const char *path, R2D_SaveData *save);
+bool R2D_SaveDataSave(const char *path, R2D_SaveData save);
 R2D_SpriteSheet R2D_LoadSpriteSheet(const char *path, int frame_width, int frame_height);
 R2D_SpriteSheet R2D_SpriteSheetFromTexture(Texture2D texture, int frame_width, int frame_height);
 void R2D_UnloadSpriteSheet(R2D_SpriteSheet *sheet);
@@ -456,6 +744,8 @@ Vector2 R2D_TilemapWorldToTile(const R2D_Tilemap *tilemap, Vector2 position);
 Rectangle R2D_TilemapTileBounds(const R2D_Tilemap *tilemap, int x, int y);
 bool R2D_TilemapSolidAt(const R2D_Tilemap *tilemap, int layer_index, Vector2 position);
 bool R2D_TilemapRectCollides(const R2D_Tilemap *tilemap, int layer_index, Rectangle rect);
+int R2D_TilemapCollisionRects(const R2D_Tilemap *tilemap, int layer_index, Rectangle area, R2D_Collider *colliders, int max_colliders, unsigned int layer, unsigned int mask);
+Vector2 R2D_TilemapMoveAndSlide(const R2D_Tilemap *tilemap, int layer_index, Rectangle bounds, Vector2 movement, R2D_CollisionResult *result);
 int R2D_TilemapObjectCount(const R2D_Tilemap *tilemap);
 const R2D_TilemapObject *R2D_TilemapObjectAt(const R2D_Tilemap *tilemap, int index);
 const R2D_TilemapObject *R2D_TilemapFindObject(const R2D_Tilemap *tilemap, const char *name);

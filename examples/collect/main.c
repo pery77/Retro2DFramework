@@ -5,6 +5,12 @@
 #include <string.h>
 
 #define COLLECT_MAX_COINS 32
+#define COLLECT_PLAYER_BOUNDS_OFFSET_X 3.0f
+#define COLLECT_PLAYER_BOUNDS_OFFSET_Y 2.0f
+
+typedef enum CollectEntityType {
+    COLLECT_ENTITY_COIN = 1
+} CollectEntityType;
 
 typedef enum PlayerDirection {
     PLAYER_SOUTH = 0,
@@ -13,14 +19,10 @@ typedef enum PlayerDirection {
     PLAYER_WEST
 } PlayerDirection;
 
-typedef struct Coin {
-    Rectangle rect;
-    bool collected;
-} Coin;
-
 typedef struct CollectDemo {
     Vector2 player;
     R2D_Camera camera;
+    R2D_EntityWorld entities;
     R2D_Tilemap tilemap;
     R2D_SpriteSheet player_sheet;
     R2D_SpriteSheet coin_sheet;
@@ -35,7 +37,6 @@ typedef struct CollectDemo {
     int collision_layer;
     int coin_count;
     int coins_collected;
-    Coin coins[COLLECT_MAX_COINS];
     PlayerDirection player_direction;
     bool debug_draw;
     bool music_loaded;
@@ -104,16 +105,12 @@ static void Collect_DrawTileLayers(
 
 static Rectangle Collect_PlayerBounds(Vector2 position)
 {
-    return R2D_Rect(position.x + 3.0f, position.y + 2.0f, 10.0f, 13.0f);
-}
-
-static bool Collect_PlayerCollides(const CollectDemo *demo, Vector2 position)
-{
-    if (demo->collision_layer < 0) {
-        return false;
-    }
-
-    return R2D_TilemapRectCollides(&demo->tilemap, demo->collision_layer, Collect_PlayerBounds(position));
+    return R2D_Rect(
+        position.x + COLLECT_PLAYER_BOUNDS_OFFSET_X,
+        position.y + COLLECT_PLAYER_BOUNDS_OFFSET_Y,
+        10.0f,
+        13.0f
+    );
 }
 
 static void Collect_InitInput(CollectDemo *demo)
@@ -144,6 +141,24 @@ static void Collect_InitInput(CollectDemo *demo)
     R2D_InputBindGamepadButton(&demo->input, "debug", GAMEPAD_BUTTON_MIDDLE_RIGHT);
 }
 
+static void Collect_SpawnCoin(CollectDemo *demo, Rectangle rect)
+{
+    R2D_Entity *coin;
+
+    if (demo->coin_count >= COLLECT_MAX_COINS) {
+        return;
+    }
+
+    coin = R2D_EntitySpawn(&demo->entities, COLLECT_ENTITY_COIN, (Vector2) { rect.x, rect.y });
+    if (coin == 0) {
+        return;
+    }
+
+    coin->bounds = rect;
+    coin->layer = 1u;
+    demo->coin_count++;
+}
+
 static void Collect_LoadObjects(CollectDemo *demo)
 {
     const R2D_TilemapObject *player_start = R2D_TilemapFindObject(&demo->tilemap, "PlayerStart");
@@ -165,9 +180,7 @@ static void Collect_LoadObjects(CollectDemo *demo)
         const R2D_TilemapObject *object = R2D_TilemapObjectAt(&demo->tilemap, i);
 
         if (object != 0 && Collect_ObjectIsCoin(object)) {
-            demo->coins[demo->coin_count].rect = object->rect;
-            demo->coins[demo->coin_count].collected = false;
-            demo->coin_count++;
+            Collect_SpawnCoin(demo, object->rect);
         }
     }
 
@@ -176,9 +189,7 @@ static void Collect_LoadObjects(CollectDemo *demo)
         const int fallback_count = (int)(sizeof(fallback_coins) / sizeof(fallback_coins[0]));
 
         for (int i = 0; i < fallback_count && demo->coin_count < COLLECT_MAX_COINS; ++i) {
-            demo->coins[demo->coin_count].rect = R2D_Rect(fallback_coins[i].x, fallback_coins[i].y, 12.0f, 12.0f);
-            demo->coins[demo->coin_count].collected = false;
-            demo->coin_count++;
+            Collect_SpawnCoin(demo, R2D_Rect(fallback_coins[i].x, fallback_coins[i].y, 12.0f, 12.0f));
         }
     }
 }
@@ -195,6 +206,7 @@ static void Collect_Init(void *user_data)
     demo->coin_count = 0;
     demo->coins_collected = 0;
     demo->music_loaded = false;
+    R2D_EntityWorldInit(&demo->entities, demo);
     Collect_InitInput(demo);
     demo->player_sheet = R2D_LoadSpriteSheet(R2D_AssetPath("textures/DawnLike/Commissions/Mage.png"), 16, 16);
     demo->coin_sheet = R2D_LoadSpriteSheet(R2D_AssetPath("textures/Coin.png"), 16, 16);
@@ -202,7 +214,7 @@ static void Collect_Init(void *user_data)
     demo->walk_anim = R2D_AnimFrames(0, 4, 8.0f, true);
     R2D_AnimPlay(&demo->player_anim, demo->idle_anim);
     R2D_AnimPlay(&demo->coin_anim, R2D_AnimFrames(0, 7, 10.0f, true));
-    R2D_TilemapLoadTiledJson(&demo->tilemap, R2D_AssetPath("tilemaps/r2d_sandbox.json"));
+    R2D_TilemapLoadTiledJson(&demo->tilemap, R2D_AssetPath("tilemaps/collect.json"));
     demo->collision_layer = R2D_TilemapLayerIndex(&demo->tilemap, "Collision");
     Collect_LoadObjects(demo);
     demo->coin_sfx = Collect_LoadCoinSfx();
@@ -219,7 +231,6 @@ static void Collect_Update(float dt, void *user_data)
     const float speed = 82.0f;
     const Vector2 previous = demo->player;
     Vector2 movement = { 0.0f, 0.0f };
-    Vector2 next;
     Rectangle player_bounds;
 
     R2D_InputUpdate(&demo->input);
@@ -263,14 +274,22 @@ static void Collect_Update(float dt, void *user_data)
         movement.y *= speed * dt;
     }
 
-    next = (Vector2) { demo->player.x + movement.x, demo->player.y };
-    if (!Collect_PlayerCollides(demo, next)) {
-        demo->player.x = next.x;
-    }
+    if (demo->collision_layer >= 0) {
+        const Vector2 moved_bounds = R2D_TilemapMoveAndSlide(
+            &demo->tilemap,
+            demo->collision_layer,
+            Collect_PlayerBounds(demo->player),
+            movement,
+            0
+        );
 
-    next = (Vector2) { demo->player.x, demo->player.y + movement.y };
-    if (!Collect_PlayerCollides(demo, next)) {
-        demo->player.y = next.y;
+        demo->player = (Vector2) {
+            moved_bounds.x - COLLECT_PLAYER_BOUNDS_OFFSET_X,
+            moved_bounds.y - COLLECT_PLAYER_BOUNDS_OFFSET_Y
+        };
+    } else {
+        demo->player.x += movement.x;
+        demo->player.y += movement.y;
     }
 
     if (R2D_InputPressed(&demo->input, "debug")) {
@@ -278,9 +297,16 @@ static void Collect_Update(float dt, void *user_data)
     }
 
     player_bounds = Collect_PlayerBounds(demo->player);
-    for (int i = 0; i < demo->coin_count; ++i) {
-        if (!demo->coins[i].collected && CheckCollisionRecs(player_bounds, demo->coins[i].rect)) {
-            demo->coins[i].collected = true;
+    {
+        int cursor = 0;
+        R2D_Entity *coin;
+
+        while ((coin = R2D_EntityFindByType(&demo->entities, COLLECT_ENTITY_COIN, &cursor)) != 0) {
+            if (!CheckCollisionRecs(player_bounds, coin->bounds)) {
+                continue;
+            }
+
+            R2D_EntityDestroy(&demo->entities, coin->id);
             demo->coins_collected++;
             R2D_PlaySfx(demo->coin_sfx);
         }
@@ -361,17 +387,17 @@ static void Collect_Draw(void *user_data)
 
     Collect_DrawTileLayers(demo, camera_view, camera_offset, false);
 
-    for (int i = 0; i < demo->coin_count; ++i) {
-        const Coin *coin = &demo->coins[i];
+    for (int i = 0; i < R2D_EntityCount(&demo->entities); ++i) {
+        const R2D_Entity *coin = R2D_EntityAtConst(&demo->entities, i);
         Vector2 position;
 
-        if (coin->collected) {
+        if (coin == 0 || coin->type != COLLECT_ENTITY_COIN) {
             continue;
         }
 
         position = (Vector2) {
-            floorf(coin->rect.x - camera_pixel.x),
-            floorf(coin->rect.y - camera_pixel.y)
+            floorf(coin->bounds.x - camera_pixel.x),
+            floorf(coin->bounds.y - camera_pixel.y)
         };
         R2D_DrawAnim(&demo->coin_sheet, &demo->coin_anim, position, false);
     }

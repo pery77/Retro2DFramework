@@ -25,22 +25,30 @@ En Windows, usa `build.bat` como punto unico de entrada:
 .\build.bat debug
 .\build.bat release
 .\build.bat debug r2d_collect
-.\build.bat release r2d_sandbox
+.\build.bat release r2d_hello_index
+.\build.bat debug r2d_collision_example
+.\build.bat debug r2d_particle_example
+.\build.bat debug r2d_palette_example
+.\build.bat debug r2d_time_example
+.\build.bat debug r2d_save_example
+.\build.bat debug r2d_input_example
+.\build.bat debug r2d_ui_example
 .\build.bat debug all
 ```
 
 El primer argumento es la configuracion (`debug` o `release`). El segundo argumento es
-opcional: usa `all` por defecto o el nombre de un target CMake (`r2d_sandbox`,
-`r2d_collect`, `r2d_sfx_editor`, `r2d_midi_player`). Para solo regenerar el proyecto:
+opcional: usa `all` por defecto o el nombre de un target CMake. Los ejemplos principales
+son `r2d_hello_index`, `r2d_input_example`, `r2d_ui_example`,
+`r2d_audio_example`, `r2d_state_example`, `r2d_collision_example`,
+`r2d_particle_example`, `r2d_palette_example`, `r2d_time_example`,
+`r2d_save_example` y `r2d_collect`.
+Las herramientas son `r2d_sfx_editor` y `r2d_midi_player`. Para solo regenerar el proyecto:
 
 ```powershell
 .\build.bat configure
 ```
 
-Los scripts antiguos (`build_debug.bat`, `build_release.bat`, `build_sandbox_debug.bat`,
-`build_sfx_editor_debug.bat` y `build_midi_player_debug.bat`) siguen existiendo como
-wrappers temporales hacia `build.bat` para no romper flujos existentes. La build `Release`
-enlaza las demos como aplicaciones Windows, asi que no abren consola.
+La build `Release` enlaza las demos como aplicaciones Windows, asi que no abren consola.
 
 Tambien puedes llamar a CMake directamente:
 
@@ -60,47 +68,55 @@ El launcher visual permite elegir `Debug` o `Release`, elegir un target, configu
 compilar, y compilar/ejecutar. La lista sale de `tools/build_targets.json`; para anadir
 un ejemplo o herramienta nueva, anade el target a CMake y una entrada a ese JSON.
 
-## Ejecutar ejemplo
+## Ejecutar Hello / index
 
 ```powershell
-.\build\r2d_sandbox.exe
+.\build\r2d_hello_index.exe
 ```
 
 Con Visual Studio/MSVC, el ejecutable queda en:
 
 ```powershell
-.\build\Debug\r2d_sandbox.exe
-.\build\Release\r2d_sandbox.exe
+.\build\Debug\r2d_hello_index.exe
+.\build\Release\r2d_hello_index.exe
 ```
 
-Tambien se incluye una mini demo jugable de recoger monedas:
+`r2d_hello_index` es una pantalla pequena que lista los ejemplos vivos y apunta a que
+target compilar para probar cada sistema.
+
+## Ejemplos
+
+Cada sistema tiene su propio ejemplo para que el codigo sea documentacion ejecutable:
 
 ```powershell
+.\build\Debug\r2d_input_example.exe
+.\build\Debug\r2d_ui_example.exe
+.\build\Debug\r2d_audio_example.exe
+.\build\Debug\r2d_state_example.exe
+.\build\Debug\r2d_collision_example.exe
+.\build\Debug\r2d_particle_example.exe
+.\build\Debug\r2d_palette_example.exe
+.\build\Debug\r2d_time_example.exe
+.\build\Debug\r2d_save_example.exe
 .\build\Debug\r2d_collect.exe
-.\build\Release\r2d_collect.exe
 ```
 
-Pulsa `C` en el sandbox para activar o desactivar el efecto CRT. Pulsa `R` para
-recargar `assets/shaders/crt.fs` sin cerrar el programa.
-Pulsa `F3` para ver overlays de depuracion del tilemap: tiles de colision, objetos y
-viewport de camara.
-Pulsa `Z`, `X`, `V`, `B`, `N` o `M` para probar presets generados con el sintetizador.
-El sintetizador soporta envolvente, slide de tono, vibrato, arpegio, duty sweep y filtros
-paso bajo, paso alto y paso banda por voz.
-Los presets se cargan desde `assets/audio/sfx/*.r2sfx`; si un archivo falta, el sandbox usa
-el preset compilado como fallback.
-El jugador del sandbox usa una spritesheet procedural para probar `R2D_SpriteSheet`,
-`R2D_AnimPlayer` y el dibujado de animaciones sin depender de assets externos.
-Tambien carga `assets/tilemaps/r2d_sandbox.json`, un mapa Tiled JSON minimo incluido con
-el framework. Si el mapa tiene un objeto llamado `PlayerStart`, el sandbox usa su posicion
-como spawn del jugador.
-La camara del sandbox sigue al jugador y se limita al rectangulo del mapa.
-El dibujado del sandbox usa el rectangulo visible de la camara para no recorrer todo el
-tilemap en mapas grandes.
+Con Visual Studio/MSVC, las builds `Release` equivalentes quedan en `.\build\Release\`.
+
+- `r2d_input_example`: acciones de entrada con teclado, raton y gamepad.
+- `r2d_ui_example`: texto bitmap, typewriter, nine-slice, navegacion de menu y CRT.
+- `r2d_audio_example`: presets `.r2sfx` y musica `.r2song` con MIDI + SoundFont.
+- `r2d_state_example`: maquina de estados con push/pop para pausa.
+- `r2d_collision_example`: objeto controlado por raton con solidos, triggers y sensores.
+- `r2d_particle_example`: emisores, bursts y presets de particulas retro.
+- `r2d_palette_example`: paletas, recolor de sprite, flash y fade por color.
+- `r2d_time_example`: timers, tweens, shake, hitstop, slow motion, flash y fade.
+- `r2d_save_example`: configuracion, progreso y high score persistidos.
+- `r2d_collect`: mini demo jugable con tilemap, entidades, colision, camara, SFX y musica.
 
 ## Demo collect
 
-`examples/collect` es una mini demo jugable, separada del sandbox, que carga
+`examples/collect` es una mini demo jugable, separada del Hello / index, que carga
 `assets/tilemaps/collect.json`. Usa spritesheets reales para el jugador y las monedas,
 musica `.r2song`, SFX al recoger pickups, camara con clamp y CRT fijo.
 
@@ -121,8 +137,9 @@ Al recoger todas las monedas, la demo muestra un mensaje `ALL CLEAR`.
 
 El framework tambien puede reproducir musica MIDI con SoundFont usando TinySoundFont y
 TinyMidiLoader. Coloca un MIDI en `assets/audio/music/theme.mid` y una SoundFont en
-`assets/audio/soundfonts/chiptune.sf2`; el sandbox los carga si existen y permite activar
-o parar la musica con `P`.
+`assets/audio/soundfonts/chiptune.sf2`, o crea una configuracion `.r2song` para elegir
+MIDI, SoundFont, loop, volumen y canales. `r2d_audio_example` carga una `.r2song` incluida
+y permite activar o parar la musica con `P`.
 
 ## Reproductor MIDI
 
@@ -181,7 +198,105 @@ incrustados con imagen unica y tilesets externos `.tsx` simples con `<image sour
 Las capas `tilelayer` se guardan como capas de tiles. Una capa llamada `Collision` puede
 usarse para colision por tiles: cualquier valor distinto de cero bloquea. Las capas
 `objectgroup` cargan objetos rectangulares con `name`, `type`, `x`, `y`, `width` y `height`;
-el sandbox usa `PlayerStart` como punto de spawn.
+`r2d_collect` usa `PlayerStart` como punto de spawn.
+
+## Colision 2D
+
+La base de colision se apoya en los tipos y helpers de raylib. Retro2D usa `Rectangle`,
+`Vector2` y funciones como `CheckCollisionRecs()`, `CheckCollisionPointRec()` y
+`CheckCollisionCircleRec()` como fuente de verdad; encima anade colliders pequenos con
+capa, mascara, flag `trigger` y `user_data`.
+
+`R2D_CollisionQueryRect()`, `R2D_CollisionQueryPoint()` y `R2D_CollisionQueryCircle()`
+devuelven overlaps filtrados por capa/mascara; los triggers se reportan como hits, pero
+no bloquean movimiento. Para movimiento de personajes, `R2D_MoveAndSlide()` resuelve un
+AABB contra una lista de colliders solidos eje por eje y devuelve la nueva posicion del
+rectangulo.
+
+Los tilemaps tienen helpers directos para la convencion `Collision`:
+`R2D_TilemapCollisionRects()` convierte los tiles solidos de un area en colliders, y
+`R2D_TilemapMoveAndSlide()` mueve un AABB contra una capa de tiles. `r2d_collect` usa este
+helper para el movimiento del jugador.
+
+`r2d_collision_example` oculta el cursor del sistema con `HideCursor()` y dibuja un objeto
+propio siguiendo el raton virtual. Ese objeto se desliza contra solidos y muestra triggers,
+sensores de punto y sensores de circulo en tiempo real.
+
+## Entidades
+
+`R2D_EntityWorld` es un pool fijo de entidades ligeras, pensado para juegos pequenos y
+predecibles. Cada entidad tiene ID estable, `position`, `velocity`, `bounds`, `type`,
+`layer`, `flags`, `user_data` y callbacks opcionales de update/draw. `R2D_EntitySpawn()`
+crea entidades, `R2D_EntityDestroy()` invalida su ID anterior de forma segura, y
+`R2D_EntityFindByType()` / `R2D_EntityFindByLayer()` permiten recorrer grupos concretos.
+
+Si una entidad no define callback de update, `R2D_EntityWorldUpdate()` aplica su velocidad
+a la posicion y mantiene `bounds.x/y` sincronizados. `r2d_collect` usa este sistema para
+las monedas recogibles.
+
+## Particulas
+
+`R2D_ParticleSystem` es un pool fijo de particulas ligeras. Cada particula guarda
+posicion, velocidad, aceleracion, vida, tamano inicial/final, color inicial/final y forma
+pixel o circulo. `R2D_ParticleEmitter` permite emitir de forma continua con `emit_rate` o
+lanzar bursts manuales con `R2D_ParticleBurst()`.
+
+La primera version incluye presets para `dust`, `hit`, `spark`, `smoke`, `coin` y `star`.
+`r2d_particle_example` muestra un emisor siguiendo el raton: click o `Space` lanza bursts,
+y `Left/Right` cambia de preset.
+
+## Paletas
+
+`R2D_Palette` guarda una lista pequena de colores para juegos pixel-art. Puede crearse
+desde `Color` o desde hex RGBA con `R2D_PaletteFromHex()`, buscar el color mas cercano y
+mezclar colores para flashes o fades. `R2D_ImageRecolorPalette()` crea una copia de una
+imagen remapeando cada pixel desde una paleta origen a una paleta destino, y
+`R2D_LoadTextureFromPalette()` carga directamente una textura recoloreada.
+
+`r2d_palette_example` recorta un item del atlas DawnLike `Items/Money.png`, usa la paleta
+DawnBringer 16 como origen y muestra cambios de paleta, flash y fade sobre un asset real.
+
+## Timers y efectos temporales
+
+`R2D_TimerSystem` gestiona timers `after` y `every` con callbacks opcionales. Los timers
+usan un pool fijo y devuelven indices cancelables. `R2D_TweenSystem` interpola `float`
+con easing lineal, entrada, salida y entrada/salida, pensado para animar valores simples
+sin crear objetos pesados.
+
+Encima de esa base hay helpers pequenos para efectos habituales: `R2D_Shake` calcula un
+offset de camara temporal, y `R2D_TimeEffects` centraliza hitstop, slow motion, flash y
+fade. `R2D_TimeEffectsUpdate()` devuelve un `dt` escalado para la logica de juego: `0`
+durante hitstop, reducido durante slow motion, y normal el resto del tiempo.
+
+`r2d_time_example` muestra el sistema con un bloque animado por tweens, un timer repetido,
+un `after`, shake de pantalla y overlays de flash/fade.
+
+## Save data y configuracion
+
+`R2D_UserDataPath()` devuelve una ruta de escritura para datos del usuario. En Windows usa
+`APPDATA`; en Linux/macOS intenta `XDG_DATA_HOME` o `~/.local/share`. Si no hay una ruta
+de usuario disponible, cae junto al ejecutable. El helper crea la carpeta de la aplicacion
+si falta.
+
+`R2D_SaveData` cubre la configuracion inicial comun: version, escala de ventana,
+fullscreen, volumen master/musica/SFX, progreso y high score. `R2D_SaveDataLoad()` y
+`R2D_SaveDataSave()` usan texto plano `clave=valor`, con defaults seguros si el archivo no
+existe o faltan claves. El formato incluye `version` para migraciones futuras.
+
+`r2d_save_example` permite modificar progreso, puntuacion, volumen y flags, guardar,
+recargar y restaurar defaults.
+
+## Asset Cache
+
+`R2D_AssetCache` es una cache opt-in para recursos pesados. Los loaders manuales
+(`R2D_LoadTexture()`, `R2D_LoadFragmentShader()`) siguen existiendo y mantienen ownership
+manual; si se usa la cache, `R2D_AssetCacheLoadTexture()` y
+`R2D_AssetCacheLoadFragmentShader()` devuelven el recurso ya cargado cuando la ruta se
+repite. `R2D_AssetCacheReleaseGroup()` libera un grupo concreto, y
+`R2D_AssetCacheClear()` libera todo lo que pertenezca a esa cache.
+
+`r2d_ui_example` usa la cache para la textura de UI, como ejemplo pequeno de escena que
+carga una textura una vez y la libera al cerrar.
 
 Quedan fuera a proposito, de momento: mapas infinitos, chunks, base64, compresion,
 isometrico/hexagonal, propiedades custom, tiles animados y multiples tilesets complejos.
@@ -227,9 +342,9 @@ En `Debug`, el codigo resuelve rutas con `R2D_AssetPath("shaders/crt.fs")` y pri
 intenta leer la carpeta `assets` del proyecto, para que editar shaders, mapas o presets
 en runtime sea directo. En `Release`, los ejemplos empaquetan solo los assets que usa
 cada target en un archivo junto al ejecutable: `r2d_collect.assets`,
-`r2d_sandbox.assets`, etc. El framework monta automaticamente el `.assets` con el mismo
-nombre que el `.exe` y, si no existe, cae al formato clasico `assets` junto al
-ejecutable.
+`r2d_audio_example.assets`, `r2d_hello_index.assets`, etc. El framework monta
+automaticamente el `.assets` con el mismo nombre que el `.exe` y, si no existe, cae al
+formato clasico `assets` junto al ejecutable.
 
 El empaquetado se controla con `R2D_PACKAGE_ASSETS` y esta activado por defecto para los
 ejemplos. Las herramientas de desarrollo siguen copiando la carpeta `assets`, porque
@@ -246,14 +361,30 @@ assets/audio/soundfonts Bancos SoundFont .sf2
 external/tinysoundfont  TinySoundFont y TinyMidiLoader
 include/r2d/r2d.h       API publica
 src/r2d.c               Implementacion del framework
+src/r2d_asset_cache.c   Cache opt-in de texturas y shaders por grupo
 src/r2d_assets.c        Carga desde carpeta o paquete .assets
 src/r2d_camera.c        Camara 2D simple para coordenadas de mundo y pantalla
+src/r2d_collision.c     AABB, filtros, triggers y move_and_slide
 src/r2d_crt.c           Postproceso CRT opcional
+src/r2d_entity.c        Pool fijo de entidades ligeras con IDs estables
 src/r2d_audio.c         Sintetizador simple para efectos retro
 src/r2d_music.c         Reproduccion MIDI + SoundFont
+src/r2d_palette.c       Paletas pequenas, recolor de imagenes, flashes y fades
+src/r2d_particle.c      Pool fijo de particulas y emisores retro
+src/r2d_save.c          Save data, config y rutas de usuario
 src/r2d_sprite.c        Spritesheets en grid y animacion simple
+src/r2d_time.c          Timers, tweens, shake y efectos temporales
 src/r2d_tilemap.c       Carga y dibujado basico de mapas Tiled JSON
-examples/sandbox        Primer juego de prueba
+examples/hello_index    Hello / index del framework
+examples/input          Ejemplo de acciones de entrada
+examples/ui             Ejemplo de UI, texto y CRT
+examples/audio          Ejemplo de SFX y musica
+examples/state          Ejemplo de maquina de estados
+examples/collision      Ejemplo visual de colisiones, triggers y sensores
+examples/particles      Ejemplo visual de particulas y presets
+examples/palette        Ejemplo visual de paletas y recolor
+examples/time           Ejemplo visual de timers, tweens y efectos temporales
+examples/save           Ejemplo visual de save data y configuracion
 examples/collect        Mini demo jugable de recoger monedas
 tools/sfx_editor        Editor sencillo de presets de sonido
 tools/midi_player       Reproductor para probar MIDIs con SoundFonts
