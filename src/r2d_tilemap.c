@@ -11,6 +11,8 @@
 #define R2D_TILED_FLIP_DIAGONAL 0x20000000u
 #define R2D_TILED_GID_MASK (~(R2D_TILED_FLIP_HORIZONTAL | R2D_TILED_FLIP_VERTICAL | R2D_TILED_FLIP_DIAGONAL))
 
+static const char *R2D_TilemapFindFirstObjectInArray(const char *begin, const char *end);
+
 static const char *R2D_TilemapSkipSpace(const char *text)
 {
     while (text != 0 && *text != '\0' && isspace((unsigned char)*text)) {
@@ -267,6 +269,120 @@ static bool R2D_TilemapReadTopLevelString(
     }
 
     destination[length] = '\0';
+    return true;
+}
+
+static Color R2D_TilemapParseColorString(const char *text)
+{
+    unsigned int value = 0;
+    int length = 0;
+
+    if (text == 0 || text[0] != '#') {
+        return BLANK;
+    }
+
+    ++text;
+    while (text[length] != '\0' && isxdigit((unsigned char)text[length])) {
+        ++length;
+    }
+
+    value = (unsigned int)strtoul(text, 0, 16);
+    if (length == 8) {
+        return (Color) {
+            (unsigned char)((value >> 16) & 0xffu),
+            (unsigned char)((value >> 8) & 0xffu),
+            (unsigned char)(value & 0xffu),
+            (unsigned char)((value >> 24) & 0xffu)
+        };
+    }
+
+    if (length == 6) {
+        return (Color) {
+            (unsigned char)((value >> 16) & 0xffu),
+            (unsigned char)((value >> 8) & 0xffu),
+            (unsigned char)(value & 0xffu),
+            255
+        };
+    }
+
+    return BLANK;
+}
+
+static bool R2D_TilemapParseProperties(
+    const char *begin,
+    const char *end,
+    R2D_TilemapProperty *properties,
+    int *property_count
+)
+{
+    const char *array = R2D_TilemapFindKey(begin, end, "properties");
+    const char *array_end;
+    const char *cursor;
+    int count = 0;
+
+    if (property_count != 0) {
+        *property_count = 0;
+    }
+
+    if (array == 0 || *array != '[' || properties == 0 || property_count == 0) {
+        return true;
+    }
+
+    array_end = R2D_TilemapFindMatching(array, '[', ']');
+    if (array_end == 0 || array_end > end) {
+        return false;
+    }
+
+    cursor = array;
+    while ((cursor = R2D_TilemapFindFirstObjectInArray(cursor, array_end)) != 0) {
+        const char *property_end = R2D_TilemapFindMatching(cursor, '{', '}');
+        R2D_TilemapProperty property = { 0 };
+        char type[32] = { 0 };
+
+        if (property_end == 0 || property_end > array_end) {
+            return false;
+        }
+
+        if (count >= R2D_TILEMAP_MAX_PROPERTIES) {
+            cursor = property_end + 1;
+            continue;
+        }
+
+        if (!R2D_TilemapReadTopLevelString(cursor, property_end, "name", property.name, sizeof(property.name))) {
+            cursor = property_end + 1;
+            continue;
+        }
+
+        R2D_TilemapReadTopLevelString(cursor, property_end, "type", type, sizeof(type));
+        if (strcmp(type, "int") == 0) {
+            property.type = R2D_TILEMAP_PROPERTY_INT;
+            R2D_TilemapReadInt(cursor, property_end, "value", &property.int_value);
+            property.float_value = (float)property.int_value;
+            property.bool_value = property.int_value != 0;
+        } else if (strcmp(type, "float") == 0) {
+            property.type = R2D_TILEMAP_PROPERTY_FLOAT;
+            R2D_TilemapReadFloat(cursor, property_end, "value", &property.float_value);
+            property.int_value = (int)property.float_value;
+            property.bool_value = property.float_value != 0.0f;
+        } else if (strcmp(type, "bool") == 0) {
+            property.type = R2D_TILEMAP_PROPERTY_BOOL;
+            property.bool_value = R2D_TilemapReadBool(cursor, property_end, "value", false);
+            property.int_value = property.bool_value ? 1 : 0;
+            property.float_value = property.bool_value ? 1.0f : 0.0f;
+        } else if (strcmp(type, "color") == 0) {
+            property.type = R2D_TILEMAP_PROPERTY_COLOR;
+            R2D_TilemapReadString(cursor, property_end, "value", property.string_value, sizeof(property.string_value));
+            property.color_value = R2D_TilemapParseColorString(property.string_value);
+        } else {
+            property.type = R2D_TILEMAP_PROPERTY_STRING;
+            R2D_TilemapReadString(cursor, property_end, "value", property.string_value, sizeof(property.string_value));
+        }
+
+        properties[count++] = property;
+        cursor = property_end + 1;
+    }
+
+    *property_count = count;
     return true;
 }
 
@@ -659,12 +775,12 @@ static bool R2D_TilemapParseLayer(const char *layer_begin, const char *layer_end
 {
     char type[32];
 
-    if (!R2D_TilemapReadString(layer_begin, layer_end, "type", type, sizeof(type)) ||
+    if (!R2D_TilemapReadTopLevelString(layer_begin, layer_end, "type", type, sizeof(type)) ||
         strcmp(type, "tilelayer") != 0) {
         return false;
     }
 
-    R2D_TilemapReadString(layer_begin, layer_end, "name", layer->name, sizeof(layer->name));
+    R2D_TilemapReadTopLevelString(layer_begin, layer_end, "name", layer->name, sizeof(layer->name));
 
     if (!R2D_TilemapReadInt(layer_begin, layer_end, "width", &layer->width) ||
         !R2D_TilemapReadInt(layer_begin, layer_end, "height", &layer->height)) {
@@ -672,6 +788,10 @@ static bool R2D_TilemapParseLayer(const char *layer_begin, const char *layer_end
     }
 
     layer->visible = R2D_TilemapReadBool(layer_begin, layer_end, "visible", true);
+    if (!R2D_TilemapParseProperties(layer_begin, layer_end, layer->properties, &layer->property_count)) {
+        return false;
+    }
+
     return R2D_TilemapParseTileData(layer_begin, layer_end, layer);
 }
 
@@ -821,10 +941,13 @@ static bool R2D_TilemapParseObject(
         return false;
     }
 
-    R2D_TilemapReadString(object_begin, object_end, "name", object->name, sizeof(object->name));
-    R2D_TilemapReadString(object_begin, object_end, "type", object->type, sizeof(object->type));
+    R2D_TilemapReadTopLevelString(object_begin, object_end, "name", object->name, sizeof(object->name));
+    R2D_TilemapReadTopLevelString(object_begin, object_end, "type", object->type, sizeof(object->type));
     R2D_TilemapReadFloat(object_begin, object_end, "width", &width);
     R2D_TilemapReadFloat(object_begin, object_end, "height", &height);
+    if (!R2D_TilemapParseProperties(object_begin, object_end, object->properties, &object->property_count)) {
+        return false;
+    }
 
     object->rect = (Rectangle) { x, y, width, height };
     return true;
@@ -1029,6 +1152,132 @@ unsigned int R2D_TilemapTileAt(const R2D_Tilemap *tilemap, int layer_index, int 
     }
 
     return layer->tiles[y * layer->width + x];
+}
+
+int R2D_TilemapLayerPropertyCount(const R2D_Tilemap *tilemap, int layer_index)
+{
+    if (tilemap == 0 || layer_index < 0 || layer_index >= tilemap->layer_count) {
+        return 0;
+    }
+
+    return tilemap->layers[layer_index].property_count;
+}
+
+const R2D_TilemapProperty *R2D_TilemapLayerPropertyAt(
+    const R2D_Tilemap *tilemap,
+    int layer_index,
+    int property_index
+)
+{
+    const R2D_TilemapLayer *layer;
+
+    if (tilemap == 0 || layer_index < 0 || layer_index >= tilemap->layer_count) {
+        return 0;
+    }
+
+    layer = &tilemap->layers[layer_index];
+    if (property_index < 0 || property_index >= layer->property_count) {
+        return 0;
+    }
+
+    return &layer->properties[property_index];
+}
+
+const R2D_TilemapProperty *R2D_TilemapLayerFindProperty(
+    const R2D_Tilemap *tilemap,
+    int layer_index,
+    const char *name
+)
+{
+    const R2D_TilemapLayer *layer;
+
+    if (tilemap == 0 || name == 0 || layer_index < 0 || layer_index >= tilemap->layer_count) {
+        return 0;
+    }
+
+    layer = &tilemap->layers[layer_index];
+    for (int i = 0; i < layer->property_count; ++i) {
+        if (strcmp(layer->properties[i].name, name) == 0) {
+            return &layer->properties[i];
+        }
+    }
+
+    return 0;
+}
+
+const R2D_TilemapProperty *R2D_TilemapObjectFindProperty(const R2D_TilemapObject *object, const char *name)
+{
+    if (object == 0 || name == 0) {
+        return 0;
+    }
+
+    for (int i = 0; i < object->property_count; ++i) {
+        if (strcmp(object->properties[i].name, name) == 0) {
+            return &object->properties[i];
+        }
+    }
+
+    return 0;
+}
+
+const char *R2D_TilemapPropertyString(const R2D_TilemapProperty *property, const char *fallback)
+{
+    if (property == 0 || property->type != R2D_TILEMAP_PROPERTY_STRING) {
+        return fallback;
+    }
+
+    return property->string_value;
+}
+
+int R2D_TilemapPropertyInt(const R2D_TilemapProperty *property, int fallback)
+{
+    if (property == 0) {
+        return fallback;
+    }
+
+    if (property->type == R2D_TILEMAP_PROPERTY_INT || property->type == R2D_TILEMAP_PROPERTY_FLOAT ||
+        property->type == R2D_TILEMAP_PROPERTY_BOOL) {
+        return property->int_value;
+    }
+
+    return fallback;
+}
+
+float R2D_TilemapPropertyFloat(const R2D_TilemapProperty *property, float fallback)
+{
+    if (property == 0) {
+        return fallback;
+    }
+
+    if (property->type == R2D_TILEMAP_PROPERTY_FLOAT || property->type == R2D_TILEMAP_PROPERTY_INT ||
+        property->type == R2D_TILEMAP_PROPERTY_BOOL) {
+        return property->float_value;
+    }
+
+    return fallback;
+}
+
+bool R2D_TilemapPropertyBool(const R2D_TilemapProperty *property, bool fallback)
+{
+    if (property == 0) {
+        return fallback;
+    }
+
+    if (property->type == R2D_TILEMAP_PROPERTY_BOOL || property->type == R2D_TILEMAP_PROPERTY_INT ||
+        property->type == R2D_TILEMAP_PROPERTY_FLOAT) {
+        return property->bool_value;
+    }
+
+    return fallback;
+}
+
+Color R2D_TilemapPropertyColor(const R2D_TilemapProperty *property, Color fallback)
+{
+    if (property == 0 || property->type != R2D_TILEMAP_PROPERTY_COLOR) {
+        return fallback;
+    }
+
+    return property->color_value;
 }
 
 Vector2 R2D_TilemapWorldToTile(const R2D_Tilemap *tilemap, Vector2 position)

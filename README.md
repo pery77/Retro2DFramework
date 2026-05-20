@@ -200,6 +200,12 @@ usarse para colision por tiles: cualquier valor distinto de cero bloquea. Las ca
 `objectgroup` cargan objetos rectangulares con `name`, `type`, `x`, `y`, `width` y `height`;
 `r2d_collect` usa `PlayerStart` como punto de spawn.
 
+El loader tambien lee propiedades custom de Tiled en capas y objetos. Soporta propiedades
+`string`, `int`, `float`, `bool` y `color`; se consultan con
+`R2D_TilemapLayerFindProperty()` o `R2D_TilemapObjectFindProperty()` y los helpers
+`R2D_TilemapPropertyString/Int/Float/Bool/Color()`. `r2d_collect` usa una propiedad
+`debug_color` en la capa `Collision` para colorear el overlay de depuracion.
+
 ## Colision 2D
 
 La base de colision se apoya en los tipos y helpers de raylib. Retro2D usa `Rectangle`,

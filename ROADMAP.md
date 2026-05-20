@@ -182,8 +182,8 @@ cualquier chat o sesion futura pueda entender el proyecto de un vistazo.
   - [ ] Cambios de paleta por shader si encaja.
 
 - [ ] Tilemaps mas ricos.
-  - Propiedades custom de Tiled.
-  - Propiedades de objetos y capas.
+  - [x] Propiedades custom de Tiled.
+  - [x] Propiedades de objetos y capas.
   - Tiles animados.
   - Capas parallax.
   - Triggers desde object layers.
@@ -371,3 +371,7 @@ cualquier chat o sesion futura pueda entender el proyecto de un vistazo.
   y recolor de imagen/textura desde paleta origen a destino. Se anade
   `r2d_palette_example` con un item real de DawnLike, paleta DawnBringer 16 y variantes
   de paleta.
+- 2026-05-20: Tilemaps mas ricos arrancan con propiedades custom de Tiled en capas y
+  objetos. `R2D_TilemapProperty` soporta `string`, `int`, `float`, `bool` y `color`,
+  con helpers de busqueda y conversion segura. `tilemaps/collect.json` define
+  `debug_color` en la capa `Collision` y `r2d_collect` lo usa para el overlay F3.

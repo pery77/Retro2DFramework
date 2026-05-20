@@ -37,6 +37,7 @@ typedef struct CollectDemo {
     int collision_layer;
     int coin_count;
     int coins_collected;
+    Color collision_debug_color;
     PlayerDirection player_direction;
     bool debug_draw;
     bool music_loaded;
@@ -203,6 +204,7 @@ static void Collect_Init(void *user_data)
     demo->debug_draw = false;
     demo->player_direction = PLAYER_SOUTH;
     demo->collision_layer = -1;
+    demo->collision_debug_color = R2D_ColorFromHex(0xff5555cc);
     demo->coin_count = 0;
     demo->coins_collected = 0;
     demo->music_loaded = false;
@@ -216,6 +218,10 @@ static void Collect_Init(void *user_data)
     R2D_AnimPlay(&demo->coin_anim, R2D_AnimFrames(0, 7, 10.0f, true));
     R2D_TilemapLoadTiledJson(&demo->tilemap, R2D_AssetPath("tilemaps/collect.json"));
     demo->collision_layer = R2D_TilemapLayerIndex(&demo->tilemap, "Collision");
+    demo->collision_debug_color = R2D_TilemapPropertyColor(
+        R2D_TilemapLayerFindProperty(&demo->tilemap, demo->collision_layer, "debug_color"),
+        demo->collision_debug_color
+    );
     Collect_LoadObjects(demo);
     demo->coin_sfx = Collect_LoadCoinSfx();
     demo->music_loaded = R2D_MusicLoadSong(&demo->music, R2D_AssetPath("audio/music/Mario Bros..r2song"));
@@ -411,7 +417,7 @@ static void Collect_Draw(void *user_data)
             demo->collision_layer,
             camera_view,
             camera_offset,
-            R2D_ColorFromHex(0xff5555cc)
+            demo->collision_debug_color
         );
         R2D_TilemapDrawObjectsDebug(&demo->tilemap, camera_offset, R2D_ColorFromHex(0x8ecae6cc));
         DrawRectangleLinesEx(

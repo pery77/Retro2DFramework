@@ -66,6 +66,17 @@
          "id":2,
          "name":"Collision",
          "opacity":1,
+         "properties":[
+                {
+                 "name":"solid",
+                 "type":"bool",
+                 "value":true
+                }, 
+                {
+                 "name":"debug_color",
+                 "type":"color",
+                 "value":"#88ff5577"
+                }],
          "type":"tilelayer",
          "visible":false,
          "width":30,
@@ -82,6 +93,17 @@
                  "id":1,
                  "name":"PlayerStart",
                  "opacity":1,
+                 "properties":[
+                        {
+                         "name":"facing",
+                         "type":"string",
+                         "value":"down"
+                        }, 
+                        {
+                         "name":"spawn_index",
+                         "type":"int",
+                         "value":0
+                        }],
                  "rotation":0,
                  "type":"spawn",
                  "visible":true,

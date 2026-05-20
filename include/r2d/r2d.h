@@ -22,6 +22,9 @@
 #define R2D_ASSET_CACHE_MAX_SHADERS 32
 #define R2D_ASSET_CACHE_PATH_SIZE 256
 #define R2D_SAVE_PATH_SIZE 512
+#define R2D_TILEMAP_MAX_PROPERTIES 16
+#define R2D_TILEMAP_PROPERTY_NAME_SIZE 64
+#define R2D_TILEMAP_PROPERTY_STRING_SIZE 128
 
 #ifdef __cplusplus
 extern "C" {
@@ -439,18 +442,40 @@ typedef struct R2D_AssetCache {
     int shader_count;
 } R2D_AssetCache;
 
+typedef enum R2D_TilemapPropertyType {
+    R2D_TILEMAP_PROPERTY_STRING = 0,
+    R2D_TILEMAP_PROPERTY_INT,
+    R2D_TILEMAP_PROPERTY_FLOAT,
+    R2D_TILEMAP_PROPERTY_BOOL,
+    R2D_TILEMAP_PROPERTY_COLOR
+} R2D_TilemapPropertyType;
+
+typedef struct R2D_TilemapProperty {
+    char name[R2D_TILEMAP_PROPERTY_NAME_SIZE];
+    R2D_TilemapPropertyType type;
+    char string_value[R2D_TILEMAP_PROPERTY_STRING_SIZE];
+    int int_value;
+    float float_value;
+    bool bool_value;
+    Color color_value;
+} R2D_TilemapProperty;
+
 typedef struct R2D_TilemapLayer {
     char name[64];
     unsigned int *tiles;
     int width;
     int height;
     bool visible;
+    R2D_TilemapProperty properties[R2D_TILEMAP_MAX_PROPERTIES];
+    int property_count;
 } R2D_TilemapLayer;
 
 typedef struct R2D_TilemapObject {
     char name[64];
     char type[64];
     Rectangle rect;
+    R2D_TilemapProperty properties[R2D_TILEMAP_MAX_PROPERTIES];
+    int property_count;
 } R2D_TilemapObject;
 
 typedef struct R2D_TilemapTileset {
@@ -740,6 +765,15 @@ void R2D_TilemapUnload(R2D_Tilemap *tilemap);
 bool R2D_TilemapIsReady(const R2D_Tilemap *tilemap);
 int R2D_TilemapLayerIndex(const R2D_Tilemap *tilemap, const char *name);
 unsigned int R2D_TilemapTileAt(const R2D_Tilemap *tilemap, int layer_index, int x, int y);
+int R2D_TilemapLayerPropertyCount(const R2D_Tilemap *tilemap, int layer_index);
+const R2D_TilemapProperty *R2D_TilemapLayerPropertyAt(const R2D_Tilemap *tilemap, int layer_index, int property_index);
+const R2D_TilemapProperty *R2D_TilemapLayerFindProperty(const R2D_Tilemap *tilemap, int layer_index, const char *name);
+const R2D_TilemapProperty *R2D_TilemapObjectFindProperty(const R2D_TilemapObject *object, const char *name);
+const char *R2D_TilemapPropertyString(const R2D_TilemapProperty *property, const char *fallback);
+int R2D_TilemapPropertyInt(const R2D_TilemapProperty *property, int fallback);
+float R2D_TilemapPropertyFloat(const R2D_TilemapProperty *property, float fallback);
+bool R2D_TilemapPropertyBool(const R2D_TilemapProperty *property, bool fallback);
+Color R2D_TilemapPropertyColor(const R2D_TilemapProperty *property, Color fallback);
 Vector2 R2D_TilemapWorldToTile(const R2D_Tilemap *tilemap, Vector2 position);
 Rectangle R2D_TilemapTileBounds(const R2D_Tilemap *tilemap, int x, int y);
 bool R2D_TilemapSolidAt(const R2D_Tilemap *tilemap, int layer_index, Vector2 position);
