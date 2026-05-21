@@ -176,48 +176,47 @@ cualquier chat o sesion futura pueda entender el proyecto de un vistazo.
 
 ### Prioridad media
 
-- [ ] Sistema de paletas.
+- [x] Sistema de paletas.
   - [x] Paletas globales y por sprite.
   - [x] Recolor, flashes y fades.
-  - [ ] Cambios de paleta por shader si encaja.
 
-- [ ] Tilemaps mas ricos.
+- [x] Tilemaps mas ricos.
   - [x] Propiedades custom de Tiled.
   - [x] Propiedades de objetos y capas.
-  - Tiles animados.
-  - Capas parallax.
-  - Triggers desde object layers.
-  - Multiples tilesets mas robustos.
+  - [x] Tiles animados.
+  - [x] Capas parallax.
+  - [x] Triggers desde object layers.
+  - [x] Multiples tilesets mas robustos.
 
-- [ ] Pathfinding y helpers de grid.
-  - A* sobre tilemap.
-  - Flood fill.
-  - Line of sight.
-  - Distancias Manhattan y euclidea.
+- [x] Pathfinding y helpers de grid.
+  - [x] A* sobre tilemap.
+  - [x] Flood fill.
+  - [x] Line of sight.
+  - [x] Distancias Manhattan y euclidea.
 
-- [ ] Mixer de audio mas comodo.
-  - Grupos `music`, `sfx`, `ui`, `ambient`.
-  - Volumen por grupo.
-  - Fade in/out.
-  - Crossfade de musica.
-  - Pitch random para SFX repetidos.
+- [x] Mixer de audio mas comodo.
+  - [x] Grupos `music`, `sfx`, `ui`, `ambient`.
+  - [x] Volumen por grupo.
+  - [x] Fade in/out.
+  - [x] Crossfade de musica.
+  - [x] Pitch random para SFX repetidos.
 
 - [ ] Herramientas de debug in-game.
-  - Overlay de FPS, memoria y assets.
-  - Inspector simple de entidades.
-  - Tile bajo cursor.
-  - Draw de camara, colisiones y triggers.
+  - [x] Overlay de FPS, memoria y assets.
+  - [x] Inspector simple de entidades.
+  - [x] Tile bajo cursor.
+  - [x] Draw de camara, colisiones y triggers.
   - Consola o comandos debug.
 
-- [ ] Configuracion de runtime.
-  - Archivo `r2d.ini` o equivalente.
-  - Resolucion, escala, fullscreen, volumen y CRT.
-  - Flags de arranque como `--windowed`, `--scale`, `--asset-pack`.
+- [x] Configuracion de runtime.
+  - [x] Archivo `r2d.ini` o equivalente.
+  - [x] Resolucion, escala, fullscreen, volumen y CRT.
+  - [x] Flags de arranque como `--windowed`, `--scale`, `--asset-pack`.
 
-- [ ] Cinematicas y eventos.
-  - Secuencias simples.
-  - Esperar, mover camara, bloquear input, mostrar dialogo.
-  - Activar flags y lanzar SFX/musica.
+- [x] Cinematicas y eventos.
+  - [x] Secuencias simples.
+  - [x] Esperar, mover camara, bloquear input, mostrar dialogo.
+  - [x] Activar flags y lanzar SFX/musica.
 
 - [ ] Animaciones por nombre.
   - Clips como `idle`, `walk`, `attack`, `hurt`.
@@ -233,6 +232,10 @@ cualquier chat o sesion futura pueda entender el proyecto de un vistazo.
   - Empaquetar ejecutable, assets, config, icono y licencias.
   - Perfil Debug/Release para distribucion.
   - Comando o herramienta tipo `r2d_pack_game`.
+
+- [ ] Localización.
+  - Sistema para localizar fácil juegos.
+  - Xml o algo similar en una carpeta junto al .exe, para que la comunidad le sea facil hacer traducciones.
 
 ### Prioridad baja
 
@@ -375,3 +378,40 @@ cualquier chat o sesion futura pueda entender el proyecto de un vistazo.
   objetos. `R2D_TilemapProperty` soporta `string`, `int`, `float`, `bool` y `color`,
   con helpers de busqueda y conversion segura. `tilemaps/collect.json` define
   `debug_color` en la capa `Collision` y `r2d_collect` lo usa para el overlay F3.
+- 2026-05-21: Tilemaps suman triggers desde object layers. Los objetos `type=trigger`,
+  `type=sensor` o con propiedad `trigger=true` se convierten en colliders sensor con
+  `R2D_TilemapTriggerColliders()`, conservando el `R2D_TilemapObject` original en
+  `user_data` para leer propiedades como `event`. `r2d_collect` muestra un mensaje al
+  pisar `FountainTrigger`.
+- 2026-05-21: Capas Tiled leen `opacity`, `offsetx`, `offsety`, `parallaxx` y `parallaxy`.
+  Los draws existentes aplican opacidad y offset, y se anade
+  `R2D_TilemapDrawLayerParallax()` para dibujar una capa usando un viewport de camara.
+  `r2d_collect` usa esa ruta para que mapas con parallax funcionen sin codigo extra.
+- 2026-05-21: Tiles animados de Tiled soportados para tilesets JSON incrustados y `.tsx`
+  externos simples. Cada tileset guarda animaciones por tile local con frames/duraciones,
+  y el renderer resuelve el frame activo con `GetTime()` al dibujar, sin requerir update.
+- 2026-05-21: Multiples tilesets quedan mas robustos con soporte de `margin` y `spacing`
+  en tilesets de imagen unica, tanto JSON incrustado como `.tsx` externo. El calculo de
+  columnas/filas y el rectangulo fuente del renderer respetan esos valores.
+- 2026-05-21: Pathfinding y helpers de grid implementados con `R2D_GridPoint`,
+  distancias Manhattan/euclidea, Bresenham line of sight, flood fill y A* 4-direcciones.
+  Se anaden wrappers sobre tilemap usando una capa solida como bloqueo:
+  `R2D_TilemapFindPath`, `R2D_TilemapFloodFill` y `R2D_TilemapLineOfSight`.
+  `r2d_collect` dibuja en F3 una ruta hasta `FountainTrigger` como prueba viva.
+- 2026-05-21: Mixer de audio por grupos implementado con `music`, `sfx`, `ui` y `ambient`,
+  volumen independiente, fades por grupo con `R2D_AudioMixerUpdate()` y pitch random
+  para SFX repetidos. Se anade `R2D_MusicCrossfade` para fundir entre canciones.
+  `r2d_audio_example` permite probar el fade de musica con `F`.
+- 2026-05-21: Herramientas debug in-game arrancan con `R2D_DebugInfo` y
+  `R2D_DebugDrawOverlay()`. `r2d_collect` usa `F3` para mostrar FPS, frame time,
+  entidades, assets montados, memoria estimada de gameplay/tilemap, tile bajo cursor,
+  GID de colision, camara, colisiones, triggers y ruta A*.
+- 2026-05-21: Configuracion de runtime completada con `R2D_RuntimeConfig`: carga
+  `r2d.ini` junto al ejecutable, aplica resolucion virtual, escala, fullscreen, CRT,
+  volumen master y volumen por grupos, y acepta flags como `--windowed`, `--scale`,
+  `--resolution` y `--asset-pack`. `r2d_collect` queda conectado a este flujo y CMake
+  copia el `.ini` como archivo suelto, fuera del paquete de assets.
+- 2026-05-21: Cinematicas y eventos implementados con `R2D_Cinematic`: pasos manuales
+  para esperar, mover camara, bloquear input, mostrar dialogo, activar flags, lanzar SFX
+  y reproducir musica. `r2d_collect` usa `FountainTrigger` para probar una secuencia con
+  sonido, camara, dialogo y flag de evento.

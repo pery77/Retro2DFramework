@@ -594,22 +594,202 @@ static bool R2D_TilemapParseTileData(const char *layer_begin, const char *layer_
     return index == count;
 }
 
+static bool R2D_TilemapAppendAnimation(
+    R2D_TilemapTileset *tileset,
+    int tile_id,
+    const R2D_TilemapAnimationFrame *frames,
+    int frame_count
+)
+{
+    R2D_TilemapTileAnimation *animations;
+    R2D_TilemapTileAnimation *animation;
+    int duration = 0;
+
+    if (tileset == 0 || frames == 0 || frame_count <= 0 || tile_id < 0) {
+        return false;
+    }
+
+    animations = (R2D_TilemapTileAnimation *)realloc(
+        tileset->animations,
+        (size_t)(tileset->animation_count + 1) * sizeof(R2D_TilemapTileAnimation)
+    );
+    if (animations == 0) {
+        return false;
+    }
+
+    tileset->animations = animations;
+    animation = &tileset->animations[tileset->animation_count];
+    *animation = (R2D_TilemapTileAnimation) { 0 };
+    animation->frames = (R2D_TilemapAnimationFrame *)calloc((size_t)frame_count, sizeof(R2D_TilemapAnimationFrame));
+    if (animation->frames == 0) {
+        return false;
+    }
+
+    for (int i = 0; i < frame_count; ++i) {
+        animation->frames[i] = frames[i];
+        duration += frames[i].duration_ms > 0 ? frames[i].duration_ms : 1;
+    }
+
+    animation->tile_id = tile_id;
+    animation->frame_count = frame_count;
+    animation->duration_ms = duration;
+    tileset->animation_count++;
+    return true;
+}
+
+static bool R2D_TilemapParseJsonTileAnimations(
+    R2D_TilemapTileset *tileset,
+    const char *tileset_begin,
+    const char *tileset_end
+)
+{
+    const char *tiles = R2D_TilemapFindKey(tileset_begin, tileset_end, "tiles");
+    const char *tiles_end;
+    const char *tile_begin;
+
+    if (tiles == 0 || *tiles != '[') {
+        return true;
+    }
+
+    tiles_end = R2D_TilemapFindMatching(tiles, '[', ']');
+    if (tiles_end == 0 || tiles_end > tileset_end) {
+        return false;
+    }
+
+    tile_begin = tiles;
+    while ((tile_begin = R2D_TilemapFindFirstObjectInArray(tile_begin, tiles_end)) != 0) {
+        const char *tile_end = R2D_TilemapFindMatching(tile_begin, '{', '}');
+        const char *animation = 0;
+        const char *animation_end = 0;
+        const char *frame_begin = 0;
+        R2D_TilemapAnimationFrame frames[32];
+        int tile_id = -1;
+        int frame_count = 0;
+
+        if (tile_end == 0 || tile_end > tiles_end) {
+            return false;
+        }
+
+        R2D_TilemapReadInt(tile_begin, tile_end, "id", &tile_id);
+        animation = R2D_TilemapFindKey(tile_begin, tile_end, "animation");
+        if (tile_id < 0 || animation == 0 || *animation != '[') {
+            tile_begin = tile_end + 1;
+            continue;
+        }
+
+        animation_end = R2D_TilemapFindMatching(animation, '[', ']');
+        if (animation_end == 0 || animation_end > tile_end) {
+            return false;
+        }
+
+        frame_begin = animation;
+        while ((frame_begin = R2D_TilemapFindFirstObjectInArray(frame_begin, animation_end)) != 0 && frame_count < 32) {
+            const char *frame_end = R2D_TilemapFindMatching(frame_begin, '{', '}');
+
+            if (frame_end == 0 || frame_end > animation_end) {
+                return false;
+            }
+
+            R2D_TilemapReadInt(frame_begin, frame_end, "tileid", &frames[frame_count].tile_id);
+            R2D_TilemapReadInt(frame_begin, frame_end, "duration", &frames[frame_count].duration_ms);
+            frame_count++;
+            frame_begin = frame_end + 1;
+        }
+
+        if (frame_count > 0) {
+            R2D_TilemapAppendAnimation(tileset, tile_id, frames, frame_count);
+        }
+
+        tile_begin = tile_end + 1;
+    }
+
+    return true;
+}
+
+static bool R2D_TilemapParseTsxTileAnimations(R2D_TilemapTileset *tileset, const char *text)
+{
+    const char *tile_begin = text;
+
+    while ((tile_begin = strstr(tile_begin, "<tile ")) != 0) {
+        const char *tile_tag_end = strchr(tile_begin, '>');
+        const char *tile_end = strstr(tile_begin, "</tile>");
+        const char *animation = 0;
+        const char *animation_end = 0;
+        const char *frame = 0;
+        R2D_TilemapAnimationFrame frames[32];
+        int tile_id = -1;
+        int frame_count = 0;
+
+        if (tile_tag_end == 0 || tile_end == 0) {
+            return false;
+        }
+
+        R2D_TilemapXmlReadInt(tile_begin, tile_tag_end, "id", &tile_id);
+        animation = strstr(tile_tag_end, "<animation>");
+        if (tile_id < 0 || animation == 0 || animation > tile_end) {
+            tile_begin = tile_end + strlen("</tile>");
+            continue;
+        }
+
+        animation_end = strstr(animation, "</animation>");
+        if (animation_end == 0 || animation_end > tile_end) {
+            return false;
+        }
+
+        frame = animation;
+        while ((frame = strstr(frame, "<frame ")) != 0 && frame < animation_end && frame_count < 32) {
+            const char *frame_end = strchr(frame, '>');
+
+            if (frame_end == 0 || frame_end > animation_end) {
+                return false;
+            }
+
+            R2D_TilemapXmlReadInt(frame, frame_end, "tileid", &frames[frame_count].tile_id);
+            R2D_TilemapXmlReadInt(frame, frame_end, "duration", &frames[frame_count].duration_ms);
+            frame_count++;
+            frame = frame_end + 1;
+        }
+
+        if (frame_count > 0) {
+            R2D_TilemapAppendAnimation(tileset, tile_id, frames, frame_count);
+        }
+
+        tile_begin = tile_end + strlen("</tile>");
+    }
+
+    return true;
+}
+
 static bool R2D_TilemapAppendTileset(
     R2D_Tilemap *tilemap,
     int first_gid,
     int tile_width,
     int tile_height,
+    int margin,
+    int spacing,
     int columns,
     int tile_count,
-    const char *image_path
+    const char *image_path,
+    R2D_TilemapTileset **out_tileset
 )
 {
     Texture2D texture;
     R2D_TilemapTileset *tilesets;
     R2D_TilemapTileset *tileset;
+    int usable_width;
+    int usable_height;
+    int estimated_rows;
 
     if (tilemap == 0 || first_gid <= 0 || tile_width <= 0 || tile_height <= 0 || image_path == 0 || image_path[0] == '\0') {
         return false;
+    }
+
+    if (margin < 0) {
+        margin = 0;
+    }
+
+    if (spacing < 0) {
+        spacing = 0;
     }
 
     texture = R2D_LoadTexture(image_path);
@@ -620,12 +800,16 @@ static bool R2D_TilemapAppendTileset(
 
     SetTextureFilter(texture, TEXTURE_FILTER_POINT);
 
-    if (columns <= 0) {
-        columns = texture.width / tile_width;
+    usable_width = texture.width - margin * 2;
+    usable_height = texture.height - margin * 2;
+
+    if (columns <= 0 && usable_width >= tile_width) {
+        columns = (usable_width + spacing) / (tile_width + spacing);
     }
 
-    if (tile_count <= 0) {
-        tile_count = (texture.width / tile_width) * (texture.height / tile_height);
+    if (tile_count <= 0 && columns > 0 && usable_height >= tile_height) {
+        estimated_rows = (usable_height + spacing) / (tile_height + spacing);
+        tile_count = columns * estimated_rows;
     }
 
     if (columns <= 0 || tile_count <= 0) {
@@ -646,11 +830,15 @@ static bool R2D_TilemapAppendTileset(
     tileset = &tilemap->tilesets[tilemap->tileset_count];
     *tileset = (R2D_TilemapTileset) {
         texture,
+        0,
         first_gid,
         tile_width,
         tile_height,
+        margin,
+        spacing,
         columns,
-        tile_count
+        tile_count,
+        0
     };
 
     if (tilemap->tileset_count == 0) {
@@ -661,6 +849,10 @@ static bool R2D_TilemapAppendTileset(
     }
 
     tilemap->tileset_count++;
+    if (out_tileset != 0) {
+        *out_tileset = tileset;
+    }
+
     return true;
 }
 
@@ -685,11 +877,15 @@ static bool R2D_TilemapParseTileset(R2D_Tilemap *tilemap, const char *text, cons
         int first_gid = 0;
         int tile_width = 0;
         int tile_height = 0;
+        int margin = 0;
+        int spacing = 0;
         int columns = 0;
         int tile_count = 0;
         char source[512];
         char image[512];
         char image_path[1200] = { 0 };
+        char *external_tileset_text = 0;
+        R2D_TilemapTileset *appended_tileset = 0;
 
         if (tileset_end == 0 || tileset_end > tilesets_end) {
             break;
@@ -702,26 +898,25 @@ static bool R2D_TilemapParseTileset(R2D_Tilemap *tilemap, const char *text, cons
 
         if (R2D_TilemapReadString(tileset_begin, tileset_end, "source", source, sizeof(source))) {
             char tileset_path[1200];
-            char *tileset_text;
             const char *tileset_tag;
             const char *tileset_tag_end;
             const char *image_tag;
             const char *image_tag_end;
 
             R2D_TilemapResolvePath(tileset_path, sizeof(tileset_path), path, source);
-            tileset_text = R2D_LoadAssetText(tileset_path);
+            external_tileset_text = R2D_LoadAssetText(tileset_path);
 
-            if (tileset_text == 0) {
+            if (external_tileset_text == 0) {
                 TraceLog(LOG_WARNING, "R2D: Failed to load Tiled TSX tileset: %s", tileset_path);
                 tileset_begin = tileset_end + 1;
                 continue;
             }
 
-            tileset_tag = strstr(tileset_text, "<tileset");
-            image_tag = strstr(tileset_text, "<image");
+            tileset_tag = strstr(external_tileset_text, "<tileset");
+            image_tag = strstr(external_tileset_text, "<image");
 
             if (tileset_tag == 0 || image_tag == 0) {
-                R2D_UnloadAssetText(tileset_text);
+                R2D_UnloadAssetText(external_tileset_text);
                 tileset_begin = tileset_end + 1;
                 continue;
             }
@@ -731,17 +926,18 @@ static bool R2D_TilemapParseTileset(R2D_Tilemap *tilemap, const char *text, cons
 
             R2D_TilemapXmlReadInt(tileset_tag, tileset_tag_end, "tilewidth", &tile_width);
             R2D_TilemapXmlReadInt(tileset_tag, tileset_tag_end, "tileheight", &tile_height);
+            R2D_TilemapXmlReadInt(tileset_tag, tileset_tag_end, "margin", &margin);
+            R2D_TilemapXmlReadInt(tileset_tag, tileset_tag_end, "spacing", &spacing);
             R2D_TilemapXmlReadInt(tileset_tag, tileset_tag_end, "columns", &columns);
             R2D_TilemapXmlReadInt(tileset_tag, tileset_tag_end, "tilecount", &tile_count);
 
             if (!R2D_TilemapXmlReadString(image_tag, image_tag_end, "source", image, sizeof(image))) {
-                R2D_UnloadAssetText(tileset_text);
+                R2D_UnloadAssetText(external_tileset_text);
                 tileset_begin = tileset_end + 1;
                 continue;
             }
 
             R2D_TilemapResolvePath(image_path, sizeof(image_path), tileset_path, image);
-            R2D_UnloadAssetText(tileset_text);
         } else {
             if (!R2D_TilemapReadString(tileset_begin, tileset_end, "image", image, sizeof(image))) {
                 tileset_begin = tileset_end + 1;
@@ -755,16 +951,33 @@ static bool R2D_TilemapParseTileset(R2D_Tilemap *tilemap, const char *text, cons
         R2D_TilemapReadInt(tileset_begin, tileset_end, "tilecount", &tile_count);
         R2D_TilemapReadInt(tileset_begin, tileset_end, "tilewidth", &tile_width);
         R2D_TilemapReadInt(tileset_begin, tileset_end, "tileheight", &tile_height);
+        R2D_TilemapReadInt(tileset_begin, tileset_end, "margin", &margin);
+        R2D_TilemapReadInt(tileset_begin, tileset_end, "spacing", &spacing);
 
         R2D_TilemapAppendTileset(
             tilemap,
             first_gid,
             tile_width,
             tile_height,
+            margin,
+            spacing,
             columns,
             tile_count,
-            image_path
+            image_path,
+            &appended_tileset
         );
+
+        if (appended_tileset != 0) {
+            if (external_tileset_text != 0) {
+                R2D_TilemapParseTsxTileAnimations(appended_tileset, external_tileset_text);
+            } else {
+                R2D_TilemapParseJsonTileAnimations(appended_tileset, tileset_begin, tileset_end);
+            }
+        }
+
+        if (external_tileset_text != 0) {
+            R2D_UnloadAssetText(external_tileset_text);
+        }
         tileset_begin = tileset_end + 1;
     }
 
@@ -788,6 +1001,14 @@ static bool R2D_TilemapParseLayer(const char *layer_begin, const char *layer_end
     }
 
     layer->visible = R2D_TilemapReadBool(layer_begin, layer_end, "visible", true);
+    layer->opacity = 1.0f;
+    layer->parallax_x = 1.0f;
+    layer->parallax_y = 1.0f;
+    R2D_TilemapReadFloat(layer_begin, layer_end, "opacity", &layer->opacity);
+    R2D_TilemapReadFloat(layer_begin, layer_end, "offsetx", &layer->offset_x);
+    R2D_TilemapReadFloat(layer_begin, layer_end, "offsety", &layer->offset_y);
+    R2D_TilemapReadFloat(layer_begin, layer_end, "parallaxx", &layer->parallax_x);
+    R2D_TilemapReadFloat(layer_begin, layer_end, "parallaxy", &layer->parallax_y);
     if (!R2D_TilemapParseProperties(layer_begin, layer_end, layer->properties, &layer->property_count)) {
         return false;
     }
@@ -1104,6 +1325,14 @@ void R2D_TilemapUnload(R2D_Tilemap *tilemap)
 
     if (tilemap->tilesets != 0) {
         for (int i = 0; i < tilemap->tileset_count; ++i) {
+            if (tilemap->tilesets[i].animations != 0) {
+                for (int j = 0; j < tilemap->tilesets[i].animation_count; ++j) {
+                    free(tilemap->tilesets[i].animations[j].frames);
+                }
+
+                free(tilemap->tilesets[i].animations);
+            }
+
             if (IsTextureValid(tilemap->tilesets[i].texture)) {
                 UnloadTexture(tilemap->tilesets[i].texture);
             }
@@ -1340,6 +1569,94 @@ bool R2D_TilemapRectCollides(const R2D_Tilemap *tilemap, int layer_index, Rectan
     return false;
 }
 
+bool R2D_TilemapGridBlocked(const R2D_Tilemap *tilemap, int layer_index, int x, int y)
+{
+    if (!R2D_TilemapIsReady(tilemap) || layer_index < 0 || layer_index >= tilemap->layer_count) {
+        return true;
+    }
+
+    if (x < 0 || y < 0 || x >= tilemap->width || y >= tilemap->height) {
+        return true;
+    }
+
+    return R2D_TilemapTileAt(tilemap, layer_index, x, y) != 0;
+}
+
+typedef struct R2D_TilemapGridQuery {
+    const R2D_Tilemap *tilemap;
+    int layer_index;
+} R2D_TilemapGridQuery;
+
+static bool R2D_TilemapGridBlockedCallback(int x, int y, void *user_data)
+{
+    const R2D_TilemapGridQuery *query = (const R2D_TilemapGridQuery *)user_data;
+
+    return query == 0 || R2D_TilemapGridBlocked(query->tilemap, query->layer_index, x, y);
+}
+
+int R2D_TilemapFindPath(
+    const R2D_Tilemap *tilemap,
+    int layer_index,
+    R2D_GridPoint start,
+    R2D_GridPoint goal,
+    R2D_GridPoint *out_path,
+    int max_path
+)
+{
+    R2D_TilemapGridQuery query = { tilemap, layer_index };
+
+    if (!R2D_TilemapIsReady(tilemap)) {
+        return 0;
+    }
+
+    return R2D_GridAStar(
+        start,
+        goal,
+        tilemap->width,
+        tilemap->height,
+        R2D_TilemapGridBlockedCallback,
+        &query,
+        out_path,
+        max_path
+    );
+}
+
+int R2D_TilemapFloodFill(
+    const R2D_Tilemap *tilemap,
+    int layer_index,
+    R2D_GridPoint start,
+    R2D_GridPoint *out_points,
+    int max_points
+)
+{
+    R2D_TilemapGridQuery query = { tilemap, layer_index };
+
+    if (!R2D_TilemapIsReady(tilemap)) {
+        return 0;
+    }
+
+    return R2D_GridFloodFill(
+        start,
+        tilemap->width,
+        tilemap->height,
+        R2D_TilemapGridBlockedCallback,
+        &query,
+        out_points,
+        max_points
+    );
+}
+
+bool R2D_TilemapLineOfSight(const R2D_Tilemap *tilemap, int layer_index, R2D_GridPoint start, R2D_GridPoint end)
+{
+    R2D_TilemapGridQuery query = { tilemap, layer_index };
+
+    if (!R2D_TilemapIsReady(tilemap)) {
+        return false;
+    }
+
+    return R2D_GridLineOfSight(start, end, R2D_TilemapGridBlockedCallback, &query);
+}
+
 int R2D_TilemapCollisionRects(
     const R2D_Tilemap *tilemap,
     int layer_index,
@@ -1477,6 +1794,49 @@ const R2D_TilemapObject *R2D_TilemapFindObjectByType(const R2D_Tilemap *tilemap,
     return 0;
 }
 
+bool R2D_TilemapObjectIsTrigger(const R2D_TilemapObject *object)
+{
+    const R2D_TilemapProperty *trigger_property;
+
+    if (object == 0) {
+        return false;
+    }
+
+    if (strcmp(object->type, "trigger") == 0 || strcmp(object->type, "sensor") == 0) {
+        return true;
+    }
+
+    trigger_property = R2D_TilemapObjectFindProperty(object, "trigger");
+    return R2D_TilemapPropertyBool(trigger_property, false);
+}
+
+int R2D_TilemapTriggerColliders(
+    const R2D_Tilemap *tilemap,
+    R2D_Collider *colliders,
+    int max_colliders,
+    unsigned int layer,
+    unsigned int mask
+)
+{
+    int count = 0;
+
+    if (tilemap == 0 || colliders == 0 || max_colliders <= 0) {
+        return 0;
+    }
+
+    for (int i = 0; i < tilemap->object_count && count < max_colliders; ++i) {
+        const R2D_TilemapObject *object = &tilemap->objects[i];
+
+        if (!R2D_TilemapObjectIsTrigger(object) || object->rect.width <= 0.0f || object->rect.height <= 0.0f) {
+            continue;
+        }
+
+        colliders[count++] = R2D_ColliderRect(object->rect, layer, mask, true, (void *)object);
+    }
+
+    return count;
+}
+
 static void R2D_TilemapVisibleRange(
     const R2D_Tilemap *tilemap,
     const R2D_TilemapLayer *layer,
@@ -1534,6 +1894,38 @@ static const R2D_TilemapTileset *R2D_TilemapTilesetForGid(const R2D_Tilemap *til
     return match;
 }
 
+static int R2D_TilemapAnimatedTile(const R2D_TilemapTileset *tileset, int tile)
+{
+    int time_ms;
+
+    if (tileset == 0 || tile < 0 || tileset->animation_count <= 0) {
+        return tile;
+    }
+
+    for (int i = 0; i < tileset->animation_count; ++i) {
+        const R2D_TilemapTileAnimation *animation = &tileset->animations[i];
+        int cursor = 0;
+
+        if (animation->tile_id != tile || animation->frame_count <= 0 || animation->duration_ms <= 0) {
+            continue;
+        }
+
+        time_ms = (int)(GetTime() * 1000.0) % animation->duration_ms;
+        for (int frame = 0; frame < animation->frame_count; ++frame) {
+            const int duration = animation->frames[frame].duration_ms > 0 ? animation->frames[frame].duration_ms : 1;
+
+            cursor += duration;
+            if (time_ms < cursor) {
+                return animation->frames[frame].tile_id;
+            }
+        }
+
+        return animation->frames[animation->frame_count - 1].tile_id;
+    }
+
+    return tile;
+}
+
 static void R2D_TilemapDrawLayerRange(
     const R2D_Tilemap *tilemap,
     int layer_index,
@@ -1545,6 +1937,7 @@ static void R2D_TilemapDrawLayerRange(
 )
 {
     const R2D_TilemapLayer *layer;
+    Color tint = WHITE;
 
     if (!R2D_TilemapIsReady(tilemap) || layer_index < 0 || layer_index >= tilemap->layer_count) {
         return;
@@ -1575,6 +1968,10 @@ static void R2D_TilemapDrawLayerRange(
         return;
     }
 
+    position.x += layer->offset_x;
+    position.y += layer->offset_y;
+    tint.a = (unsigned char)(R2D_Clamp01(layer->opacity) * 255.0f);
+
     for (int y = start_y; y <= end_y; ++y) {
         for (int x = start_x; x <= end_x; ++x) {
             const unsigned int raw_gid = layer->tiles[y * layer->width + x];
@@ -1588,10 +1985,10 @@ static void R2D_TilemapDrawLayerRange(
                 continue;
             }
 
-            tile = (int)gid - tileset->first_gid;
+            tile = R2D_TilemapAnimatedTile(tileset, (int)gid - tileset->first_gid);
             source = (Rectangle) {
-                (float)((tile % tileset->columns) * tileset->tile_width),
-                (float)((tile / tileset->columns) * tileset->tile_height),
+                (float)(tileset->margin + (tile % tileset->columns) * (tileset->tile_width + tileset->spacing)),
+                (float)(tileset->margin + (tile / tileset->columns) * (tileset->tile_height + tileset->spacing)),
                 (float)tileset->tile_width,
                 (float)tileset->tile_height
             };
@@ -1619,7 +2016,7 @@ static void R2D_TilemapDrawLayerRange(
                 destination,
                 (Vector2) { 0.0f, 0.0f },
                 0.0f,
-                WHITE
+                tint
             );
         }
     }
@@ -1674,6 +2071,41 @@ void R2D_TilemapDrawLayerVisible(const R2D_Tilemap *tilemap, int layer_index, Re
     layer = &tilemap->layers[layer_index];
     R2D_TilemapVisibleRange(tilemap, layer, view, &start_x, &start_y, &end_x, &end_y);
     R2D_TilemapDrawLayerRange(tilemap, layer_index, start_x, start_y, end_x, end_y, position);
+}
+
+void R2D_TilemapDrawLayerParallax(
+    const R2D_Tilemap *tilemap,
+    int layer_index,
+    Rectangle camera_view,
+    Vector2 screen_position
+)
+{
+    const R2D_TilemapLayer *layer;
+    Rectangle layer_view;
+    Vector2 layer_position;
+    int start_x;
+    int start_y;
+    int end_x;
+    int end_y;
+
+    if (!R2D_TilemapIsReady(tilemap) || layer_index < 0 || layer_index >= tilemap->layer_count) {
+        return;
+    }
+
+    layer = &tilemap->layers[layer_index];
+    layer_view = R2D_Rect(
+        camera_view.x * layer->parallax_x - layer->offset_x,
+        camera_view.y * layer->parallax_y - layer->offset_y,
+        camera_view.width,
+        camera_view.height
+    );
+    layer_position = (Vector2) {
+        screen_position.x - camera_view.x * layer->parallax_x,
+        screen_position.y - camera_view.y * layer->parallax_y
+    };
+
+    R2D_TilemapVisibleRange(tilemap, layer, layer_view, &start_x, &start_y, &end_x, &end_y);
+    R2D_TilemapDrawLayerRange(tilemap, layer_index, start_x, start_y, end_x, end_y, layer_position);
 }
 
 void R2D_TilemapDrawCollisionDebug(const R2D_Tilemap *tilemap, int layer_index, Vector2 position, Color color)

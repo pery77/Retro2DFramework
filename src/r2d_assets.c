@@ -331,6 +331,11 @@ bool R2D_AssetPackMounted(void)
     return r2d_asset_pack.mounted;
 }
 
+int R2D_AssetPackEntryCount(void)
+{
+    return r2d_asset_pack.mounted ? (int)r2d_asset_pack.count : 0;
+}
+
 bool R2D_AssetExists(const char *path)
 {
     if (path == 0) {

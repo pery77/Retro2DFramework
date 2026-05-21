@@ -42,6 +42,7 @@ typedef struct R2D_MusicState {
     double position_ms;
     unsigned int length_ms;
     float volume;
+    R2D_AudioGroup group;
     float channel_volume[16];
     float channel_activity[16];
     bool channel_used[16];
@@ -358,7 +359,7 @@ static void R2D_MusicRewind(R2D_MusicState *state)
 {
     if (state->soundfont != 0) {
         tsf_reset(state->soundfont);
-        tsf_set_volume(state->soundfont, state->volume);
+        tsf_set_volume(state->soundfont, state->volume * R2D_AudioGroupVolume(state->group));
         R2D_MusicSetupChannels(state->soundfont);
 
         for (int channel = 0; channel < 16; ++channel) {
@@ -523,10 +524,11 @@ bool R2D_MusicLoad(R2D_Music *music, const char *midi_path, const char *soundfon
     state->next_message = messages;
     state->length_ms = length_ms;
     state->volume = 0.65f;
+    state->group = R2D_AUDIO_GROUP_MUSIC;
     R2D_MusicScanChannels(state);
     music->state = state;
 
-    tsf_set_volume(soundfont, state->volume);
+    tsf_set_volume(soundfont, state->volume * R2D_AudioGroupVolume(state->group));
     PlayAudioStream(state->stream);
 
     TraceLog(LOG_INFO, "R2D: MIDI music loaded: %s", midi_path);
@@ -735,6 +737,7 @@ void R2D_MusicUpdate(R2D_Music *music)
         return;
     }
 
+    tsf_set_volume(state->soundfont, state->volume * R2D_AudioGroupVolume(state->group));
     while (IsAudioStreamProcessed(state->stream)) {
         R2D_MusicRender(state, samples, R2D_MUSIC_BUFFER_FRAMES);
         UpdateAudioStream(state->stream, samples, R2D_MUSIC_BUFFER_FRAMES);
@@ -750,7 +753,112 @@ void R2D_MusicSetVolume(R2D_Music *music, float volume)
     }
 
     state->volume = R2D_MusicClamp(volume, 0.0f, 1.0f);
-    tsf_set_volume(state->soundfont, state->volume);
+    tsf_set_volume(state->soundfont, state->volume * R2D_AudioGroupVolume(state->group));
+}
+
+float R2D_MusicVolume(const R2D_Music *music)
+{
+    const R2D_MusicState *state = R2D_MusicGetConstState(music);
+
+    return state != 0 ? state->volume : 0.0f;
+}
+
+void R2D_MusicSetGroup(R2D_Music *music, R2D_AudioGroup group)
+{
+    R2D_MusicState *state = R2D_MusicGetState(music);
+
+    if (state == 0 || group < 0 || group >= R2D_AUDIO_GROUP_COUNT) {
+        return;
+    }
+
+    state->group = group;
+    tsf_set_volume(state->soundfont, state->volume * R2D_AudioGroupVolume(state->group));
+}
+
+void R2D_MusicCrossfadeStart(
+    R2D_MusicCrossfade *crossfade,
+    R2D_Music *from,
+    R2D_Music *to,
+    float target_volume,
+    float duration
+)
+{
+    if (crossfade == 0) {
+        return;
+    }
+
+    *crossfade = (R2D_MusicCrossfade) { 0 };
+
+    if (to == 0 || from == to) {
+        if (to != 0) {
+            R2D_MusicSetVolume(to, target_volume);
+        }
+        return;
+    }
+
+    target_volume = R2D_MusicClamp(target_volume, 0.0f, 1.0f);
+
+    crossfade->from = from;
+    crossfade->to = to;
+    crossfade->from_start_volume = R2D_MusicVolume(from);
+    crossfade->to_target_volume = target_volume;
+    crossfade->duration = duration;
+    crossfade->elapsed = 0.0f;
+
+    R2D_MusicSetVolume(to, 0.0f);
+    if (!R2D_MusicIsPlaying(to)) {
+        R2D_MusicPlay(to, true);
+    }
+
+    if (duration <= 0.0f) {
+        R2D_MusicSetVolume(to, target_volume);
+        if (from != 0) {
+            R2D_MusicSetVolume(from, 0.0f);
+            R2D_MusicStop(from);
+        }
+        return;
+    }
+
+    crossfade->active = true;
+}
+
+bool R2D_MusicCrossfadeUpdate(R2D_MusicCrossfade *crossfade, float dt)
+{
+    float t;
+
+    if (crossfade == 0 || !crossfade->active) {
+        return false;
+    }
+
+    if (dt < 0.0f) {
+        dt = 0.0f;
+    }
+
+    crossfade->elapsed += dt;
+    t = crossfade->duration > 0.0f ? crossfade->elapsed / crossfade->duration : 1.0f;
+    t = R2D_MusicClamp(t, 0.0f, 1.0f);
+
+    if (crossfade->from != 0) {
+        R2D_MusicSetVolume(crossfade->from, crossfade->from_start_volume * (1.0f - t));
+    }
+
+    if (crossfade->to != 0) {
+        R2D_MusicSetVolume(crossfade->to, crossfade->to_target_volume * t);
+    }
+
+    if (t >= 1.0f) {
+        if (crossfade->from != 0) {
+            R2D_MusicStop(crossfade->from);
+        }
+
+        if (crossfade->to != 0) {
+            R2D_MusicSetVolume(crossfade->to, crossfade->to_target_volume);
+        }
+
+        crossfade->active = false;
+    }
+
+    return crossfade->active;
 }
 
 void R2D_MusicSetLoop(R2D_Music *music, bool loop)

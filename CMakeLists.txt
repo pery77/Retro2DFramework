@@ -28,13 +28,17 @@ add_library(r2d STATIC
     src/r2d_assets.c
     src/r2d_audio.c
     src/r2d_camera.c
+    src/r2d_cinematic.c
     src/r2d_collision.c
     src/r2d_crt.c
+    src/r2d_debug.c
     src/r2d_entity.c
+    src/r2d_grid.c
     src/r2d_input.c
     src/r2d_music.c
     src/r2d_palette.c
     src/r2d_particle.c
+    src/r2d_runtime.c
     src/r2d_save.c
     src/r2d_state.c
     src/r2d_sprite.c
@@ -73,6 +77,16 @@ function(r2d_copy_assets target_name)
     add_dependencies(${target_name} ${target_name}_assets)
 endfunction()
 
+function(r2d_copy_runtime_config target_name)
+    add_custom_command(TARGET ${target_name} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_CURRENT_SOURCE_DIR}/r2d.ini
+            $<TARGET_FILE_DIR:${target_name}>/r2d.ini
+        COMMENT "Copying runtime config for ${target_name}"
+        VERBATIM
+    )
+endfunction()
+
 add_executable(r2d_asset_pack tools/r2d_pack/main.c)
 
 function(r2d_package_assets target_name source_file)
@@ -91,12 +105,14 @@ endfunction()
 function(r2d_add_app target_name source_file)
     add_executable(${target_name} ${source_file})
     target_link_libraries(${target_name} PRIVATE r2d)
+    r2d_copy_runtime_config(${target_name})
     r2d_copy_assets(${target_name})
 endfunction()
 
 function(r2d_add_packaged_app target_name source_file)
     add_executable(${target_name} ${source_file})
     target_link_libraries(${target_name} PRIVATE r2d)
+    r2d_copy_runtime_config(${target_name})
     if(R2D_PACKAGE_ASSETS)
         r2d_package_assets(${target_name} ${source_file})
     else()

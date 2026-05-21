@@ -12,6 +12,7 @@
 
 typedef struct R2D_AudioVoice {
     R2D_Sfx sfx;
+    R2D_AudioGroup group;
     float phase;
     float elapsed;
     float noise_value;
@@ -25,12 +26,23 @@ typedef struct R2D_AudioState {
     AudioStream stream;
     R2D_AudioVoice voices[R2D_AUDIO_MAX_VOICES];
     unsigned int next_noise_seed;
+    float group_volume[R2D_AUDIO_GROUP_COUNT];
+    float group_fade_start[R2D_AUDIO_GROUP_COUNT];
+    float group_fade_target[R2D_AUDIO_GROUP_COUNT];
+    float group_fade_duration[R2D_AUDIO_GROUP_COUNT];
+    float group_fade_elapsed[R2D_AUDIO_GROUP_COUNT];
+    bool group_fading[R2D_AUDIO_GROUP_COUNT];
     float master_volume;
     bool owns_device;
     bool ready;
 } R2D_AudioState;
 
 static R2D_AudioState r2d_audio = { 0 };
+
+static bool R2D_AudioGroupValid(R2D_AudioGroup group)
+{
+    return group >= 0 && group < R2D_AUDIO_GROUP_COUNT;
+}
 
 static bool R2D_AudioOpenFile(FILE **file, const char *path, const char *mode)
 {
@@ -455,7 +467,7 @@ static void R2D_AudioCallback(void *buffer, unsigned int frames)
                 const float pan = R2D_AudioClamp(voice->sfx.pan, 0.0f, 1.0f);
                 const float left_gain = sqrtf(1.0f - pan);
                 const float right_gain = sqrtf(pan);
-                const float sample = R2D_AudioProcessVoice(voice);
+                const float sample = R2D_AudioProcessVoice(voice) * R2D_AudioGroupVolume(voice->group);
 
                 left += sample * left_gain;
                 right += sample * right_gain;
@@ -500,6 +512,10 @@ bool R2D_AudioInit(void)
 
     r2d_audio.next_noise_seed = 0x12345678u;
     r2d_audio.master_volume = 0.75f;
+    for (int i = 0; i < R2D_AUDIO_GROUP_COUNT; ++i) {
+        r2d_audio.group_volume[i] = 1.0f;
+        r2d_audio.group_fade_target[i] = 1.0f;
+    }
     SetAudioStreamCallback(r2d_audio.stream, R2D_AudioCallback);
     PlayAudioStream(r2d_audio.stream);
     r2d_audio.ready = true;
@@ -536,6 +552,73 @@ void R2D_AudioSetMasterVolume(float volume)
 float R2D_AudioMasterVolume(void)
 {
     return r2d_audio.master_volume;
+}
+
+void R2D_AudioSetGroupVolume(R2D_AudioGroup group, float volume)
+{
+    if (!R2D_AudioGroupValid(group)) {
+        return;
+    }
+
+    r2d_audio.group_volume[group] = R2D_AudioClamp(volume, 0.0f, 1.0f);
+    r2d_audio.group_fading[group] = false;
+}
+
+float R2D_AudioGroupVolume(R2D_AudioGroup group)
+{
+    if (!R2D_AudioGroupValid(group)) {
+        return 1.0f;
+    }
+
+    return r2d_audio.group_volume[group];
+}
+
+void R2D_AudioFadeGroup(R2D_AudioGroup group, float target_volume, float duration)
+{
+    if (!R2D_AudioGroupValid(group)) {
+        return;
+    }
+
+    target_volume = R2D_AudioClamp(target_volume, 0.0f, 1.0f);
+    if (duration <= 0.0f) {
+        R2D_AudioSetGroupVolume(group, target_volume);
+        return;
+    }
+
+    r2d_audio.group_fade_start[group] = r2d_audio.group_volume[group];
+    r2d_audio.group_fade_target[group] = target_volume;
+    r2d_audio.group_fade_duration[group] = duration;
+    r2d_audio.group_fade_elapsed[group] = 0.0f;
+    r2d_audio.group_fading[group] = true;
+}
+
+void R2D_AudioMixerUpdate(float dt)
+{
+    if (dt < 0.0f) {
+        dt = 0.0f;
+    }
+
+    for (int i = 0; i < R2D_AUDIO_GROUP_COUNT; ++i) {
+        float t;
+
+        if (!r2d_audio.group_fading[i]) {
+            continue;
+        }
+
+        r2d_audio.group_fade_elapsed[i] += dt;
+        t = r2d_audio.group_fade_duration[i] > 0.0f ?
+            r2d_audio.group_fade_elapsed[i] / r2d_audio.group_fade_duration[i] :
+            1.0f;
+        t = R2D_AudioClamp(t, 0.0f, 1.0f);
+        r2d_audio.group_volume[i] =
+            r2d_audio.group_fade_start[i] +
+            (r2d_audio.group_fade_target[i] - r2d_audio.group_fade_start[i]) * t;
+
+        if (t >= 1.0f) {
+            r2d_audio.group_volume[i] = r2d_audio.group_fade_target[i];
+            r2d_audio.group_fading[i] = false;
+        }
+    }
 }
 
 R2D_Sfx R2D_DefaultSfx(void)
@@ -802,10 +885,15 @@ bool R2D_SaveSfx(const char *path, R2D_Sfx sfx)
 
 void R2D_PlaySfx(R2D_Sfx sfx)
 {
+    R2D_PlaySfxGroup(sfx, R2D_AUDIO_GROUP_SFX);
+}
+
+void R2D_PlaySfxGroup(R2D_Sfx sfx, R2D_AudioGroup group)
+{
     int selected = -1;
     float oldest_elapsed = -1.0f;
 
-    if (!r2d_audio.ready) {
+    if (!r2d_audio.ready || !R2D_AudioGroupValid(group)) {
         return;
     }
 
@@ -843,6 +931,7 @@ void R2D_PlaySfx(R2D_Sfx sfx)
         R2D_AudioVoice *voice = &r2d_audio.voices[selected];
 
         voice->sfx = sfx;
+        voice->group = group;
         voice->phase = 0.0f;
         voice->elapsed = 0.0f;
         voice->filter_low = 0.0f;
@@ -853,7 +942,25 @@ void R2D_PlaySfx(R2D_Sfx sfx)
     }
 }
 
+void R2D_PlaySfxRandomPitch(R2D_Sfx sfx, R2D_AudioGroup group, float semitone_range)
+{
+    float semitones;
+
+    if (semitone_range < 0.0f) {
+        semitone_range = -semitone_range;
+    }
+
+    semitones = ((float)GetRandomValue(-1000, 1000) / 1000.0f) * semitone_range;
+    sfx.frequency *= R2D_AudioSemitoneRatio(semitones);
+    R2D_PlaySfxGroup(sfx, group);
+}
+
 void R2D_PlayTone(R2D_Waveform waveform, float frequency, float duration)
+{
+    R2D_PlayToneGroup(waveform, frequency, duration, R2D_AUDIO_GROUP_SFX);
+}
+
+void R2D_PlayToneGroup(R2D_Waveform waveform, float frequency, float duration, R2D_AudioGroup group)
 {
     R2D_Sfx sfx = R2D_DefaultSfx();
 
@@ -861,5 +968,5 @@ void R2D_PlayTone(R2D_Waveform waveform, float frequency, float duration)
     sfx.frequency = frequency;
     sfx.duration = duration;
 
-    R2D_PlaySfx(sfx);
+    R2D_PlaySfxGroup(sfx, group);
 }

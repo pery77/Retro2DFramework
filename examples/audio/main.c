@@ -31,6 +31,8 @@ static void AudioExample_InitInput(AudioExample *example)
 
     R2D_InputBindKey(&example->input, "music", KEY_P);
     R2D_InputBindGamepadButton(&example->input, "music", GAMEPAD_BUTTON_MIDDLE_RIGHT);
+
+    R2D_InputBindKey(&example->input, "fade", KEY_F);
 }
 
 static R2D_Sfx AudioExample_LoadSfx(const char *path, R2D_Sfx fallback)
@@ -58,6 +60,7 @@ static void AudioExample_Init(void *user_data)
     );
     if (example->music_loaded) {
         R2D_MusicSetVolume(&example->music, 0.16f);
+        R2D_MusicSetGroup(&example->music, R2D_AUDIO_GROUP_MUSIC);
     }
 }
 
@@ -66,25 +69,26 @@ static void AudioExample_Update(float dt, void *user_data)
     AudioExample *example = (AudioExample *)user_data;
 
     R2D_InputUpdate(&example->input);
+    R2D_AudioMixerUpdate(dt);
     R2D_MusicUpdate(&example->music);
 
     if (R2D_InputPressed(&example->input, "coin")) {
-        R2D_PlaySfx(example->coin);
+        R2D_PlaySfxRandomPitch(example->coin, R2D_AUDIO_GROUP_UI, 0.8f);
         example->flash = 0.18f;
     }
 
     if (R2D_InputPressed(&example->input, "hit")) {
-        R2D_PlaySfx(example->hit);
+        R2D_PlaySfxGroup(example->hit, R2D_AUDIO_GROUP_SFX);
         example->flash = 0.18f;
     }
 
     if (R2D_InputPressed(&example->input, "jump")) {
-        R2D_PlaySfx(example->jump);
+        R2D_PlaySfxGroup(example->jump, R2D_AUDIO_GROUP_SFX);
         example->flash = 0.18f;
     }
 
     if (R2D_InputPressed(&example->input, "laser")) {
-        R2D_PlaySfx(example->laser);
+        R2D_PlaySfxGroup(example->laser, R2D_AUDIO_GROUP_AMBIENT);
         example->flash = 0.18f;
     }
 
@@ -94,6 +98,12 @@ static void AudioExample_Update(float dt, void *user_data)
         } else {
             R2D_MusicPlay(&example->music, true);
         }
+    }
+
+    if (R2D_InputPressed(&example->input, "fade")) {
+        const float target = R2D_AudioGroupVolume(R2D_AUDIO_GROUP_MUSIC) > 0.5f ? 0.18f : 1.0f;
+
+        R2D_AudioFadeGroup(R2D_AUDIO_GROUP_MUSIC, target, 0.8f);
     }
 
     if (example->flash > 0.0f) {
@@ -125,9 +135,19 @@ static void AudioExample_Draw(void *user_data)
     AudioExample_DrawPad(208, "V", "laser", R2D_InputDown(&example->input, "laser"));
 
     R2D_DrawUiPanel(R2D_Rect(38.0f, 138.0f, 244.0f, 34.0f), R2D_DefaultUiStyle());
-    DrawText(playing ? "P: stop music" : "P: play music", 50, 148, 10, playing ? R2D_ColorFromHex(0x50fa7bff) : R2D_ColorFromHex(0xffd166ff));
+    DrawText(playing ? "P: stop music  F: fade music" : "P: play music  F: fade music", 50, 148, 10, playing ? R2D_ColorFromHex(0x50fa7bff) : R2D_ColorFromHex(0xffd166ff));
     snprintf(text, sizeof(text), "%.1fs / %.1fs", R2D_MusicPosition(&example->music), R2D_MusicLength(&example->music));
     DrawText(example->music_loaded ? text : "song not loaded", 178, 150, 8, R2D_ColorFromHex(0x8ecae6ff));
+    snprintf(
+        text,
+        sizeof(text),
+        "groups music %.2f  sfx %.2f  ui %.2f  ambient %.2f",
+        R2D_AudioGroupVolume(R2D_AUDIO_GROUP_MUSIC),
+        R2D_AudioGroupVolume(R2D_AUDIO_GROUP_SFX),
+        R2D_AudioGroupVolume(R2D_AUDIO_GROUP_UI),
+        R2D_AudioGroupVolume(R2D_AUDIO_GROUP_AMBIENT)
+    );
+    DrawText(text, 38, 177, 8, R2D_ColorFromHex(0xf8f8f2ff));
 
     if (example->flash > 0.0f) {
         DrawRectangleLinesEx(R2D_Rect(28.0f, 72.0f, 238.0f, 36.0f), 2.0f, R2D_ColorFromHex(0xffd166ff));

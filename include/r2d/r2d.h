@@ -2,6 +2,7 @@
 #define R2D_H
 
 #include "raylib.h"
+#include <stddef.h>
 
 #define R2D_DEFAULT_VIRTUAL_WIDTH 320
 #define R2D_DEFAULT_VIRTUAL_HEIGHT 200
@@ -17,14 +18,18 @@
 #define R2D_PARTICLE_MAX 512
 #define R2D_TIMER_MAX 64
 #define R2D_TWEEN_MAX 64
+#define R2D_CINEMATIC_MAX_STEPS 32
+#define R2D_CINEMATIC_TEXT_SIZE 160
 #define R2D_PALETTE_MAX_COLORS 32
 #define R2D_ASSET_CACHE_MAX_TEXTURES 128
 #define R2D_ASSET_CACHE_MAX_SHADERS 32
 #define R2D_ASSET_CACHE_PATH_SIZE 256
+#define R2D_RUNTIME_PATH_SIZE 512
 #define R2D_SAVE_PATH_SIZE 512
 #define R2D_TILEMAP_MAX_PROPERTIES 16
 #define R2D_TILEMAP_PROPERTY_NAME_SIZE 64
 #define R2D_TILEMAP_PROPERTY_STRING_SIZE 128
+#define R2D_GRID_MAX_SEARCH_NODES 2048
 
 #ifdef __cplusplus
 extern "C" {
@@ -36,7 +41,20 @@ typedef struct R2D_Config {
     int window_scale;
     const char *title;
     Color clear_color;
+    bool fullscreen;
+    const char *asset_pack_path;
 } R2D_Config;
+
+typedef struct R2D_RuntimeConfig {
+    R2D_Config config;
+    char asset_pack_path[R2D_RUNTIME_PATH_SIZE];
+    bool crt_enabled;
+    float master_volume;
+    float music_volume;
+    float sfx_volume;
+    float ui_volume;
+    float ambient_volume;
+} R2D_RuntimeConfig;
 
 typedef struct R2D_App {
     void (*init)(void *user_data);
@@ -73,6 +91,14 @@ typedef enum R2D_Filter {
     R2D_FILTER_BANDPASS
 } R2D_Filter;
 
+typedef enum R2D_AudioGroup {
+    R2D_AUDIO_GROUP_MUSIC = 0,
+    R2D_AUDIO_GROUP_SFX,
+    R2D_AUDIO_GROUP_UI,
+    R2D_AUDIO_GROUP_AMBIENT,
+    R2D_AUDIO_GROUP_COUNT
+} R2D_AudioGroup;
+
 typedef struct R2D_Sfx {
     R2D_Waveform waveform;
     R2D_Filter filter;
@@ -100,6 +126,16 @@ typedef struct R2D_Sfx {
 typedef struct R2D_Music {
     void *state;
 } R2D_Music;
+
+typedef struct R2D_MusicCrossfade {
+    R2D_Music *from;
+    R2D_Music *to;
+    float from_start_volume;
+    float to_target_volume;
+    float duration;
+    float elapsed;
+    bool active;
+} R2D_MusicCrossfade;
 
 typedef struct R2D_Sprite {
     Texture2D texture;
@@ -405,6 +441,44 @@ typedef struct R2D_TimeEffects {
     Color flash_color;
 } R2D_TimeEffects;
 
+typedef enum R2D_CinematicStepType {
+    R2D_CINEMATIC_STEP_WAIT = 0,
+    R2D_CINEMATIC_STEP_DIALOG,
+    R2D_CINEMATIC_STEP_MOVE_CAMERA,
+    R2D_CINEMATIC_STEP_SET_FLAG,
+    R2D_CINEMATIC_STEP_PLAY_SFX,
+    R2D_CINEMATIC_STEP_PLAY_MUSIC
+} R2D_CinematicStepType;
+
+typedef struct R2D_CinematicStep {
+    R2D_CinematicStepType type;
+    float duration;
+    Vector2 target;
+    char text[R2D_CINEMATIC_TEXT_SIZE];
+    unsigned int *flags;
+    unsigned int flag_mask;
+    bool flag_value;
+    R2D_Sfx sfx;
+    R2D_AudioGroup audio_group;
+    R2D_Music *music;
+    float music_volume;
+    bool music_loop;
+} R2D_CinematicStep;
+
+typedef struct R2D_Cinematic {
+    R2D_CinematicStep steps[R2D_CINEMATIC_MAX_STEPS];
+    int step_count;
+    int current_step;
+    float elapsed;
+    Vector2 camera_start;
+    Vector2 camera_position;
+    bool step_started;
+    bool active;
+    bool input_locked;
+    bool dialog_visible;
+    char dialog_text[R2D_CINEMATIC_TEXT_SIZE];
+} R2D_Cinematic;
+
 typedef struct R2D_Palette {
     Color colors[R2D_PALETTE_MAX_COLORS];
     int count;
@@ -465,6 +539,11 @@ typedef struct R2D_TilemapLayer {
     unsigned int *tiles;
     int width;
     int height;
+    float opacity;
+    float offset_x;
+    float offset_y;
+    float parallax_x;
+    float parallax_y;
     bool visible;
     R2D_TilemapProperty properties[R2D_TILEMAP_MAX_PROPERTIES];
     int property_count;
@@ -478,13 +557,29 @@ typedef struct R2D_TilemapObject {
     int property_count;
 } R2D_TilemapObject;
 
+typedef struct R2D_TilemapAnimationFrame {
+    int tile_id;
+    int duration_ms;
+} R2D_TilemapAnimationFrame;
+
+typedef struct R2D_TilemapTileAnimation {
+    int tile_id;
+    R2D_TilemapAnimationFrame *frames;
+    int frame_count;
+    int duration_ms;
+} R2D_TilemapTileAnimation;
+
 typedef struct R2D_TilemapTileset {
     Texture2D texture;
+    R2D_TilemapTileAnimation *animations;
     int first_gid;
     int tile_width;
     int tile_height;
+    int margin;
+    int spacing;
     int columns;
     int tile_count;
+    int animation_count;
 } R2D_TilemapTileset;
 
 typedef struct R2D_Tilemap {
@@ -505,6 +600,26 @@ typedef struct R2D_Tilemap {
     bool is_ready;
 } R2D_Tilemap;
 
+typedef struct R2D_GridPoint {
+    int x;
+    int y;
+} R2D_GridPoint;
+
+typedef bool (*R2D_GridBlockedCallback)(int x, int y, void *user_data);
+
+typedef struct R2D_DebugInfo {
+    const char *title;
+    const char *line;
+    int fps;
+    float frame_ms;
+    int entity_count;
+    int asset_count;
+    int tile_x;
+    int tile_y;
+    unsigned int tile_gid;
+    size_t memory_bytes;
+} R2D_DebugInfo;
+
 typedef struct R2D_Context {
     R2D_Config config;
     RenderTexture2D target;
@@ -521,6 +636,11 @@ typedef struct R2D_Context {
 } R2D_Context;
 
 R2D_Config R2D_DefaultConfig(void);
+R2D_RuntimeConfig R2D_RuntimeConfigDefault(void);
+bool R2D_RuntimeConfigLoad(R2D_RuntimeConfig *runtime, const char *path);
+void R2D_RuntimeConfigApplyArgs(R2D_RuntimeConfig *runtime, int argc, char **argv);
+void R2D_RuntimeConfigApplyAudio(const R2D_RuntimeConfig *runtime);
+void R2D_RuntimeConfigApplyCrt(const R2D_RuntimeConfig *runtime, R2D_Crt *crt);
 
 bool R2D_Init(R2D_Context *ctx, R2D_Config config);
 void R2D_Run(R2D_Context *ctx, R2D_App app);
@@ -538,6 +658,10 @@ void R2D_AudioClose(void);
 bool R2D_AudioIsReady(void);
 void R2D_AudioSetMasterVolume(float volume);
 float R2D_AudioMasterVolume(void);
+void R2D_AudioSetGroupVolume(R2D_AudioGroup group, float volume);
+float R2D_AudioGroupVolume(R2D_AudioGroup group);
+void R2D_AudioFadeGroup(R2D_AudioGroup group, float target_volume, float duration);
+void R2D_AudioMixerUpdate(float dt);
 R2D_Sfx R2D_DefaultSfx(void);
 R2D_Sfx R2D_SfxCoin(void);
 R2D_Sfx R2D_SfxJump(void);
@@ -548,7 +672,10 @@ R2D_Sfx R2D_SfxPowerup(void);
 bool R2D_LoadSfx(const char *path, R2D_Sfx *sfx);
 bool R2D_SaveSfx(const char *path, R2D_Sfx sfx);
 void R2D_PlaySfx(R2D_Sfx sfx);
+void R2D_PlaySfxGroup(R2D_Sfx sfx, R2D_AudioGroup group);
+void R2D_PlaySfxRandomPitch(R2D_Sfx sfx, R2D_AudioGroup group, float semitone_range);
 void R2D_PlayTone(R2D_Waveform waveform, float frequency, float duration);
+void R2D_PlayToneGroup(R2D_Waveform waveform, float frequency, float duration, R2D_AudioGroup group);
 
 bool R2D_MusicLoad(R2D_Music *music, const char *midi_path, const char *soundfont_path);
 bool R2D_MusicLoadSong(R2D_Music *music, const char *song_path);
@@ -559,6 +686,10 @@ void R2D_MusicPause(R2D_Music *music);
 void R2D_MusicResume(R2D_Music *music);
 void R2D_MusicUpdate(R2D_Music *music);
 void R2D_MusicSetVolume(R2D_Music *music, float volume);
+float R2D_MusicVolume(const R2D_Music *music);
+void R2D_MusicSetGroup(R2D_Music *music, R2D_AudioGroup group);
+void R2D_MusicCrossfadeStart(R2D_MusicCrossfade *crossfade, R2D_Music *from, R2D_Music *to, float target_volume, float duration);
+bool R2D_MusicCrossfadeUpdate(R2D_MusicCrossfade *crossfade, float dt);
 void R2D_MusicSetLoop(R2D_Music *music, bool loop);
 bool R2D_MusicIsPlaying(const R2D_Music *music);
 bool R2D_MusicIsPaused(const R2D_Music *music);
@@ -586,6 +717,7 @@ const char *R2D_AssetPath(const char *relative_path);
 bool R2D_MountAssetPack(const char *path);
 void R2D_UnmountAssetPack(void);
 bool R2D_AssetPackMounted(void);
+int R2D_AssetPackEntryCount(void);
 bool R2D_AssetExists(const char *path);
 bool R2D_LoadAssetData(const char *path, unsigned char **data, int *size);
 void R2D_UnloadAssetData(unsigned char *data);
@@ -668,6 +800,9 @@ void R2D_DrawUiSelector(Rectangle rect, const char *text, const char *value, boo
 void R2D_DrawUiSlider(Rectangle rect, const char *text, float value, bool focused, R2D_UiStyle style);
 void R2D_DrawUiBar(Rectangle rect, float value, Color fill, R2D_UiStyle style);
 void R2D_DrawUiDialog(Rectangle rect, const char *title, const char *text, R2D_UiStyle style);
+R2D_DebugInfo R2D_DebugInfoDefault(void);
+const char *R2D_DebugFormatBytes(size_t bytes, char *buffer, int buffer_size);
+void R2D_DebugDrawOverlay(const R2D_DebugInfo *info, int x, int y);
 void R2D_TypewriterStart(R2D_Typewriter *typewriter, const char *text, float chars_per_second);
 void R2D_TypewriterReset(R2D_Typewriter *typewriter);
 void R2D_TypewriterUpdate(R2D_Typewriter *typewriter, float dt);
@@ -732,6 +867,20 @@ void R2D_TimeEffectsFlash(R2D_TimeEffects *effects, float duration, Color color)
 void R2D_TimeEffectsFade(R2D_TimeEffects *effects, float alpha);
 Color R2D_TimeEffectsFlashColor(const R2D_TimeEffects *effects);
 float R2D_TimeEffectsFadeAlpha(const R2D_TimeEffects *effects);
+void R2D_CinematicInit(R2D_Cinematic *cinematic);
+bool R2D_CinematicAddWait(R2D_Cinematic *cinematic, float duration);
+bool R2D_CinematicAddDialog(R2D_Cinematic *cinematic, const char *text, float duration);
+bool R2D_CinematicAddMoveCamera(R2D_Cinematic *cinematic, Vector2 target, float duration);
+bool R2D_CinematicAddSetFlag(R2D_Cinematic *cinematic, unsigned int *flags, unsigned int flag_mask, bool value);
+bool R2D_CinematicAddSfx(R2D_Cinematic *cinematic, R2D_Sfx sfx, R2D_AudioGroup group);
+bool R2D_CinematicAddMusic(R2D_Cinematic *cinematic, R2D_Music *music, float volume, bool loop);
+void R2D_CinematicStart(R2D_Cinematic *cinematic, Vector2 camera_position);
+void R2D_CinematicStop(R2D_Cinematic *cinematic);
+bool R2D_CinematicUpdate(R2D_Cinematic *cinematic, float dt, Vector2 camera_position);
+bool R2D_CinematicActive(const R2D_Cinematic *cinematic);
+bool R2D_CinematicInputLocked(const R2D_Cinematic *cinematic);
+Vector2 R2D_CinematicCameraPosition(const R2D_Cinematic *cinematic, Vector2 fallback);
+void R2D_CinematicDrawDialog(const R2D_Cinematic *cinematic, Rectangle rect, R2D_UiStyle style);
 R2D_Palette R2D_PaletteCreate(const Color *colors, int count);
 R2D_Palette R2D_PaletteFromHex(const unsigned int *rgba, int count);
 Color R2D_PaletteColor(const R2D_Palette *palette, int index, Color fallback);
@@ -741,6 +890,12 @@ Color R2D_PaletteMixColor(Color color, Color target, float amount);
 Color R2D_PaletteFadeColor(Color color, Color target, float amount);
 Image R2D_ImageRecolorPalette(Image image, const R2D_Palette *from, const R2D_Palette *to, float amount);
 Texture2D R2D_LoadTextureFromPalette(Image image, const R2D_Palette *from, const R2D_Palette *to, float amount);
+R2D_GridPoint R2D_GridPointMake(int x, int y);
+int R2D_GridManhattanDistance(R2D_GridPoint a, R2D_GridPoint b);
+float R2D_GridEuclideanDistance(R2D_GridPoint a, R2D_GridPoint b);
+bool R2D_GridLineOfSight(R2D_GridPoint start, R2D_GridPoint end, R2D_GridBlockedCallback blocked, void *user_data);
+int R2D_GridFloodFill(R2D_GridPoint start, int width, int height, R2D_GridBlockedCallback blocked, void *user_data, R2D_GridPoint *out_points, int max_points);
+int R2D_GridAStar(R2D_GridPoint start, R2D_GridPoint goal, int width, int height, R2D_GridBlockedCallback blocked, void *user_data, R2D_GridPoint *out_path, int max_path);
 const char *R2D_UserDataPath(const char *app_name, const char *file_name);
 R2D_SaveData R2D_SaveDataDefault(void);
 bool R2D_SaveDataLoad(const char *path, R2D_SaveData *save);
@@ -778,16 +933,23 @@ Vector2 R2D_TilemapWorldToTile(const R2D_Tilemap *tilemap, Vector2 position);
 Rectangle R2D_TilemapTileBounds(const R2D_Tilemap *tilemap, int x, int y);
 bool R2D_TilemapSolidAt(const R2D_Tilemap *tilemap, int layer_index, Vector2 position);
 bool R2D_TilemapRectCollides(const R2D_Tilemap *tilemap, int layer_index, Rectangle rect);
+bool R2D_TilemapGridBlocked(const R2D_Tilemap *tilemap, int layer_index, int x, int y);
+int R2D_TilemapFindPath(const R2D_Tilemap *tilemap, int layer_index, R2D_GridPoint start, R2D_GridPoint goal, R2D_GridPoint *out_path, int max_path);
+int R2D_TilemapFloodFill(const R2D_Tilemap *tilemap, int layer_index, R2D_GridPoint start, R2D_GridPoint *out_points, int max_points);
+bool R2D_TilemapLineOfSight(const R2D_Tilemap *tilemap, int layer_index, R2D_GridPoint start, R2D_GridPoint end);
 int R2D_TilemapCollisionRects(const R2D_Tilemap *tilemap, int layer_index, Rectangle area, R2D_Collider *colliders, int max_colliders, unsigned int layer, unsigned int mask);
 Vector2 R2D_TilemapMoveAndSlide(const R2D_Tilemap *tilemap, int layer_index, Rectangle bounds, Vector2 movement, R2D_CollisionResult *result);
 int R2D_TilemapObjectCount(const R2D_Tilemap *tilemap);
 const R2D_TilemapObject *R2D_TilemapObjectAt(const R2D_Tilemap *tilemap, int index);
 const R2D_TilemapObject *R2D_TilemapFindObject(const R2D_Tilemap *tilemap, const char *name);
 const R2D_TilemapObject *R2D_TilemapFindObjectByType(const R2D_Tilemap *tilemap, const char *type);
+bool R2D_TilemapObjectIsTrigger(const R2D_TilemapObject *object);
+int R2D_TilemapTriggerColliders(const R2D_Tilemap *tilemap, R2D_Collider *colliders, int max_colliders, unsigned int layer, unsigned int mask);
 void R2D_TilemapDraw(const R2D_Tilemap *tilemap, Vector2 position);
 void R2D_TilemapDrawLayer(const R2D_Tilemap *tilemap, int layer_index, Vector2 position);
 void R2D_TilemapDrawVisible(const R2D_Tilemap *tilemap, Rectangle view, Vector2 position);
 void R2D_TilemapDrawLayerVisible(const R2D_Tilemap *tilemap, int layer_index, Rectangle view, Vector2 position);
+void R2D_TilemapDrawLayerParallax(const R2D_Tilemap *tilemap, int layer_index, Rectangle camera_view, Vector2 screen_position);
 void R2D_TilemapDrawCollisionDebug(const R2D_Tilemap *tilemap, int layer_index, Vector2 position, Color color);
 void R2D_TilemapDrawCollisionDebugVisible(const R2D_Tilemap *tilemap, int layer_index, Rectangle view, Vector2 position, Color color);
 void R2D_TilemapDrawObjectsDebug(const R2D_Tilemap *tilemap, Vector2 position, Color color);

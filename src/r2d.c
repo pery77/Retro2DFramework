@@ -81,7 +81,9 @@ R2D_Config R2D_DefaultConfig(void)
         R2D_DEFAULT_VIRTUAL_HEIGHT,
         R2D_DEFAULT_WINDOW_SCALE,
         "Retro2DFramework",
-        BLACK
+        BLACK,
+        false,
+        0
     };
 }
 
@@ -112,7 +114,18 @@ bool R2D_Init(R2D_Context *ctx, R2D_Config config)
     );
     SetExitKey(KEY_NULL);
 
-    R2D_MountDefaultAssetPack();
+    if (config.fullscreen) {
+        const int monitor = GetCurrentMonitor();
+
+        SetWindowSize(GetMonitorWidth(monitor), GetMonitorHeight(monitor));
+        ToggleFullscreen();
+    }
+
+    if (config.asset_pack_path != 0 && config.asset_pack_path[0] != '\0') {
+        R2D_MountAssetPack(config.asset_pack_path);
+    } else {
+        R2D_MountDefaultAssetPack();
+    }
 
     SetTextureFilter(GetFontDefault().texture, TEXTURE_FILTER_POINT);
 

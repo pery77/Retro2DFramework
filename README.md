@@ -105,7 +105,7 @@ Con Visual Studio/MSVC, las builds `Release` equivalentes quedan en `.\build\Rel
 
 - `r2d_input_example`: acciones de entrada con teclado, raton y gamepad.
 - `r2d_ui_example`: texto bitmap, typewriter, nine-slice, navegacion de menu y CRT.
-- `r2d_audio_example`: presets `.r2sfx` y musica `.r2song` con MIDI + SoundFont.
+- `r2d_audio_example`: presets `.r2sfx`, grupos de mixer y musica `.r2song` con MIDI + SoundFont.
 - `r2d_state_example`: maquina de estados con push/pop para pausa.
 - `r2d_collision_example`: objeto controlado por raton con solidos, triggers y sensores.
 - `r2d_particle_example`: emisores, bursts y presets de particulas retro.
@@ -129,6 +129,8 @@ Convenciones del mapa Tiled:
 
 - Objeto `PlayerStart`: posicion inicial del jugador.
 - Objetos `type=coin`, `type=pickup` o nombre que empiece por `Coin`: monedas recogibles.
+- Capa tile `Pickups` o capa con propiedad `spawn=coin`: cada tile no vacio crea una
+  entidad moneda y la capa no se dibuja como tilemap.
 - Capa `Collision`: colision invisible; cualquier tile no cero bloquea.
 - Capas `Foreground`, `Above` u `Over`: se dibujan por encima del jugador.
 - Resto de capas tile: se dibujan por debajo del jugador.
@@ -140,6 +142,14 @@ TinyMidiLoader. Coloca un MIDI en `assets/audio/music/theme.mid` y una SoundFont
 `assets/audio/soundfonts/chiptune.sf2`, o crea una configuracion `.r2song` para elegir
 MIDI, SoundFont, loop, volumen y canales. `r2d_audio_example` carga una `.r2song` incluida
 y permite activar o parar la musica con `P`.
+
+El mixer separa el audio en grupos `R2D_AUDIO_GROUP_MUSIC`, `R2D_AUDIO_GROUP_SFX`,
+`R2D_AUDIO_GROUP_UI` y `R2D_AUDIO_GROUP_AMBIENT`. Usa
+`R2D_AudioSetGroupVolume()` para volumen instantaneo, `R2D_AudioFadeGroup()` junto a
+`R2D_AudioMixerUpdate(dt)` para fades y `R2D_PlaySfxRandomPitch()` para que efectos muy
+repetidos no suenen siempre identicos. `R2D_MusicSetGroup()` permite asociar una cancion
+al grupo que corresponda. Para cambiar entre canciones, `R2D_MusicCrossfadeStart()` y
+`R2D_MusicCrossfadeUpdate()` hacen un fundido de salida/entrada controlado por el juego.
 
 ## Reproductor MIDI
 
@@ -206,6 +216,26 @@ El loader tambien lee propiedades custom de Tiled en capas y objetos. Soporta pr
 `R2D_TilemapPropertyString/Int/Float/Bool/Color()`. `r2d_collect` usa una propiedad
 `debug_color` en la capa `Collision` para colorear el overlay de depuracion.
 
+Los objetos con `type=trigger`, `type=sensor` o propiedad booleana `trigger=true` pueden
+convertirse a colliders sensor con `R2D_TilemapTriggerColliders()`. El `user_data` del
+collider apunta al `R2D_TilemapObject` original, para leer propiedades como `event`.
+`r2d_collect` incluye un trigger de ejemplo que muestra un mensaje al pisarlo.
+
+Las capas leen tambien `opacity`, `offsetx`, `offsety`, `parallaxx` y `parallaxy`. Los
+dibujados existentes respetan opacidad y offset; para parallax de camara usa
+`R2D_TilemapDrawLayerParallax()`, pasando el viewport de camara y la posicion de pantalla.
+`r2d_collect` ya dibuja sus capas por esa ruta, asi que un mapa puede activar parallax
+directamente desde Tiled.
+
+Los tilesets pueden incluir tiles animados de Tiled, tanto en tilesets JSON incrustados
+como en `.tsx` externos simples. El renderer cambia automaticamente al frame activo usando
+las duraciones del tileset; no hace falta llamar a un update separado para que los tiles
+animados avancen.
+
+Los tilesets de imagen unica respetan `margin` y `spacing`, tambien en JSON incrustado y
+`.tsx` externo. Esto permite usar atlas exportados por Tiled con separacion entre tiles
+sin que el renderer lea pixels de borde equivocados.
+
 ## Colision 2D
 
 La base de colision se apoya en los tipos y helpers de raylib. Retro2D usa `Rectangle`,
@@ -227,6 +257,36 @@ helper para el movimiento del jugador.
 `r2d_collision_example` oculta el cursor del sistema con `HideCursor()` y dibuja un objeto
 propio siguiendo el raton virtual. Ese objeto se desliza contra solidos y muestra triggers,
 sensores de punto y sensores de circulo en tiempo real.
+
+## Grid y pathfinding
+
+`R2D_GridPoint`, `R2D_GridAStar()`, `R2D_GridFloodFill()` y
+`R2D_GridLineOfSight()` cubren pathfinding simple sobre grids rectangulares. Tambien hay
+helpers de distancia Manhattan/euclidea. Para mapas Tiled, los wrappers
+`R2D_TilemapFindPath()`, `R2D_TilemapFloodFill()` y `R2D_TilemapLineOfSight()` usan una
+capa de tiles como bloqueo: cualquier tile no cero se considera solido.
+
+`r2d_collect` usa estos helpers en modo debug: con `F3`, dibuja una ruta A* desde el
+jugador hasta `FountainTrigger` y colorea la linea segun haya vision directa o no.
+
+## Cinematicas y eventos
+
+`R2D_Cinematic` ejecuta secuencias pequenas de pasos manuales. Soporta esperar, mover la
+camara hacia un punto, bloquear input, mostrar dialogo, activar/desactivar bits de flags,
+lanzar SFX y reproducir musica. El juego llama a `R2D_CinematicUpdate()` cada frame y puede
+usar `R2D_CinematicInputLocked()` para congelar control del jugador mientras la secuencia
+esta activa.
+
+`r2d_collect` lo usa en `FountainTrigger`: al pisar el trigger por primera vez lanza un
+SFX, mueve la camara a la fuente, muestra un dialogo y marca un flag para no repetir el
+evento.
+
+## Debug In-Game
+
+`R2D_DebugInfoDefault()` y `R2D_DebugDrawOverlay()` dibujan un panel compacto para
+depuracion en runtime: FPS, frame time, entidades, assets montados, memoria estimada y
+tile bajo cursor. `r2d_collect` lo activa con `F3`, junto al draw de colisiones, objetos,
+triggers, camara y ruta A*.
 
 ## Entidades
 
@@ -291,6 +351,33 @@ existe o faltan claves. El formato incluye `version` para migraciones futuras.
 
 `r2d_save_example` permite modificar progreso, puntuacion, volumen y flags, guardar,
 recargar y restaurar defaults.
+
+## Configuracion de runtime
+
+`R2D_RuntimeConfig` carga opciones de arranque desde un archivo `r2d.ini` junto al
+ejecutable y permite sobrescribirlas con argumentos de linea de comandos. El `.ini` vive
+fuera del paquete de assets para que sea facil editarlo despues de distribuir el juego. El
+formato es texto `clave=valor`:
+
+```ini
+resolution=320x200
+window_scale=4
+fullscreen=false
+crt=true
+master_volume=0.75
+music_volume=1.0
+sfx_volume=1.0
+ui_volume=1.0
+ambient_volume=1.0
+asset_pack=r2d_collect.assets
+```
+
+Flags soportados: `--windowed`, `--fullscreen`, `--scale 3`, `--resolution 400x240`,
+`--width 400`, `--height 240`, `--no-crt`, `--volume 0.8`, `--music-volume 0.6`,
+`--sfx-volume 1.0` y `--asset-pack path/to/game.assets`. CMake copia el `r2d.ini` del repo
+junto a cada ejecutable. `r2d_collect` lo carga desde `GetApplicationDirectory()`, aplica
+esos flags antes de `R2D_Init()` y despues aplica volumen/CRT con
+`R2D_RuntimeConfigApplyAudio()` y `R2D_RuntimeConfigApplyCrt()`.
 
 ## Asset Cache
 
@@ -370,13 +457,17 @@ src/r2d.c               Implementacion del framework
 src/r2d_asset_cache.c   Cache opt-in de texturas y shaders por grupo
 src/r2d_assets.c        Carga desde carpeta o paquete .assets
 src/r2d_camera.c        Camara 2D simple para coordenadas de mundo y pantalla
+src/r2d_cinematic.c     Secuencias de eventos, dialogo, camara, flags y audio
 src/r2d_collision.c     AABB, filtros, triggers y move_and_slide
 src/r2d_crt.c           Postproceso CRT opcional
+src/r2d_debug.c         Overlay de debug in-game y formato de memoria
 src/r2d_entity.c        Pool fijo de entidades ligeras con IDs estables
+src/r2d_grid.c          A*, flood fill, line of sight y distancias de grid
 src/r2d_audio.c         Sintetizador simple para efectos retro
 src/r2d_music.c         Reproduccion MIDI + SoundFont
 src/r2d_palette.c       Paletas pequenas, recolor de imagenes, flashes y fades
 src/r2d_particle.c      Pool fijo de particulas y emisores retro
+src/r2d_runtime.c       Configuracion runtime desde r2d.ini y argumentos
 src/r2d_save.c          Save data, config y rutas de usuario
 src/r2d_sprite.c        Spritesheets en grid y animacion simple
 src/r2d_time.c          Timers, tweens, shake y efectos temporales
