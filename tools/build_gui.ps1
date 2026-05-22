@@ -230,6 +230,11 @@ $buildButton.Text = "Build"
 $buildButton.Width = 92
 $buttonPanel.Controls.Add($buildButton)
 
+$runButton = [System.Windows.Forms.Button]::new()
+$runButton.Text = "Run"
+$runButton.Width = 92
+$buttonPanel.Controls.Add($runButton)
+
 $buildRunButton = [System.Windows.Forms.Button]::new()
 $buildRunButton.Text = "Build && Run"
 $buildRunButton.Width = 100
@@ -296,6 +301,7 @@ function Set-BuildUiEnabled {
         $targetCombo.Enabled = $IsEnabled
         $configureButton.Enabled = $IsEnabled
         $buildButton.Enabled = $IsEnabled
+        $runButton.Enabled = $IsEnabled
         $buildRunButton.Enabled = $IsEnabled
     }
 
@@ -375,6 +381,28 @@ function Get-SelectedTargetCanRun {
     return [bool]$targetCombo.SelectedItem.run
 }
 
+function Start-SelectedTarget {
+    $config = [string]$configCombo.SelectedItem
+    $target = Get-SelectedTargetName
+
+    if (-not (Get-SelectedTargetCanRun)) {
+        Add-Log "Select a runnable target before using Run."
+        return
+    }
+
+    $exePath = Get-ExePath -Config $config -Target $target
+    if (-not (Test-Path $exePath)) {
+        Add-Log ("Executable not found: {0}" -f $exePath)
+        Add-Log "Build this target first."
+        Set-Status "Executable not found" ([System.Drawing.Color]::FromArgb(170, 50, 45))
+        return
+    }
+
+    Add-Log ("> " + $exePath)
+    Set-Status ("Running {0}" -f $target) ([System.Drawing.Color]::FromArgb(30, 90, 160))
+    Start-Process -FilePath $exePath -WorkingDirectory (Split-Path $exePath)
+}
+
 $buildTimer = [System.Windows.Forms.Timer]::new()
 $buildTimer.Interval = 250
 $buildTimer.Add_Tick({
@@ -439,6 +467,14 @@ $buildButton.Add_Click({
     }
 })
 
+$runButton.Add_Click({
+    try {
+        Start-SelectedTarget
+    } catch {
+        Show-LauncherError -Title "Run failed to start" -Exception $_.Exception
+    }
+})
+
 $buildRunButton.Add_Click({
     try {
         $config = [string]$configCombo.SelectedItem
@@ -450,14 +486,7 @@ $buildRunButton.Add_Click({
         }
 
         $runAfterBuild = {
-            $exePath = Get-ExePath -Config $config -Target $target
-            if (-not (Test-Path $exePath)) {
-                Add-Log ("Executable not found: {0}" -f $exePath)
-                return
-            }
-
-            Add-Log ("> " + $exePath)
-            Start-Process -FilePath $exePath -WorkingDirectory (Split-Path $exePath)
+            Start-SelectedTarget
         }.GetNewClosure()
 
         Start-BuildCommand -Arguments ('"{0}" "{1}"' -f $config.ToLowerInvariant(), $target) -OnSuccess $runAfterBuild
