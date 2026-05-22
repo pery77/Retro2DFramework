@@ -100,7 +100,7 @@ static const char *PALETTE_NAMES[PALETTE_VARIANTS] = {
 
 static Image PaletteExample_LoadSpriteImage(void)
 {
-    Image atlas = LoadImage(R2D_AssetPath("textures/DawnLike/Items/Food.png"));
+    Image atlas = R2D_LoadImage("textures/DawnLike/Items/Food.png");
     Image sprite;
 
     if (atlas.data == 0) {

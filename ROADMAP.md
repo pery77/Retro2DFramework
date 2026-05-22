@@ -218,59 +218,59 @@ cualquier chat o sesion futura pueda entender el proyecto de un vistazo.
   - [x] Esperar, mover camara, bloquear input, mostrar dialogo.
   - [x] Activar flags y lanzar SFX/musica.
 
-- [ ] Animaciones por nombre.
-  - Clips como `idle`, `walk`, `attack`, `hurt`.
-  - Registro manual y carga desde archivo `.r2anim`.
+- [x] Animaciones por nombre.
+  - [x] Clips como `idle`, `walk`, `attack`, `hurt`.
+  - [x] Registro manual y carga desde archivo `.r2anim`.
 
-- [ ] Atlas y metadata de sprites.
-  - Frames nombrados.
-  - Pivots.
-  - Hitboxes y hurtboxes.
-  - Posible import desde herramientas externas.
+- [x] Atlas y metadata de sprites.
+  - [x] Frames nombrados.
+  - [x] Pivots.
+  - [x] Hitboxes y hurtboxes.
+  - [x] Posible import desde herramientas externas.
 
-- [ ] Packaging de juego final.
-  - Empaquetar ejecutable, assets, config, icono y licencias.
-  - Perfil Debug/Release para distribucion.
-  - Comando o herramienta tipo `r2d_pack_game`.
+- [x] Packaging de juego final.
+  - [x] Empaquetar ejecutable, assets, config, icono opcional y licencias.
+  - [x] Perfil Debug/Release para distribucion.
+  - [x] Comando o herramienta tipo `r2d_pack_game`.
 
-- [ ] Localización.
-  - Sistema para localizar fácil juegos.
-  - Xml o algo similar en una carpeta junto al .exe, para que la comunidad le sea facil hacer traducciones.
+- [x] Localización.
+  - [x] Sistema para localizar fácil juegos.
+  - [x] Archivos `.r2loc` en una carpeta junto al .exe, para que la comunidad pueda hacer traducciones.
 
 ### Prioridad baja
 
-- [ ] Hot reload general.
-  - Tilemaps.
-  - Texturas.
-  - SFX.
-  - Canciones `.r2song`.
-  - Paletas y configs.
+- [x] Hot reload general.
+  - [x] Tilemaps.
+  - [x] Texturas.
+  - [x] SFX.
+  - [x] Canciones `.r2song`.
+  - [x] Paletas y configs.
 
-- [ ] Sistema de log.
-  - `R2D_LogInfo`, `R2D_LogWarn`, `R2D_LogError`.
-  - Niveles configurables.
-  - Log a consola y archivo.
-  - Ultimo error por subsistema.
+- [x] Sistema de log.
+  - [x] `R2D_LogInfo`, `R2D_LogWarn`, `R2D_LogError`.
+  - [x] Niveles configurables.
+  - [x] Log a consola y archivo.
+  - [x] Ultimo error por subsistema.
 
-- [ ] Mas ejemplos de referencia.
-  - Template de juego limpio.
+- [x] Mas ejemplos de referencia.
+  - [x] Template de juego limpio.
   - [x] Ejemplo input.
   - [x] Ejemplo UI/dialogo.
   - [x] Ejemplo audio.
   - [x] Ejemplo estados.
   - [x] Ejemplo colisiones.
   - [x] Ejemplo timers/tweens.
-  - Ejemplo platformer.
-  - Ejemplo top-down.
+  - [x] Ejemplo platformer.
+  - [x] Ejemplo top-down.
   - [x] Ejemplo particulas.
   - [x] Ejemplo save data.
 
-- [ ] Documentacion de patrones.
-  - Como crear un top-down.
-  - Como crear pickups.
-  - Como crear menus.
-  - Como usar Tiled con convenciones del framework.
-  - Como empaquetar un juego.
+- [x] Documentacion de patrones.
+  - [x] Como crear un top-down.
+  - [x] Como crear pickups.
+  - [x] Como crear menus.
+  - [x] Como usar Tiled con convenciones del framework.
+  - [x] Como empaquetar un juego.
 
 ## Orden sugerido de implementacion
 
@@ -415,3 +415,25 @@ cualquier chat o sesion futura pueda entender el proyecto de un vistazo.
   para esperar, mover camara, bloquear input, mostrar dialogo, activar flags, lanzar SFX
   y reproducir musica. `r2d_collect` usa `FountainTrigger` para probar una secuencia con
   sonido, camara, dialogo y flag de evento.
+- 2026-05-22: Animaciones por nombre implementadas con `R2D_AnimSet`, registro manual de
+  clips y carga de archivos `.r2anim` en formato `nombre=primer_frame,cantidad,fps,loop`.
+  `r2d_collect` carga `collect_player.r2anim` para `idle`, `walk`, `attack`, `hurt` y
+  `coin.r2anim` para la moneda.
+- 2026-05-22: Atlas y metadata de sprites implementados con `R2D_SpriteAtlas`: carga
+  `.r2atlas` con textura, frames nombrados, pivots, hitboxes y hurtboxes. `r2d_collect`
+  carga `collect_player.r2atlas`, dibuja el jugador por nombre de frame y muestra
+  hitbox/hurtbox en el overlay debug.
+- 2026-05-22: Packaging final de juegos implementado con targets CMake
+  `r2d_pack_game_<target>` y agregado `r2d_pack_game`. Generan carpetas en
+  `build/dist/<config>/<target>/` con ejecutable, `.assets` o carpeta `assets`, `r2d.ini`
+  editable fuera del paquete, atribuciones/licencias e icono opcional `assets/icon.ico`.
+- 2026-05-22: Localizacion implementada con `R2D_Localization` y archivos `.r2loc`
+  `clave=texto`. CMake copia la carpeta `locale` junto al ejecutable y las carpetas
+  finales de `r2d_pack_game` la dejan fuera del `.assets`. `r2d_ui_example` alterna
+  `en/es` con `L` como prueba viva.
+- 2026-05-22: Prioridad baja cerrada. Se anade `R2D_FileWatch` como base general de
+  hot reload para archivos editables, `R2D_Log*` con niveles, consola, archivo y ultimo
+  error por subsistema, y los ejemplos `r2d_template_game`, `r2d_platformer_example` y
+  `r2d_topdown_example`.
+- 2026-05-22: README documenta patrones practicos para top-down, pickups, menus,
+  convenciones de Tiled y empaquetado final.

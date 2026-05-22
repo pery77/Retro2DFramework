@@ -31,9 +31,13 @@ En Windows, usa `build.bat` como punto unico de entrada:
 .\build.bat debug r2d_palette_example
 .\build.bat debug r2d_time_example
 .\build.bat debug r2d_save_example
+.\build.bat debug r2d_template_game
+.\build.bat debug r2d_platformer_example
+.\build.bat debug r2d_topdown_example
 .\build.bat debug r2d_input_example
 .\build.bat debug r2d_ui_example
 .\build.bat debug all
+.\build.bat release r2d_pack_game_r2d_collect
 ```
 
 El primer argumento es la configuracion (`debug` o `release`). El segundo argumento es
@@ -41,7 +45,8 @@ opcional: usa `all` por defecto o el nombre de un target CMake. Los ejemplos pri
 son `r2d_hello_index`, `r2d_input_example`, `r2d_ui_example`,
 `r2d_audio_example`, `r2d_state_example`, `r2d_collision_example`,
 `r2d_particle_example`, `r2d_palette_example`, `r2d_time_example`,
-`r2d_save_example` y `r2d_collect`.
+`r2d_save_example`, `r2d_template_game`, `r2d_platformer_example`,
+`r2d_topdown_example` y `r2d_collect`.
 Las herramientas son `r2d_sfx_editor` y `r2d_midi_player`. Para solo regenerar el proyecto:
 
 ```powershell
@@ -49,6 +54,14 @@ Las herramientas son `r2d_sfx_editor` y `r2d_midi_player`. Para solo regenerar e
 ```
 
 La build `Release` enlaza las demos como aplicaciones Windows, asi que no abren consola.
+Para crear una carpeta final distribuible de una demo, compila el target
+`r2d_pack_game_<target>` en `Release`; por ejemplo:
+
+```powershell
+.\build.bat release r2d_pack_game_r2d_collect
+```
+
+La salida queda en `build/dist/Release/r2d_collect/`.
 
 Tambien puedes llamar a CMake directamente:
 
@@ -98,6 +111,9 @@ Cada sistema tiene su propio ejemplo para que el codigo sea documentacion ejecut
 .\build\Debug\r2d_palette_example.exe
 .\build\Debug\r2d_time_example.exe
 .\build\Debug\r2d_save_example.exe
+.\build\Debug\r2d_template_game.exe
+.\build\Debug\r2d_platformer_example.exe
+.\build\Debug\r2d_topdown_example.exe
 .\build\Debug\r2d_collect.exe
 ```
 
@@ -112,6 +128,9 @@ Con Visual Studio/MSVC, las builds `Release` equivalentes quedan en `.\build\Rel
 - `r2d_palette_example`: paletas, recolor de sprite, flash y fade por color.
 - `r2d_time_example`: timers, tweens, shake, hitstop, slow motion, flash y fade.
 - `r2d_save_example`: configuracion, progreso y high score persistidos.
+- `r2d_template_game`: esqueleto limpio con input, estados, update/draw y shutdown.
+- `r2d_platformer_example`: gravedad, salto, suelo y aterrizaje en plataforma.
+- `r2d_topdown_example`: movimiento top-down, camara y `R2D_MoveAndSlide`.
 - `r2d_collect`: mini demo jugable con tilemap, entidades, colision, camara, SFX y musica.
 
 ## Demo collect
@@ -300,6 +319,42 @@ Si una entidad no define callback de update, `R2D_EntityWorldUpdate()` aplica su
 a la posicion y mantiene `bounds.x/y` sincronizados. `r2d_collect` usa este sistema para
 las monedas recogibles.
 
+## Animaciones por nombre
+
+`R2D_AnimSet` permite registrar clips con nombre y reproducirlos sin guardar `R2D_Anim`
+sueltas en cada juego. Se puede llenar por codigo con `R2D_AnimSetAdd()` o cargar desde
+un archivo `.r2anim`:
+
+```ini
+idle=0,1,1,true
+walk=0,4,8,true
+attack=4,2,10,false
+hurt=0,1,1,false
+```
+
+El formato es `nombre=primer_frame,cantidad,fps,loop`. Luego se reproduce con
+`R2D_AnimPlayNamed()`. `r2d_collect` carga `assets/animations/collect_player.r2anim` y
+`assets/animations/coin.r2anim`, con fallback manual si faltan.
+
+## Atlas y metadata de sprites
+
+`R2D_SpriteAtlas` carga un `.r2atlas` editable para asociar nombres, pivots, hitboxes y
+hurtboxes a frames de una textura. El formato actual cubre spritesheets en grid y esta
+pensado para que un importador externo pueda generar el mismo texto:
+
+```ini
+texture=textures/DawnLike/Commissions/Mage.png
+frame_width=16
+frame_height=16
+frame=south_0,0,8,8,3,2,10,13,2,1,12,14
+```
+
+La linea `frame` usa `nombre,index,pivot_x,pivot_y,hit_x,hit_y,hit_w,hit_h,hurt_x,hurt_y,hurt_w,hurt_h`.
+Las cajas son opcionales si el frame solo necesita nombre y pivot. `R2D_DrawAtlasFrame()`
+dibuja por nombre, y `R2D_SpriteAtlasHitbox()` / `R2D_SpriteAtlasHurtbox()` devuelven las
+cajas ya colocadas en mundo o pantalla. `r2d_collect` usa
+`assets/atlases/collect_player.r2atlas` para dibujar el jugador y mostrar cajas en `F3`.
+
 ## Particulas
 
 `R2D_ParticleSystem` es un pool fijo de particulas ligeras. Cada particula guarda
@@ -379,6 +434,27 @@ junto a cada ejecutable. `r2d_collect` lo carga desde `GetApplicationDirectory()
 esos flags antes de `R2D_Init()` y despues aplica volumen/CRT con
 `R2D_RuntimeConfigApplyAudio()` y `R2D_RuntimeConfigApplyCrt()`.
 
+`asset_pack` es opcional en el `.ini`: si no se define, el framework intenta montar
+automaticamente un `.assets` con el mismo nombre que el ejecutable.
+
+## Localizacion
+
+`R2D_Localization` carga diccionarios editables `clave=texto` desde la carpeta `locale`
+junto al ejecutable. Si no encuentra un archivo externo, intenta cargar la misma ruta como
+asset, pero el flujo recomendado para juegos distribuidos es dejar `locale/*.r2loc` fuera
+del `.assets` para que se pueda modificar sin recompilar ni reempaquetar.
+
+```ini
+ui.title=UI example
+ui.restart=Restart text
+ui.body=Nine-slice windows and typewriter text are useful for RPG dialogs.
+```
+
+Se carga con `R2D_LocalizationLoad(&locale, "en")` y se consulta con
+`R2D_LocalizationGet(&locale, "ui.title", "UI example")`. El ejemplo `r2d_ui_example`
+copia `locale/en.r2loc` y `locale/es.r2loc` junto al exe; pulsa `L` para alternar idioma.
+Las secuencias `\n`, `\t` y `\\` se expanden al leer el archivo.
+
 ## Asset Cache
 
 `R2D_AssetCache` es una cache opt-in para recursos pesados. Los loaders manuales
@@ -391,9 +467,76 @@ repite. `R2D_AssetCacheReleaseGroup()` libera un grupo concreto, y
 `r2d_ui_example` usa la cache para la textura de UI, como ejemplo pequeno de escena que
 carga una textura una vez y la libera al cerrar.
 
-Quedan fuera a proposito, de momento: mapas infinitos, chunks, base64, compresion,
-isometrico/hexagonal, propiedades custom, tiles animados y multiples tilesets complejos.
-La idea es usar Tiled como editor potente sin convertir el framework en un motor enorme.
+## Hot reload
+
+`R2D_FileWatch` detecta cambios en archivos de desarrollo usando la fecha de modificacion.
+Sirve como base general para recargar tilemaps, texturas, presets `.r2sfx`, canciones
+`.r2song`, paletas, configs o cualquier archivo propio del juego:
+
+```c
+R2D_FileWatch watch;
+R2D_FileWatchInit(&watch);
+R2D_FileWatchSet(&watch, "tilemaps/collect.json");
+
+if (R2D_FileWatchCheck(&watch)) {
+    R2D_TilemapUnload(&map);
+    R2D_TilemapLoadTiledJson(&map, "tilemaps/collect.json");
+}
+```
+
+En `Debug`, `R2D_FileWatchSet()` resuelve con `R2D_AssetPath()`, asi que apunta a la
+carpeta `assets` del proyecto. En distribuciones empaquetadas los assets pueden vivir
+dentro de `.assets`, donde no hay un archivo individual que vigilar; para mods y configs
+editables conviene dejarlos junto al ejecutable, igual que `r2d.ini` y `locale`.
+
+## Log
+
+El log del framework expone `R2D_LogInfo()`, `R2D_LogWarn()` y `R2D_LogError()` por
+subsistema. `R2D_LogSetLevel()` filtra por nivel, `R2D_LogOpenFile()` duplica la salida a
+un archivo, y `R2D_LogLastError()` conserva el ultimo error registrado por subsistema:
+
+```c
+R2D_LogSetLevel(R2D_LOG_LEVEL_INFO);
+R2D_LogOpenFile(R2D_UserDataPath("MyGame", "game.log"));
+R2D_LogInfo(R2D_LOG_SUBSYSTEM_GAME, "loaded room %d", room_index);
+R2D_LogError(R2D_LOG_SUBSYSTEM_ASSETS, "missing texture: %s", path);
+```
+
+La salida de consola usa `TraceLog()` de raylib para integrarse con el flujo existente, y
+el archivo usa texto con fecha, nivel y subsistema.
+
+## Patrones de juego
+
+Para un top-down, define acciones `left/right/up/down`, convierte dos ejes en un vector
+de movimiento, mueve un AABB con `R2D_MoveAndSlide()` o `R2D_TilemapMoveAndSlide()`, y
+haz que la camara siga al centro del jugador con `R2D_CameraFollow()`. Usa una capa
+`Collision` en Tiled para paredes invisibles y capas `Foreground`/`Above` para dibujar
+por encima del jugador.
+
+Para pickups, representa cada moneda o item como una entidad. Al cargar un mapa, crea
+entidades desde objetos `type=coin` o desde una capa `Pickups`; en update consulta la
+caja del jugador contra las cajas de los pickups, reproduce un SFX y destruye la entidad.
+`r2d_collect` es el patron completo: objetos de Tiled, fallback si faltan monedas, SFX,
+contador y condicion `ALL CLEAR`.
+
+Para menus, usa `R2D_InputMap` con acciones de navegacion, `R2D_UiNav` para foco y submit,
+y dibuja cada opcion con `R2D_DrawUiMenuItem()`, `R2D_DrawUiToggle()` o
+`R2D_DrawUiSelector()`. Para dialogos o cajas de RPG, combina `R2D_NineSlice`,
+`R2D_Typewriter` y `R2D_LocalizationGet()`.
+
+Para Tiled, mantén nombres convencionales: `PlayerStart`, `Collision`, `Pickups`,
+`Foreground`, `Above` y objetos `type=trigger` para eventos. Las propiedades custom son
+texto/int/float/bool/color y se leen con `R2D_Tilemap*Property*()`. Los tiles animados,
+offset, opacidad, parallax, multiples tilesets y triggers ya estan cubiertos por el loader.
+
+Para empaquetar, compila en `Release` y usa `r2d_pack_game_<target>`. El resultado deja el
+ejecutable, `.assets`, `r2d.ini`, `locale` y atribuciones en `build/dist/Release/<target>/`.
+Los archivos que quieras editar despues de distribuir el juego deben vivir fuera de
+`.assets`.
+
+Quedan fuera a proposito, de momento: mapas infinitos, chunks, base64, compresion e
+isometrico/hexagonal. La idea es usar Tiled como editor potente sin convertir el
+framework en un motor enorme.
 
 ## Editor de efectos
 
@@ -443,14 +586,24 @@ El empaquetado se controla con `R2D_PACKAGE_ASSETS` y esta activado por defecto 
 ejemplos. Las herramientas de desarrollo siguen copiando la carpeta `assets`, porque
 necesitan listar directorios y guardar archivos editables.
 
+Los targets `r2d_pack_game_<target>` crean una carpeta final en
+`build/dist/<config>/<target>/` con el ejecutable, el paquete `.assets` si existe, `r2d.ini`
+editable junto al exe, carpeta `locale` editable y `ATTRIBUTION.md`. Si el proyecto
+define `LICENSE`, `LICENSE.md`, `LICENSE.txt` o `assets/icon.ico`, tambien se copian. El
+target agregado `r2d_pack_game` empaqueta todas las demos registradas.
+
 ## Estructura
 
 ```text
 assets                  Recursos que se copian junto al ejecutable
+build/dist              Carpetas finales generadas por r2d_pack_game
+locale                  Textos localizados .r2loc editables junto al ejecutable
 *.assets                Paquete de assets por ejecutable en Release
 assets/audio/sfx        Presets de sintetizador .r2sfx
 assets/audio/music      Canciones MIDI
 assets/audio/soundfonts Bancos SoundFont .sf2
+assets/animations       Clips de animacion .r2anim
+assets/atlases          Metadata de sprites .r2atlas
 external/tinysoundfont  TinySoundFont y TinyMidiLoader
 include/r2d/r2d.h       API publica
 src/r2d.c               Implementacion del framework
@@ -463,6 +616,9 @@ src/r2d_crt.c           Postproceso CRT opcional
 src/r2d_debug.c         Overlay de debug in-game y formato de memoria
 src/r2d_entity.c        Pool fijo de entidades ligeras con IDs estables
 src/r2d_grid.c          A*, flood fill, line of sight y distancias de grid
+src/r2d_hot_reload.c    Watchers de archivo para hot reload en desarrollo
+src/r2d_locale.c        Diccionarios de localizacion .r2loc
+src/r2d_log.c           Log por nivel, archivo y ultimo error por subsistema
 src/r2d_audio.c         Sintetizador simple para efectos retro
 src/r2d_music.c         Reproduccion MIDI + SoundFont
 src/r2d_palette.c       Paletas pequenas, recolor de imagenes, flashes y fades
@@ -482,6 +638,9 @@ examples/particles      Ejemplo visual de particulas y presets
 examples/palette        Ejemplo visual de paletas y recolor
 examples/time           Ejemplo visual de timers, tweens y efectos temporales
 examples/save           Ejemplo visual de save data y configuracion
+examples/template       Template minimo de juego
+examples/platformer     Ejemplo de patron platformer
+examples/topdown        Ejemplo de patron top-down
 examples/collect        Mini demo jugable de recoger monedas
 tools/sfx_editor        Editor sencillo de presets de sonido
 tools/midi_player       Reproductor para probar MIDIs con SoundFonts

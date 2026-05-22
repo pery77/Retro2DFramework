@@ -1,0 +1,4 @@
+idle=0,1,1,true
+walk=0,4,8,true
+attack=4,2,10,false
+hurt=0,1,1,false

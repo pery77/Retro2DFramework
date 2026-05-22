@@ -56,9 +56,34 @@
       "run": true
     },
     {
+      "name": "r2d_template_game",
+      "label": "Template game",
+      "run": true
+    },
+    {
+      "name": "r2d_platformer_example",
+      "label": "Platformer example",
+      "run": true
+    },
+    {
+      "name": "r2d_topdown_example",
+      "label": "Top-down example",
+      "run": true
+    },
+    {
       "name": "r2d_collect",
       "label": "Collect demo",
       "run": true
+    },
+    {
+      "name": "r2d_pack_game_r2d_collect",
+      "label": "Package collect demo",
+      "run": false
+    },
+    {
+      "name": "r2d_pack_game",
+      "label": "Package all demos",
+      "run": false
     },
     {
       "name": "r2d_sfx_editor",

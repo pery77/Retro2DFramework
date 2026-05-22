@@ -12,6 +12,10 @@
 #define R2D_INPUT_MAX_ACTIONS 32
 #define R2D_INPUT_MAX_BINDINGS 8
 #define R2D_INPUT_ACTION_NAME_SIZE 32
+#define R2D_ANIM_CLIP_NAME_SIZE 32
+#define R2D_ANIM_SET_MAX_CLIPS 32
+#define R2D_SPRITE_ATLAS_MAX_FRAMES 128
+#define R2D_SPRITE_FRAME_NAME_SIZE 32
 #define R2D_STATE_STACK_MAX 8
 #define R2D_COLLISION_MAX_HITS 8
 #define R2D_ENTITY_MAX 256
@@ -24,7 +28,14 @@
 #define R2D_ASSET_CACHE_MAX_TEXTURES 128
 #define R2D_ASSET_CACHE_MAX_SHADERS 32
 #define R2D_ASSET_CACHE_PATH_SIZE 256
+#define R2D_HOT_RELOAD_PATH_SIZE 512
 #define R2D_RUNTIME_PATH_SIZE 512
+#define R2D_LOG_MESSAGE_SIZE 512
+#define R2D_LOG_LAST_ERROR_SIZE 256
+#define R2D_LOCALE_MAX_ENTRIES 128
+#define R2D_LOCALE_KEY_SIZE 64
+#define R2D_LOCALE_TEXT_SIZE 256
+#define R2D_LOCALE_LANGUAGE_SIZE 16
 #define R2D_SAVE_PATH_SIZE 512
 #define R2D_TILEMAP_MAX_PROPERTIES 16
 #define R2D_TILEMAP_PROPERTY_NAME_SIZE 64
@@ -55,6 +66,27 @@ typedef struct R2D_RuntimeConfig {
     float ui_volume;
     float ambient_volume;
 } R2D_RuntimeConfig;
+
+typedef enum R2D_LogLevel {
+    R2D_LOG_LEVEL_DEBUG = 0,
+    R2D_LOG_LEVEL_INFO,
+    R2D_LOG_LEVEL_WARN,
+    R2D_LOG_LEVEL_ERROR,
+    R2D_LOG_LEVEL_NONE
+} R2D_LogLevel;
+
+typedef enum R2D_LogSubsystem {
+    R2D_LOG_SUBSYSTEM_CORE = 0,
+    R2D_LOG_SUBSYSTEM_ASSETS,
+    R2D_LOG_SUBSYSTEM_AUDIO,
+    R2D_LOG_SUBSYSTEM_INPUT,
+    R2D_LOG_SUBSYSTEM_RENDER,
+    R2D_LOG_SUBSYSTEM_SAVE,
+    R2D_LOG_SUBSYSTEM_TILEMAP,
+    R2D_LOG_SUBSYSTEM_UI,
+    R2D_LOG_SUBSYSTEM_GAME,
+    R2D_LOG_SUBSYSTEM_COUNT
+} R2D_LogSubsystem;
 
 typedef struct R2D_App {
     void (*init)(void *user_data);
@@ -151,6 +183,22 @@ typedef struct R2D_SpriteSheet {
     int rows;
 } R2D_SpriteSheet;
 
+typedef struct R2D_SpriteAtlasFrame {
+    char name[R2D_SPRITE_FRAME_NAME_SIZE];
+    Rectangle source;
+    Vector2 pivot;
+    Rectangle hitbox;
+    Rectangle hurtbox;
+    bool has_hitbox;
+    bool has_hurtbox;
+} R2D_SpriteAtlasFrame;
+
+typedef struct R2D_SpriteAtlas {
+    Texture2D texture;
+    R2D_SpriteAtlasFrame frames[R2D_SPRITE_ATLAS_MAX_FRAMES];
+    int frame_count;
+} R2D_SpriteAtlas;
+
 typedef struct R2D_Anim {
     int first_frame;
     int frame_count;
@@ -164,6 +212,16 @@ typedef struct R2D_AnimPlayer {
     int frame;
     bool playing;
 } R2D_AnimPlayer;
+
+typedef struct R2D_AnimClip {
+    char name[R2D_ANIM_CLIP_NAME_SIZE];
+    R2D_Anim anim;
+} R2D_AnimClip;
+
+typedef struct R2D_AnimSet {
+    R2D_AnimClip clips[R2D_ANIM_SET_MAX_CLIPS];
+    int count;
+} R2D_AnimSet;
 
 typedef struct R2D_Camera {
     Vector2 position;
@@ -277,6 +335,17 @@ typedef struct R2D_Typewriter {
     int text_length;
     bool done;
 } R2D_Typewriter;
+
+typedef struct R2D_LocalizedText {
+    char key[R2D_LOCALE_KEY_SIZE];
+    char text[R2D_LOCALE_TEXT_SIZE];
+} R2D_LocalizedText;
+
+typedef struct R2D_Localization {
+    char language[R2D_LOCALE_LANGUAGE_SIZE];
+    R2D_LocalizedText entries[R2D_LOCALE_MAX_ENTRIES];
+    int count;
+} R2D_Localization;
 
 typedef struct R2D_Collider {
     Rectangle rect;
@@ -516,6 +585,13 @@ typedef struct R2D_AssetCache {
     int shader_count;
 } R2D_AssetCache;
 
+typedef struct R2D_FileWatch {
+    char path[R2D_HOT_RELOAD_PATH_SIZE];
+    long long last_write_time;
+    bool exists;
+    bool initialized;
+} R2D_FileWatch;
+
 typedef enum R2D_TilemapPropertyType {
     R2D_TILEMAP_PROPERTY_STRING = 0,
     R2D_TILEMAP_PROPERTY_INT,
@@ -636,6 +712,17 @@ typedef struct R2D_Context {
 } R2D_Context;
 
 R2D_Config R2D_DefaultConfig(void);
+void R2D_LogSetLevel(R2D_LogLevel level);
+R2D_LogLevel R2D_LogLevelCurrent(void);
+bool R2D_LogOpenFile(const char *path);
+void R2D_LogCloseFile(void);
+void R2D_LogMessage(R2D_LogLevel level, R2D_LogSubsystem subsystem, const char *format, ...);
+void R2D_LogInfo(R2D_LogSubsystem subsystem, const char *format, ...);
+void R2D_LogWarn(R2D_LogSubsystem subsystem, const char *format, ...);
+void R2D_LogError(R2D_LogSubsystem subsystem, const char *format, ...);
+const char *R2D_LogLastError(R2D_LogSubsystem subsystem);
+const char *R2D_LogLevelName(R2D_LogLevel level);
+const char *R2D_LogSubsystemName(R2D_LogSubsystem subsystem);
 R2D_RuntimeConfig R2D_RuntimeConfigDefault(void);
 bool R2D_RuntimeConfigLoad(R2D_RuntimeConfig *runtime, const char *path);
 void R2D_RuntimeConfigApplyArgs(R2D_RuntimeConfig *runtime, int argc, char **argv);
@@ -723,6 +810,7 @@ bool R2D_LoadAssetData(const char *path, unsigned char **data, int *size);
 void R2D_UnloadAssetData(unsigned char *data);
 char *R2D_LoadAssetText(const char *path);
 void R2D_UnloadAssetText(char *text);
+Image R2D_LoadImage(const char *path);
 Texture2D R2D_LoadTexture(const char *path);
 Shader R2D_LoadFragmentShader(const char *path);
 void R2D_AssetCacheInit(R2D_AssetCache *cache);
@@ -732,6 +820,11 @@ Texture2D R2D_AssetCacheLoadTexture(R2D_AssetCache *cache, const char *path, int
 Shader R2D_AssetCacheLoadFragmentShader(R2D_AssetCache *cache, const char *path, int group);
 int R2D_AssetCacheTextureCount(const R2D_AssetCache *cache);
 int R2D_AssetCacheShaderCount(const R2D_AssetCache *cache);
+void R2D_FileWatchInit(R2D_FileWatch *watch);
+bool R2D_FileWatchSet(R2D_FileWatch *watch, const char *path);
+bool R2D_FileWatchCheck(R2D_FileWatch *watch);
+bool R2D_FileWatchExists(const R2D_FileWatch *watch);
+const char *R2D_FileWatchPath(const R2D_FileWatch *watch);
 
 int R2D_VirtualWidth(const R2D_Context *ctx);
 int R2D_VirtualHeight(const R2D_Context *ctx);
@@ -809,6 +902,13 @@ void R2D_TypewriterUpdate(R2D_Typewriter *typewriter, float dt);
 void R2D_TypewriterComplete(R2D_Typewriter *typewriter);
 bool R2D_TypewriterDone(const R2D_Typewriter *typewriter);
 void R2D_DrawTypewriter(R2D_Typewriter typewriter, Rectangle bounds, R2D_TextStyle style);
+void R2D_LocalizationInit(R2D_Localization *localization);
+bool R2D_LocalizationLoad(R2D_Localization *localization, const char *language);
+bool R2D_LocalizationLoadFile(R2D_Localization *localization, const char *path, const char *language);
+bool R2D_LocalizationSet(R2D_Localization *localization, const char *key, const char *text);
+bool R2D_LocalizationHas(const R2D_Localization *localization, const char *key);
+const char *R2D_LocalizationGet(const R2D_Localization *localization, const char *key, const char *fallback);
+void R2D_LocalizationClear(R2D_Localization *localization);
 R2D_Collider R2D_ColliderRect(Rectangle rect, unsigned int layer, unsigned int mask, bool trigger, void *user_data);
 bool R2D_AabbIntersects(Rectangle a, Rectangle b);
 bool R2D_CollisionLayersMatch(unsigned int layer, unsigned int mask, unsigned int other_layer, unsigned int other_mask);
@@ -906,13 +1006,26 @@ void R2D_UnloadSpriteSheet(R2D_SpriteSheet *sheet);
 bool R2D_SpriteSheetIsReady(const R2D_SpriteSheet *sheet);
 int R2D_SpriteSheetFrameCount(const R2D_SpriteSheet *sheet);
 Rectangle R2D_SpriteSheetFrame(const R2D_SpriteSheet *sheet, int frame);
+bool R2D_LoadSpriteAtlas(R2D_SpriteAtlas *atlas, const char *path);
+void R2D_UnloadSpriteAtlas(R2D_SpriteAtlas *atlas);
+const R2D_SpriteAtlasFrame *R2D_SpriteAtlasFind(const R2D_SpriteAtlas *atlas, const char *name);
+Rectangle R2D_SpriteAtlasHitbox(const R2D_SpriteAtlasFrame *frame, Vector2 position);
+Rectangle R2D_SpriteAtlasHurtbox(const R2D_SpriteAtlasFrame *frame, Vector2 position);
 R2D_Anim R2D_AnimFrames(int first_frame, int frame_count, float fps, bool loop);
+void R2D_AnimSetInit(R2D_AnimSet *set);
+bool R2D_AnimSetAdd(R2D_AnimSet *set, const char *name, R2D_Anim anim);
+const R2D_Anim *R2D_AnimSetFind(const R2D_AnimSet *set, const char *name);
+R2D_Anim R2D_AnimSetGet(const R2D_AnimSet *set, const char *name, R2D_Anim fallback);
+bool R2D_AnimSetLoad(R2D_AnimSet *set, const char *path);
 void R2D_AnimPlay(R2D_AnimPlayer *player, R2D_Anim anim);
+bool R2D_AnimPlayNamed(R2D_AnimPlayer *player, const R2D_AnimSet *set, const char *name, R2D_Anim fallback);
 void R2D_AnimStop(R2D_AnimPlayer *player);
 void R2D_AnimUpdate(R2D_AnimPlayer *player, float dt);
 int R2D_AnimFrame(const R2D_AnimPlayer *player);
 void R2D_DrawSprite(Texture2D texture, Rectangle source, Vector2 position, bool flip_x);
 void R2D_DrawSpriteEx(Texture2D texture, Rectangle source, Vector2 position, Vector2 origin, float rotation, float scale, bool flip_x, Color tint);
+void R2D_DrawAtlasFrame(const R2D_SpriteAtlas *atlas, const char *name, Vector2 position, bool flip_x);
+void R2D_DrawAtlasFrameEx(const R2D_SpriteAtlas *atlas, const R2D_SpriteAtlasFrame *frame, Vector2 position, float rotation, float scale, bool flip_x, Color tint);
 void R2D_DrawSheetFrame(const R2D_SpriteSheet *sheet, int frame, Vector2 position, bool flip_x);
 void R2D_DrawAnim(const R2D_SpriteSheet *sheet, const R2D_AnimPlayer *player, Vector2 position, bool flip_x);
 bool R2D_TilemapLoadTiledJson(R2D_Tilemap *tilemap, const char *path);

@@ -27,8 +27,9 @@ typedef struct CollectDemo {
     R2D_Tilemap tilemap;
     R2D_SpriteSheet player_sheet;
     R2D_SpriteSheet coin_sheet;
-    R2D_Anim idle_anim;
-    R2D_Anim walk_anim;
+    R2D_SpriteAtlas player_atlas;
+    R2D_AnimSet player_anims;
+    R2D_AnimSet coin_anims;
     R2D_AnimPlayer player_anim;
     R2D_AnimPlayer coin_anim;
     R2D_InputMap input;
@@ -45,6 +46,7 @@ typedef struct CollectDemo {
     Color collision_debug_color;
     PlayerDirection player_direction;
     char trigger_text[64];
+    char player_anim_name[R2D_ANIM_CLIP_NAME_SIZE];
     float trigger_timer;
     bool debug_draw;
     bool music_loaded;
@@ -71,6 +73,22 @@ static int Collect_PlayerDirectionRow(PlayerDirection direction)
         return 3;
     default:
         return 0;
+    }
+}
+
+static const char *Collect_PlayerDirectionName(PlayerDirection direction)
+{
+    switch (direction) {
+    case PLAYER_SOUTH:
+        return "south";
+    case PLAYER_WEST:
+        return "west";
+    case PLAYER_EAST:
+        return "east";
+    case PLAYER_NORTH:
+        return "north";
+    default:
+        return "south";
     }
 }
 
@@ -177,6 +195,22 @@ static void Collect_SpawnCoin(CollectDemo *demo, Rectangle rect)
     coin->bounds = rect;
     coin->layer = 1u;
     demo->coin_count++;
+}
+
+static void Collect_PlayPlayerAnim(CollectDemo *demo, const char *name)
+{
+    R2D_Anim fallback;
+
+    if (name == 0 || strcmp(demo->player_anim_name, name) == 0) {
+        return;
+    }
+
+    fallback = strcmp(name, "walk") == 0 ?
+        R2D_AnimFrames(0, 4, 8.0f, true) :
+        R2D_AnimFrames(0, 1, 1.0f, true);
+
+    R2D_AnimPlayNamed(&demo->player_anim, &demo->player_anims, name, fallback);
+    snprintf(demo->player_anim_name, sizeof(demo->player_anim_name), "%s", name);
 }
 
 static void Collect_LoadCoinLayer(CollectDemo *demo)
@@ -289,14 +323,23 @@ static void Collect_Init(void *user_data)
     demo->event_flags = 0u;
     demo->trigger_timer = 0.0f;
     demo->trigger_text[0] = '\0';
+    demo->player_anim_name[0] = '\0';
     R2D_EntityWorldInit(&demo->entities, demo);
     Collect_InitInput(demo);
     demo->player_sheet = R2D_LoadSpriteSheet(R2D_AssetPath("textures/DawnLike/Commissions/Mage.png"), 16, 16);
     demo->coin_sheet = R2D_LoadSpriteSheet(R2D_AssetPath("textures/Coin.png"), 16, 16);
-    demo->idle_anim = R2D_AnimFrames(0, 1, 1.0f, true);
-    demo->walk_anim = R2D_AnimFrames(0, 4, 8.0f, true);
-    R2D_AnimPlay(&demo->player_anim, demo->idle_anim);
-    R2D_AnimPlay(&demo->coin_anim, R2D_AnimFrames(0, 7, 10.0f, true));
+    R2D_LoadSpriteAtlas(&demo->player_atlas, R2D_AssetPath("atlases/collect_player.r2atlas"));
+    if (!R2D_AnimSetLoad(&demo->player_anims, R2D_AssetPath("animations/collect_player.r2anim"))) {
+        R2D_AnimSetInit(&demo->player_anims);
+        R2D_AnimSetAdd(&demo->player_anims, "idle", R2D_AnimFrames(0, 1, 1.0f, true));
+        R2D_AnimSetAdd(&demo->player_anims, "walk", R2D_AnimFrames(0, 4, 8.0f, true));
+    }
+    if (!R2D_AnimSetLoad(&demo->coin_anims, R2D_AssetPath("animations/coin.r2anim"))) {
+        R2D_AnimSetInit(&demo->coin_anims);
+        R2D_AnimSetAdd(&demo->coin_anims, "spin", R2D_AnimFrames(0, 7, 10.0f, true));
+    }
+    Collect_PlayPlayerAnim(demo, "idle");
+    R2D_AnimPlayNamed(&demo->coin_anim, &demo->coin_anims, "spin", R2D_AnimFrames(0, 7, 10.0f, true));
     R2D_TilemapLoadTiledJson(&demo->tilemap, R2D_AssetPath("tilemaps/collect.json"));
     demo->collision_layer = R2D_TilemapLayerIndex(&demo->tilemap, "Collision");
     demo->collision_debug_color = R2D_TilemapPropertyColor(
@@ -435,11 +478,9 @@ static void Collect_Update(float dt, void *user_data)
     }
 
     if (previous.x != demo->player.x || previous.y != demo->player.y) {
-        if (demo->player_anim.anim.frame_count != demo->walk_anim.frame_count) {
-            R2D_AnimPlay(&demo->player_anim, demo->walk_anim);
-        }
-    } else if (demo->player_anim.anim.frame_count != demo->idle_anim.frame_count) {
-        R2D_AnimPlay(&demo->player_anim, demo->idle_anim);
+        Collect_PlayPlayerAnim(demo, "walk");
+    } else {
+        Collect_PlayPlayerAnim(demo, "idle");
     }
 
     R2D_AnimUpdate(&demo->player_anim, dt);
@@ -640,6 +681,8 @@ static void Collect_Draw(void *user_data)
     const int player_frame =
         Collect_PlayerDirectionRow(demo->player_direction) * 4 +
         (R2D_AnimFrame(&demo->player_anim) % 4);
+    char player_frame_name[32];
+    const R2D_SpriteAtlasFrame *player_atlas_frame;
 
     Collect_DrawTileLayers(demo, camera_view, (Vector2) { 0.0f, 0.0f }, false);
 
@@ -658,7 +701,27 @@ static void Collect_Draw(void *user_data)
         R2D_DrawAnim(&demo->coin_sheet, &demo->coin_anim, position, false);
     }
 
-    R2D_DrawSheetFrame(&demo->player_sheet, player_frame, player_screen, false);
+    snprintf(
+        player_frame_name,
+        sizeof(player_frame_name),
+        "%s_%d",
+        Collect_PlayerDirectionName(demo->player_direction),
+        R2D_AnimFrame(&demo->player_anim) % 4
+    );
+    player_atlas_frame = R2D_SpriteAtlasFind(&demo->player_atlas, player_frame_name);
+    if (player_atlas_frame != 0) {
+        R2D_DrawAtlasFrameEx(
+            &demo->player_atlas,
+            player_atlas_frame,
+            (Vector2) { player_screen.x + 8.0f, player_screen.y + 8.0f },
+            0.0f,
+            1.0f,
+            false,
+            WHITE
+        );
+    } else {
+        R2D_DrawSheetFrame(&demo->player_sheet, player_frame, player_screen, false);
+    }
     Collect_DrawTileLayers(demo, camera_view, (Vector2) { 0.0f, 0.0f }, true);
 
     if (demo->debug_draw) {
@@ -678,6 +741,18 @@ static void Collect_Draw(void *user_data)
             1.0f,
             R2D_ColorFromHex(0xf72585ff)
         );
+        if (player_atlas_frame != 0) {
+            DrawRectangleLinesEx(
+                R2D_SpriteAtlasHitbox(player_atlas_frame, (Vector2) { player_screen.x + 8.0f, player_screen.y + 8.0f }),
+                1.0f,
+                R2D_ColorFromHex(0xffd166ff)
+            );
+            DrawRectangleLinesEx(
+                R2D_SpriteAtlasHurtbox(player_atlas_frame, (Vector2) { player_screen.x + 8.0f, player_screen.y + 8.0f }),
+                1.0f,
+                R2D_ColorFromHex(0x06d6a0ff)
+            );
+        }
         Collect_DrawDebugOverlay(demo, camera_pixel);
     }
 
@@ -696,6 +771,7 @@ static void Collect_Shutdown(void *user_data)
     CollectDemo *demo = (CollectDemo *)user_data;
 
     R2D_TilemapUnload(&demo->tilemap);
+    R2D_UnloadSpriteAtlas(&demo->player_atlas);
     R2D_UnloadSpriteSheet(&demo->player_sheet);
     R2D_UnloadSpriteSheet(&demo->coin_sheet);
     R2D_MusicUnload(&demo->music);

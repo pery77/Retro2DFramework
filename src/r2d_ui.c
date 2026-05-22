@@ -206,7 +206,21 @@ void R2D_UnloadBitmapFont(Font *font)
 Font R2D_LoadFont(const char *path)
 {
     const char *asset_path = R2D_AssetPath(path);
-    Font font = LoadFont(asset_path);
+    const char *extension = GetFileExtension(path);
+    unsigned char *data = 0;
+    int size = 0;
+    Font font = { 0 };
+
+    if (extension != 0 &&
+        (TextIsEqual(extension, ".ttf") || TextIsEqual(extension, ".otf")) &&
+        R2D_LoadAssetData(path, &data, &size)) {
+        font = LoadFontFromMemory(extension, data, size, 32, 0, 0);
+        R2D_UnloadAssetData(data);
+    }
+
+    if (font.texture.id == 0) {
+        font = LoadFont(asset_path);
+    }
 
     if (font.texture.id != 0) {
         SetTextureFilter(font.texture, TEXTURE_FILTER_POINT);

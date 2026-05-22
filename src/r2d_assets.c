@@ -441,23 +441,34 @@ void R2D_UnloadAssetText(char *text)
     free(text);
 }
 
-Texture2D R2D_LoadTexture(const char *path)
+Image R2D_LoadImage(const char *path)
 {
     unsigned char *data = 0;
     int size = 0;
     Image image;
-    Texture2D texture = { 0 };
 
     if (!R2D_LoadAssetData(path, &data, &size)) {
-        TraceLog(LOG_WARNING, "R2D: Failed to load texture data: %s", path != 0 ? path : "");
-        return texture;
+        TraceLog(LOG_WARNING, "R2D: Failed to load image data: %s", path != 0 ? path : "");
+        return (Image) { 0 };
     }
 
     image = LoadImageFromMemory(R2D_AssetExtension(path), data, size);
     R2D_UnloadAssetData(data);
 
     if (!IsImageValid(image)) {
-        TraceLog(LOG_WARNING, "R2D: Failed to decode texture: %s", path != 0 ? path : "");
+        TraceLog(LOG_WARNING, "R2D: Failed to decode image: %s", path != 0 ? path : "");
+        return (Image) { 0 };
+    }
+
+    return image;
+}
+
+Texture2D R2D_LoadTexture(const char *path)
+{
+    Image image = R2D_LoadImage(path);
+    Texture2D texture = { 0 };
+
+    if (!IsImageValid(image)) {
         return texture;
     }
 

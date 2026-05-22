@@ -2,6 +2,7 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 
 typedef enum UiItem {
     UI_ITEM_START = 0,
@@ -15,6 +16,7 @@ typedef struct UiExample {
     R2D_InputMap input;
     R2D_UiNav nav;
     R2D_AssetCache assets;
+    R2D_Localization locale;
     R2D_NineSlice window;
     R2D_Typewriter typewriter;
     Texture2D ui_texture;
@@ -23,12 +25,33 @@ typedef struct UiExample {
     bool toggle;
     float slider;
     int selector;
+    char language[R2D_LOCALE_LANGUAGE_SIZE];
     R2D_Crt *crt;
 } UiExample;
 
-static const char *UI_TEXT =
-    "Nine-slice windows and typewriter text are useful for RPG dialogs, "
-    "pause menus and tutorials.";
+static const char *UiExample_Text(const UiExample *example, const char *key, const char *fallback)
+{
+    return R2D_LocalizationGet(&example->locale, key, fallback);
+}
+
+static void UiExample_LoadLanguage(UiExample *example, const char *language)
+{
+    if (!R2D_LocalizationLoad(&example->locale, language)) {
+        R2D_LocalizationLoad(&example->locale, "en");
+        language = "en";
+    }
+
+    snprintf(example->language, sizeof(example->language), "%s", language);
+    R2D_TypewriterStart(
+        &example->typewriter,
+        UiExample_Text(
+            example,
+            "ui.body",
+            "Nine-slice windows and typewriter text are useful for RPG dialogs, pause menus and tutorials."
+        ),
+        34.0f
+    );
+}
 
 static void UiExample_InitInput(UiExample *example)
 {
@@ -55,6 +78,8 @@ static void UiExample_InitInput(UiExample *example)
 
     R2D_InputBindKey(&example->input, "skip", KEY_X);
     R2D_InputBindGamepadButton(&example->input, "skip", GAMEPAD_BUTTON_RIGHT_FACE_RIGHT);
+
+    R2D_InputBindKey(&example->input, "language", KEY_L);
 }
 
 static void UiExample_Init(void *user_data)
@@ -63,6 +88,7 @@ static void UiExample_Init(void *user_data)
 
     UiExample_InitInput(example);
     R2D_AssetCacheInit(&example->assets);
+    R2D_LocalizationInit(&example->locale);
     R2D_UiNavInit(&example->nav, UI_ITEM_COUNT);
     example->toggle = true;
     example->slider = 0.55f;
@@ -82,7 +108,7 @@ static void UiExample_Init(void *user_data)
         16
     );
 
-    R2D_TypewriterStart(&example->typewriter, UI_TEXT, 34.0f);
+    UiExample_LoadLanguage(example, "en");
 }
 
 static void UiExample_Update(float dt, void *user_data)
@@ -127,13 +153,21 @@ static void UiExample_Update(float dt, void *user_data)
         }
     }
 
+    if (R2D_InputPressed(&example->input, "language")) {
+        UiExample_LoadLanguage(example, strcmp(example->language, "es") == 0 ? "en" : "es");
+    }
+
     R2D_TypewriterUpdate(&example->typewriter, dt);
 }
 
 static void UiExample_Draw(void *user_data)
 {
     const UiExample *example = (const UiExample *)user_data;
-    const char *values[] = { "EASY", "NORMAL", "HARD" };
+    const char *values[] = {
+        UiExample_Text(example, "ui.easy", "EASY"),
+        UiExample_Text(example, "ui.normal", "NORMAL"),
+        UiExample_Text(example, "ui.hard", "HARD")
+    };
     R2D_UiStyle ui = R2D_DefaultUiStyle();
     R2D_TextStyle title = R2D_DefaultTextStyle(18, R2D_ColorFromHex(0xffd166ff));
     R2D_TextStyle body = R2D_DefaultTextStyle(6, R2D_ColorFromHex(0x30346dff));
@@ -145,18 +179,26 @@ static void UiExample_Draw(void *user_data)
     body.spacing = 1;
     body.line_spacing = 1;
 
-    R2D_DrawTextStyled("UI example", (Vector2) { 2.0f, 6.0f }, title);
-    DrawText("Up/down focus, left/right edit, Z submit, X skip/replay text", 2, 28, 8, R2D_ColorFromHex(0x8ecae6ff));
+    R2D_DrawTextStyled(UiExample_Text(example, "ui.title", "UI example"), (Vector2) { 2.0f, 6.0f }, title);
+    DrawText(UiExample_Text(example, "ui.help", "Up/down focus, left/right edit, Z submit, X skip/replay text, L language"), 2, 28, 8, R2D_ColorFromHex(0x8ecae6ff));
 
     R2D_DrawUiPanel(R2D_Rect(18.0f, 56.0f, 136.0f, 86.0f), ui);
-    R2D_DrawUiMenuItem(R2D_Rect(26.0f, 64.0f, 120.0f, 16.0f), "Restart text", R2D_UiNavFocused(&example->nav, UI_ITEM_START), false, ui);
-    R2D_DrawUiToggle(R2D_Rect(26.0f, 84.0f, 116.0f, 18.0f), "CRT ready", example->toggle, R2D_UiNavFocused(&example->nav, UI_ITEM_TOGGLE), ui);
-    R2D_DrawUiSlider(R2D_Rect(26.0f, 106.0f, 116.0f, 18.0f), "vol", example->slider, R2D_UiNavFocused(&example->nav, UI_ITEM_SLIDER), ui);
-    R2D_DrawUiSelector(R2D_Rect(26.0f, 128.0f, 120.0f, 20.0f), "mode", values[example->selector], R2D_UiNavFocused(&example->nav, UI_ITEM_SELECTOR), ui);
+    R2D_DrawUiMenuItem(R2D_Rect(26.0f, 64.0f, 120.0f, 16.0f), UiExample_Text(example, "ui.restart", "Restart text"), R2D_UiNavFocused(&example->nav, UI_ITEM_START), false, ui);
+    R2D_DrawUiToggle(R2D_Rect(26.0f, 84.0f, 116.0f, 18.0f), UiExample_Text(example, "ui.crt", "CRT ready"), example->toggle, R2D_UiNavFocused(&example->nav, UI_ITEM_TOGGLE), ui);
+    R2D_DrawUiSlider(R2D_Rect(26.0f, 106.0f, 116.0f, 18.0f), UiExample_Text(example, "ui.volume", "vol"), example->slider, R2D_UiNavFocused(&example->nav, UI_ITEM_SLIDER), ui);
+    R2D_DrawUiSelector(R2D_Rect(26.0f, 128.0f, 120.0f, 20.0f), UiExample_Text(example, "ui.mode", "mode"), values[example->selector], R2D_UiNavFocused(&example->nav, UI_ITEM_SELECTOR), ui);
 
     R2D_DrawUiNineSlice(example->window, R2D_Rect(170.0f, 62.0f, 126.0f, 76.0f), WHITE);
     R2D_DrawTypewriter(example->typewriter, R2D_Rect(181.0f, 68.0f, 108.0f, 52.0f), body);
-    DrawText(R2D_TypewriterDone(&example->typewriter) ? "X replay" : "X skip", 232, 122, 8, R2D_ColorFromHex(0x101820ff));
+    DrawText(
+        R2D_TypewriterDone(&example->typewriter) ?
+            UiExample_Text(example, "ui.replay", "X replay") :
+            UiExample_Text(example, "ui.skip", "X skip"),
+        232,
+        122,
+        8,
+        R2D_ColorFromHex(0x101820ff)
+    );
 
     R2D_DrawUiBar(R2D_Rect(52.0f, 164.0f, 216.0f, 8.0f), example->slider, R2D_ColorFromHex(0x50fa7bff), ui);
 }
@@ -167,6 +209,7 @@ static void UiExample_Shutdown(void *user_data)
 
     R2D_UnloadBitmapFont(&example->title_font);
     R2D_UnloadFont(&example->box_font);
+    R2D_LocalizationClear(&example->locale);
     R2D_AssetCacheClear(&example->assets);
 }
 

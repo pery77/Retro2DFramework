@@ -9,6 +9,7 @@ set(CMAKE_C_EXTENSIONS OFF)
 option(R2D_BUILD_EXAMPLES "Build Retro2DFramework examples" ON)
 option(R2D_BUILD_TOOLS "Build Retro2DFramework tools" ON)
 option(R2D_PACKAGE_ASSETS "Package app assets into per-target .assets files" ON)
+set(R2D_DIST_DIR "${CMAKE_BINARY_DIR}/dist" CACHE PATH "Output directory for packaged game distributions")
 
 find_package(raylib CONFIG QUIET)
 
@@ -35,6 +36,9 @@ add_library(r2d STATIC
     src/r2d_entity.c
     src/r2d_grid.c
     src/r2d_input.c
+    src/r2d_locale.c
+    src/r2d_log.c
+    src/r2d_hot_reload.c
     src/r2d_music.c
     src/r2d_palette.c
     src/r2d_particle.c
@@ -87,7 +91,21 @@ function(r2d_copy_runtime_config target_name)
     )
 endfunction()
 
+function(r2d_copy_locale target_name)
+    add_custom_command(TARGET ${target_name} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_CURRENT_SOURCE_DIR}/locale
+            $<TARGET_FILE_DIR:${target_name}>/locale
+        COMMENT "Copying locale files for ${target_name}"
+        VERBATIM
+    )
+endfunction()
+
 add_executable(r2d_asset_pack tools/r2d_pack/main.c)
+
+add_custom_target(r2d_pack_game
+    COMMENT "Packaging Retro2D game distributions"
+)
 
 function(r2d_package_assets target_name source_file)
     add_custom_command(TARGET ${target_name} POST_BUILD
@@ -106,6 +124,7 @@ function(r2d_add_app target_name source_file)
     add_executable(${target_name} ${source_file})
     target_link_libraries(${target_name} PRIVATE r2d)
     r2d_copy_runtime_config(${target_name})
+    r2d_copy_locale(${target_name})
     r2d_copy_assets(${target_name})
 endfunction()
 
@@ -113,11 +132,29 @@ function(r2d_add_packaged_app target_name source_file)
     add_executable(${target_name} ${source_file})
     target_link_libraries(${target_name} PRIVATE r2d)
     r2d_copy_runtime_config(${target_name})
+    r2d_copy_locale(${target_name})
     if(R2D_PACKAGE_ASSETS)
         r2d_package_assets(${target_name} ${source_file})
     else()
         r2d_copy_assets(${target_name})
     endif()
+endfunction()
+
+function(r2d_add_game_package target_name)
+    set(package_target "r2d_pack_game_${target_name}")
+    add_custom_target(${package_target}
+        COMMAND ${CMAKE_COMMAND}
+            -DR2D_DIST_TARGET=${target_name}
+            -DR2D_DIST_EXECUTABLE=$<TARGET_FILE:${target_name}>
+            -DR2D_DIST_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}
+            -DR2D_DIST_OUTPUT_DIR=${R2D_DIST_DIR}/$<CONFIG>
+            -DR2D_DIST_CONFIG=$<CONFIG>
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/r2d_pack_game.cmake
+        DEPENDS ${target_name}
+        COMMENT "Packaging final game folder for ${target_name}"
+        VERBATIM
+    )
+    add_dependencies(r2d_pack_game ${package_target})
 endfunction()
 
 function(r2d_use_windows_subsystem target_name)
@@ -141,7 +178,25 @@ if(R2D_BUILD_EXAMPLES)
     r2d_add_packaged_app(r2d_palette_example examples/palette/main.c)
     r2d_add_packaged_app(r2d_time_example examples/time/main.c)
     r2d_add_packaged_app(r2d_save_example examples/save/main.c)
+    r2d_add_packaged_app(r2d_template_game examples/template/main.c)
+    r2d_add_packaged_app(r2d_platformer_example examples/platformer/main.c)
+    r2d_add_packaged_app(r2d_topdown_example examples/topdown/main.c)
     r2d_add_packaged_app(r2d_collect examples/collect/main.c)
+
+    r2d_add_game_package(r2d_hello_index)
+    r2d_add_game_package(r2d_input_example)
+    r2d_add_game_package(r2d_ui_example)
+    r2d_add_game_package(r2d_audio_example)
+    r2d_add_game_package(r2d_state_example)
+    r2d_add_game_package(r2d_collision_example)
+    r2d_add_game_package(r2d_particle_example)
+    r2d_add_game_package(r2d_palette_example)
+    r2d_add_game_package(r2d_time_example)
+    r2d_add_game_package(r2d_save_example)
+    r2d_add_game_package(r2d_template_game)
+    r2d_add_game_package(r2d_platformer_example)
+    r2d_add_game_package(r2d_topdown_example)
+    r2d_add_game_package(r2d_collect)
 
     r2d_use_windows_subsystem(r2d_hello_index)
     r2d_use_windows_subsystem(r2d_input_example)
@@ -153,6 +208,9 @@ if(R2D_BUILD_EXAMPLES)
     r2d_use_windows_subsystem(r2d_palette_example)
     r2d_use_windows_subsystem(r2d_time_example)
     r2d_use_windows_subsystem(r2d_save_example)
+    r2d_use_windows_subsystem(r2d_template_game)
+    r2d_use_windows_subsystem(r2d_platformer_example)
+    r2d_use_windows_subsystem(r2d_topdown_example)
     r2d_use_windows_subsystem(r2d_collect)
 endif()
 

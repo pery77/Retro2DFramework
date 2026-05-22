@@ -1,0 +1,13 @@
+# UI example
+ui.title=UI example
+ui.help=Up/down focus, left/right edit, Z submit, X skip/replay text, L language
+ui.restart=Restart text
+ui.crt=CRT ready
+ui.volume=vol
+ui.mode=mode
+ui.easy=EASY
+ui.normal=NORMAL
+ui.hard=HARD
+ui.skip=X skip
+ui.replay=X replay
+ui.body=Nine-slice windows and typewriter text are useful for RPG dialogs, pause menus and tutorials.

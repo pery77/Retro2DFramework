@@ -1,0 +1,13 @@
+# UI example
+ui.title=Ejemplo UI
+ui.help=Arriba/abajo foco, izquierda/derecha edita, Z acepta, X texto, L idioma
+ui.restart=Reiniciar texto
+ui.crt=CRT activo
+ui.volume=vol
+ui.mode=modo
+ui.easy=FACIL
+ui.normal=NORMAL
+ui.hard=DIFICIL
+ui.skip=X saltar
+ui.replay=X repetir
+ui.body=Las ventanas nine-slice y el texto progresivo sirven para dialogos RPG, menus de pausa y tutoriales.

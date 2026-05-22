@@ -145,6 +145,8 @@ static int LooksLikeAssetPath(const char *text)
         strncmp(text, "audio\\", 6) == 0 ||
         strncmp(text, "textures/", 9) == 0 ||
         strncmp(text, "textures\\", 9) == 0 ||
+        strncmp(text, "fonts/", 6) == 0 ||
+        strncmp(text, "fonts\\", 6) == 0 ||
         strncmp(text, "tilemaps/", 9) == 0 ||
         strncmp(text, "tilemaps\\", 9) == 0 ||
         strncmp(text, "shaders/", 8) == 0 ||
@@ -454,6 +456,9 @@ static void ScanSourceForAssets(AssetList *assets, const char *source_path)
             StringEndsWith(asset_path, ".tmx") ||
             StringEndsWith(asset_path, ".tsx") ||
             StringEndsWith(asset_path, ".fs") ||
+            StringEndsWith(asset_path, ".ttf") ||
+            StringEndsWith(asset_path, ".otf") ||
+            StringEndsWith(asset_path, ".fnt") ||
             StringEndsWith(asset_path, ".r2sfx") ||
             StringEndsWith(asset_path, ".r2song") ||
             StringEndsWith(asset_path, ".mid") ||
