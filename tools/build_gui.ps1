@@ -402,16 +402,6 @@ function Get-SelectedTargetCanRun {
     return [bool]$targetCombo.SelectedItem.run
 }
 
-function Get-SelectedPackageTargetName {
-    $target = Get-SelectedTargetName
-
-    if ($target -eq "all") {
-        return "r2d_pack_game"
-    }
-
-    return "r2d_pack_game_{0}" -f $target
-}
-
 function Get-SelectedBuildArguments {
     $config = [string]$configCombo.SelectedItem
     $target = Get-SelectedTargetName
@@ -423,7 +413,7 @@ function Get-SelectedBuildArguments {
             Add-Log "Package dist uses Release."
         }
 
-        $target = Get-SelectedPackageTargetName
+        return '"dist" "{0}"' -f $target
     }
 
     return '"{0}" "{1}"' -f $config.ToLowerInvariant(), $target

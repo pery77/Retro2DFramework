@@ -704,6 +704,26 @@ void R2D_DrawSpriteEx(
     DrawTexturePro(texture, src, dest, origin, rotation, tint);
 }
 
+void R2D_DrawSpriteCamera(const R2D_Camera *camera, Texture2D texture, Rectangle source, Vector2 position, bool flip_x)
+{
+    R2D_DrawSprite(texture, source, R2D_CameraWorldToPixelScreen(camera, position), flip_x);
+}
+
+void R2D_DrawSpriteExCamera(
+    const R2D_Camera *camera,
+    Texture2D texture,
+    Rectangle source,
+    Vector2 position,
+    Vector2 origin,
+    float rotation,
+    float scale,
+    bool flip_x,
+    Color tint
+)
+{
+    R2D_DrawSpriteEx(texture, source, R2D_CameraWorldToPixelScreen(camera, position), origin, rotation, scale, flip_x, tint);
+}
+
 void R2D_DrawAtlasFrame(const R2D_SpriteAtlas *atlas, const char *name, Vector2 position, bool flip_x)
 {
     R2D_DrawAtlasFrameEx(atlas, R2D_SpriteAtlasFind(atlas, name), position, 0.0f, 1.0f, flip_x, WHITE);
@@ -726,6 +746,20 @@ void R2D_DrawAtlasFrameEx(
     R2D_DrawSpriteEx(atlas->texture, frame->source, position, frame->pivot, rotation, scale, flip_x, tint);
 }
 
+void R2D_DrawAtlasFrameExCamera(
+    const R2D_Camera *camera,
+    const R2D_SpriteAtlas *atlas,
+    const R2D_SpriteAtlasFrame *frame,
+    Vector2 position,
+    float rotation,
+    float scale,
+    bool flip_x,
+    Color tint
+)
+{
+    R2D_DrawAtlasFrameEx(atlas, frame, R2D_CameraWorldToPixelScreen(camera, position), rotation, scale, flip_x, tint);
+}
+
 void R2D_DrawSheetFrame(const R2D_SpriteSheet *sheet, int frame, Vector2 position, bool flip_x)
 {
     if (!R2D_SpriteSheetIsReady(sheet)) {
@@ -735,6 +769,11 @@ void R2D_DrawSheetFrame(const R2D_SpriteSheet *sheet, int frame, Vector2 positio
     R2D_DrawSprite(sheet->texture, R2D_SpriteSheetFrame(sheet, frame), position, flip_x);
 }
 
+void R2D_DrawSheetFrameCamera(const R2D_Camera *camera, const R2D_SpriteSheet *sheet, int frame, Vector2 position, bool flip_x)
+{
+    R2D_DrawSheetFrame(sheet, frame, R2D_CameraWorldToPixelScreen(camera, position), flip_x);
+}
+
 void R2D_DrawAnim(const R2D_SpriteSheet *sheet, const R2D_AnimPlayer *player, Vector2 position, bool flip_x)
 {
     if (player == 0) {
@@ -742,4 +781,13 @@ void R2D_DrawAnim(const R2D_SpriteSheet *sheet, const R2D_AnimPlayer *player, Ve
     }
 
     R2D_DrawSheetFrame(sheet, R2D_AnimFrame(player), position, flip_x);
+}
+
+void R2D_DrawAnimCamera(const R2D_Camera *camera, const R2D_SpriteSheet *sheet, const R2D_AnimPlayer *player, Vector2 position, bool flip_x)
+{
+    if (player == 0) {
+        return;
+    }
+
+    R2D_DrawSheetFrameCamera(camera, sheet, R2D_AnimFrame(player), position, flip_x);
 }

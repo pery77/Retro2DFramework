@@ -16,18 +16,6 @@ static Rectangle TopDown_PlayerBounds(Vector2 position)
     return R2D_Rect(position.x - 6.0f, position.y - 6.0f, 12.0f, 12.0f);
 }
 
-static void TopDown_DrawRectangleCamera(const R2D_Camera *camera, Rectangle rect, Color color)
-{
-    rect = R2D_CameraRectToPixelScreen(camera, rect);
-    DrawRectangleRec(rect, color);
-}
-
-static void TopDown_DrawRectangleLinesCamera(const R2D_Camera *camera, Rectangle rect, Color color)
-{
-    rect = R2D_CameraRectToPixelScreen(camera, rect);
-    DrawRectangleLinesEx(rect, 1.0f, color);
-}
-
 static void TopDown_Init(void *user_data)
 {
     TopDownExample *example = (TopDownExample *)user_data;
@@ -103,11 +91,11 @@ static void TopDown_Draw(void *user_data)
     }
 
     for (int i = 0; i < TOPDOWN_WALL_COUNT; ++i) {
-        TopDown_DrawRectangleCamera(&example->camera, example->walls[i], R2D_ColorFromHex(0x3a506bff));
+        R2D_DrawRectangleCamera(&example->camera, example->walls[i], R2D_ColorFromHex(0x3a506bff));
     }
 
-    TopDown_DrawRectangleCamera(&example->camera, player, R2D_ColorFromHex(0x06d6a0ff));
-    TopDown_DrawRectangleLinesCamera(&example->camera, player, R2D_ColorFromHex(0xf8f8f2ff));
+    R2D_DrawRectangleCamera(&example->camera, player, R2D_ColorFromHex(0x06d6a0ff));
+    R2D_DrawRectangleLinesCamera(&example->camera, player, 1.0f, R2D_ColorFromHex(0xf8f8f2ff));
 
     DrawText("Top-down reference", 2, 10, 14, R2D_ColorFromHex(0xffd166ff));
     DrawText("Input axes, camera follow and MoveAndSlide against room walls.", 2, 30, 8, R2D_ColorFromHex(0xf8f8f2ff));

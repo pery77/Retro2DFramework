@@ -26,6 +26,8 @@ En Windows, usa `build.bat` como punto unico de entrada:
 .\build.bat release
 .\build.bat debug r2d_collect
 .\build.bat release r2d_hello_index
+.\build.bat dist r2d_collect
+.\build.bat dist all
 .\build.bat debug r2d_collision_example
 .\build.bat debug r2d_particle_example
 .\build.bat debug r2d_palette_example
@@ -37,7 +39,6 @@ En Windows, usa `build.bat` como punto unico de entrada:
 .\build.bat debug r2d_input_example
 .\build.bat debug r2d_ui_example
 .\build.bat debug all
-.\build.bat release r2d_pack_game_r2d_collect
 ```
 
 El primer argumento es la configuracion (`debug` o `release`). El segundo argumento es
@@ -54,14 +55,16 @@ Las herramientas son `r2d_sfx_editor` y `r2d_midi_player`. Para solo regenerar e
 ```
 
 La build `Release` enlaza las demos como aplicaciones Windows, asi que no abren consola.
-Para crear una carpeta final distribuible de una demo, compila el target
-`r2d_pack_game_<target>` en `Release`; por ejemplo:
+Para crear una carpeta final distribuible de una demo, usa `dist`:
 
 ```powershell
-.\build.bat release r2d_pack_game_r2d_collect
+.\build.bat dist r2d_collect
+.\build.bat dist all
 ```
 
-La salida queda en `build/dist/Release/r2d_collect/`.
+La salida queda en `build/dist/Release/<target>/`. El comando `dist` compila en
+`Release`, genera el `.assets` del target y copia el ejecutable, `r2d.ini`, `locale`,
+licencias y atribuciones a la carpeta final.
 
 Tambien puedes llamar a CMake directamente:
 
@@ -78,8 +81,22 @@ Si prefieres compilar con una ventana simple de un click:
 ```
 
 El launcher visual permite elegir `Debug` o `Release`, elegir un target, configurar,
-compilar, y compilar/ejecutar. La lista sale de `tools/build_targets.json`; para anadir
-un ejemplo o herramienta nueva, anade el target a CMake y una entrada a ese JSON.
+compilar, y compilar/ejecutar. Marca `Package dist` para que `Build` use el flujo
+`dist` del target seleccionado; `Build && Run` ejecuta la carpeta empaquetada cuando
+esa casilla esta marcada. La lista sale de `tools/build_targets.json`; para anadir un
+ejemplo o herramienta nueva, anade el target a CMake y una entrada a ese JSON.
+
+Para una comprobacion rapida de regresiones en los ejemplos principales:
+
+```powershell
+.\tools\smoke_examples.ps1
+```
+
+Para comprobar todos los ejemplos:
+
+```powershell
+.\tools\smoke_examples.ps1 -Full
+```
 
 ## Ejecutar Hello / index
 
@@ -529,10 +546,9 @@ Para Tiled, mantén nombres convencionales: `PlayerStart`, `Collision`, `Pickups
 texto/int/float/bool/color y se leen con `R2D_Tilemap*Property*()`. Los tiles animados,
 offset, opacidad, parallax, multiples tilesets y triggers ya estan cubiertos por el loader.
 
-Para empaquetar, compila en `Release` y usa `r2d_pack_game_<target>`. El resultado deja el
-ejecutable, `.assets`, `r2d.ini`, `locale` y atribuciones en `build/dist/Release/<target>/`.
-Los archivos que quieras editar despues de distribuir el juego deben vivir fuera de
-`.assets`.
+Para empaquetar, usa `.\build.bat dist <target>`. El resultado deja el ejecutable,
+`.assets`, `r2d.ini`, `locale` y atribuciones en `build/dist/Release/<target>/`. Los
+archivos que quieras editar despues de distribuir el juego deben vivir fuera de `.assets`.
 
 Quedan fuera a proposito, de momento: mapas infinitos, chunks, base64, compresion e
 isometrico/hexagonal. La idea es usar Tiled como editor potente sin convertir el
@@ -586,17 +602,17 @@ El empaquetado se controla con `R2D_PACKAGE_ASSETS` y esta activado por defecto 
 ejemplos. Las herramientas de desarrollo siguen copiando la carpeta `assets`, porque
 necesitan listar directorios y guardar archivos editables.
 
-Los targets `r2d_pack_game_<target>` crean una carpeta final en
-`build/dist/<config>/<target>/` con el ejecutable, el paquete `.assets` si existe, `r2d.ini`
+El comando `.\build.bat dist <target>` crea una carpeta final en
+`build/dist/Release/<target>/` con el ejecutable, el paquete `.assets` si existe, `r2d.ini`
 editable junto al exe, carpeta `locale` editable y `ATTRIBUTION.md`. Si el proyecto
-define `LICENSE`, `LICENSE.md`, `LICENSE.txt` o `assets/icon.ico`, tambien se copian. El
-target agregado `r2d_pack_game` empaqueta todas las demos registradas.
+define `LICENSE`, `LICENSE.md`, `LICENSE.txt` o `assets/icon.ico`, tambien se copian.
+`.\build.bat dist all` empaqueta todas las demos registradas.
 
 ## Estructura
 
 ```text
 assets                  Recursos que se copian junto al ejecutable
-build/dist              Carpetas finales generadas por r2d_pack_game
+build/dist              Carpetas finales generadas por build.bat dist
 locale                  Textos localizados .r2loc editables junto al ejecutable
 *.assets                Paquete de assets por ejecutable en Release
 assets/audio/sfx        Presets de sintetizador .r2sfx

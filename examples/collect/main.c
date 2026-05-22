@@ -584,15 +584,13 @@ static void Collect_DrawDebugTileCursor(const CollectDemo *demo, Vector2 camera_
         return;
     }
 
-    DrawRectangleLinesEx(
-        R2D_CameraRectToPixelScreen(
-            &demo->camera,
-            R2D_Rect(
-                (float)(tile_x * demo->tilemap.tile_width),
-                (float)(tile_y * demo->tilemap.tile_height),
-                (float)demo->tilemap.tile_width,
-                (float)demo->tilemap.tile_height
-            )
+    R2D_DrawRectangleLinesCamera(
+        &demo->camera,
+        R2D_Rect(
+            (float)(tile_x * demo->tilemap.tile_width),
+            (float)(tile_y * demo->tilemap.tile_height),
+            (float)demo->tilemap.tile_width,
+            (float)demo->tilemap.tile_height
         ),
         1.0f,
         R2D_ColorFromHex(0xffd166ff)
@@ -647,17 +645,16 @@ static void Collect_DrawDebugPath(const CollectDemo *demo)
     path_color = line_of_sight ? R2D_ColorFromHex(0x06d6a0cc) : R2D_ColorFromHex(0xffd166cc);
 
     for (int i = 0; i < path_count; ++i) {
-        const Rectangle tile = R2D_CameraRectToPixelScreen(
+        R2D_DrawRectangleCamera(
             &demo->camera,
             R2D_Rect(
                 (float)(path[i].x * demo->tilemap.tile_width) + 5.0f,
                 (float)(path[i].y * demo->tilemap.tile_height) + 5.0f,
                 6.0f,
                 6.0f
-            )
+            ),
+            path_color
         );
-
-        DrawRectangleRec(tile, path_color);
     }
 
     {
@@ -708,8 +705,8 @@ static void Collect_Draw(void *user_data)
             continue;
         }
 
-        position = R2D_CameraWorldToPixelScreen(&demo->camera, (Vector2) { coin->bounds.x, coin->bounds.y });
-        R2D_DrawAnim(&demo->coin_sheet, &demo->coin_anim, position, false);
+        position = (Vector2) { coin->bounds.x, coin->bounds.y };
+        R2D_DrawAnimCamera(&demo->camera, &demo->coin_sheet, &demo->coin_anim, position, false);
     }
 
     snprintf(
@@ -721,17 +718,18 @@ static void Collect_Draw(void *user_data)
     );
     player_atlas_frame = R2D_SpriteAtlasFind(&demo->player_atlas, player_frame_name);
     if (player_atlas_frame != 0) {
-        R2D_DrawAtlasFrameEx(
+        R2D_DrawAtlasFrameExCamera(
+            &demo->camera,
             &demo->player_atlas,
             player_atlas_frame,
-            (Vector2) { player_screen.x + 8.0f, player_screen.y + 8.0f },
+            (Vector2) { demo->player.x + 8.0f, demo->player.y + 8.0f },
             0.0f,
             1.0f,
             false,
             WHITE
         );
     } else {
-        R2D_DrawSheetFrame(&demo->player_sheet, player_frame, player_screen, false);
+        R2D_DrawSheetFrameCamera(&demo->camera, &demo->player_sheet, player_frame, demo->player, false);
     }
     Collect_DrawTileLayers(demo, camera_view, (Vector2) { 0.0f, 0.0f }, true);
 

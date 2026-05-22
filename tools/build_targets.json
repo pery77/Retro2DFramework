@@ -76,16 +76,6 @@
       "run": true
     },
     {
-      "name": "r2d_pack_game_r2d_collect",
-      "label": "Package collect demo",
-      "run": false
-    },
-    {
-      "name": "r2d_pack_game",
-      "label": "Package all demos",
-      "run": false
-    },
-    {
       "name": "r2d_sfx_editor",
       "label": "SFX editor",
       "run": true

@@ -128,3 +128,13 @@ Rectangle R2D_CameraView(const R2D_Camera *camera)
         (float)camera->viewport_height
     };
 }
+
+void R2D_DrawRectangleCamera(const R2D_Camera *camera, Rectangle rect, Color color)
+{
+    DrawRectangleRec(R2D_CameraRectToPixelScreen(camera, rect), color);
+}
+
+void R2D_DrawRectangleLinesCamera(const R2D_Camera *camera, Rectangle rect, float line_thick, Color color)
+{
+    DrawRectangleLinesEx(R2D_CameraRectToPixelScreen(camera, rect), line_thick, color);
+}
