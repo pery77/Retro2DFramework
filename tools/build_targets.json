@@ -76,6 +76,11 @@
       "run": true
     },
     {
+      "name": "r2d_relic_run",
+      "label": "Relic Run mini game",
+      "run": true
+    },
+    {
       "name": "r2d_sfx_editor",
       "label": "SFX editor",
       "run": true

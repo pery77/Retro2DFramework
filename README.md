@@ -36,6 +36,7 @@ En Windows, usa `build.bat` como punto unico de entrada:
 .\build.bat debug r2d_template_game
 .\build.bat debug r2d_platformer_example
 .\build.bat debug r2d_topdown_example
+.\build.bat debug r2d_relic_run
 .\build.bat debug r2d_input_example
 .\build.bat debug r2d_ui_example
 .\build.bat debug all
@@ -47,7 +48,7 @@ son `r2d_hello_index`, `r2d_input_example`, `r2d_ui_example`,
 `r2d_audio_example`, `r2d_state_example`, `r2d_collision_example`,
 `r2d_particle_example`, `r2d_palette_example`, `r2d_time_example`,
 `r2d_save_example`, `r2d_template_game`, `r2d_platformer_example`,
-`r2d_topdown_example` y `r2d_collect`.
+`r2d_topdown_example`, `r2d_collect` y `r2d_relic_run`.
 Las herramientas son `r2d_sfx_editor` y `r2d_midi_player`. Para solo regenerar el proyecto:
 
 ```powershell
@@ -132,6 +133,7 @@ Cada sistema tiene su propio ejemplo para que el codigo sea documentacion ejecut
 .\build\Debug\r2d_platformer_example.exe
 .\build\Debug\r2d_topdown_example.exe
 .\build\Debug\r2d_collect.exe
+.\build\Debug\r2d_relic_run.exe
 ```
 
 Con Visual Studio/MSVC, las builds `Release` equivalentes quedan en `.\build\Release\`.
@@ -535,6 +537,11 @@ entidades desde objetos `type=coin` o desde una capa `Pickups`; en update consul
 caja del jugador contra las cajas de los pickups, reproduce un SFX y destruye la entidad.
 `r2d_collect` es el patron completo: objetos de Tiled, fallback si faltan monedas, SFX,
 contador y condicion `ALL CLEAR`.
+
+`r2d_relic_run` es el mini juego de aprendizaje: estados `title/play/win/lose`, input,
+camara, colisiones con paredes, pickups, enemigos con `R2D_EntityWorld`, salida final,
+overlay de debug y CRT sin depender aun de mapas ni sprites externos. Es buen punto de
+partida para entender el flujo completo antes de pasar a assets reales.
 
 Para menus, usa `R2D_InputMap` con acciones de navegacion, `R2D_UiNav` para foco y submit,
 y dibuja cada opcion con `R2D_DrawUiMenuItem()`, `R2D_DrawUiToggle()` o
