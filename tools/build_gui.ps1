@@ -76,6 +76,12 @@ function Get-ExePath {
     return Join-Path $RootDir ("build\{0}\{1}.exe" -f $Config, $Target)
 }
 
+function Get-DistExePath {
+    param([string]$Target)
+
+    return Join-Path $RootDir ("build\dist\Release\{0}\{0}.exe" -f $Target)
+}
+
 function New-ProcessStartInfo {
     param(
         [string]$Arguments
@@ -93,6 +99,7 @@ function New-ProcessStartInfo {
 }
 
 $Targets = Get-BuildTargets
+$VisibleTargets = @($Targets | Where-Object { [string]$_.name -notlike "r2d_pack_game*" })
 
 if (-not (Test-Path $BuildScript)) {
     throw "Missing build script: $BuildScript"
@@ -100,7 +107,7 @@ if (-not (Test-Path $BuildScript)) {
 
 if ($SelfTest) {
     Write-Host "Build GUI config OK"
-    Write-Host ("Targets: " + (($Targets | ForEach-Object { $_.name }) -join ", "))
+    Write-Host ("Targets: " + (($VisibleTargets | ForEach-Object { $_.name }) -join ", "))
     exit 0
 }
 
@@ -144,8 +151,8 @@ Add-Type -AssemblyName System.Drawing
 $form = [System.Windows.Forms.Form]::new()
 $form.Text = "Retro2DFramework Build"
 $form.StartPosition = "CenterScreen"
-$form.MinimumSize = [System.Drawing.Size]::new(760, 520)
-$form.Size = [System.Drawing.Size]::new(860, 600)
+$form.MinimumSize = [System.Drawing.Size]::new(1140, 600)
+$form.Size = [System.Drawing.Size]::new(1140, 600)
 
 $font = [System.Drawing.Font]::new("Segoe UI", 9)
 $monoFont = [System.Drawing.Font]::new("Consolas", 9)
@@ -195,6 +202,13 @@ $configCombo.SelectedIndex = 0
 $configCombo.Dock = "Fill"
 $controls.Controls.Add($configCombo, 1, 0)
 
+$packageCheck = [System.Windows.Forms.CheckBox]::new()
+$packageCheck.Text = "Package dist"
+$packageCheck.AutoSize = $true
+$packageCheck.Anchor = "Left"
+$packageCheck.Margin = [System.Windows.Forms.Padding]::new(8, 0, 0, 0)
+$controls.Controls.Add($packageCheck, 4, 0)
+
 $targetLabel = [System.Windows.Forms.Label]::new()
 $targetLabel.Text = "Target"
 $targetLabel.AutoSize = $true
@@ -207,7 +221,7 @@ $targetCombo.DropDownStyle = "DropDownList"
 $targetCombo.DisplayMember = "label"
 $targetCombo.ValueMember = "name"
 $targetCombo.Dock = "Fill"
-foreach ($target in $Targets) {
+foreach ($target in $VisibleTargets) {
     [void]$targetCombo.Items.Add($target)
 }
 $targetCombo.SelectedIndex = 0
@@ -234,6 +248,11 @@ $runButton = [System.Windows.Forms.Button]::new()
 $runButton.Text = "Run"
 $runButton.Width = 92
 $buttonPanel.Controls.Add($runButton)
+
+$runDistButton = [System.Windows.Forms.Button]::new()
+$runDistButton.Text = "Run Dist"
+$runDistButton.Width = 92
+$buttonPanel.Controls.Add($runDistButton)
 
 $buildRunButton = [System.Windows.Forms.Button]::new()
 $buildRunButton.Text = "Build && Run"
@@ -299,9 +318,11 @@ function Set-BuildUiEnabled {
         param([bool]$IsEnabled)
         $configCombo.Enabled = $IsEnabled
         $targetCombo.Enabled = $IsEnabled
+        $packageCheck.Enabled = $IsEnabled
         $configureButton.Enabled = $IsEnabled
         $buildButton.Enabled = $IsEnabled
         $runButton.Enabled = $IsEnabled
+        $runDistButton.Enabled = $IsEnabled
         $buildRunButton.Enabled = $IsEnabled
     }
 
@@ -381,6 +402,33 @@ function Get-SelectedTargetCanRun {
     return [bool]$targetCombo.SelectedItem.run
 }
 
+function Get-SelectedPackageTargetName {
+    $target = Get-SelectedTargetName
+
+    if ($target -eq "all") {
+        return "r2d_pack_game"
+    }
+
+    return "r2d_pack_game_{0}" -f $target
+}
+
+function Get-SelectedBuildArguments {
+    $config = [string]$configCombo.SelectedItem
+    $target = Get-SelectedTargetName
+
+    if ($packageCheck.Checked) {
+        if ($config -ne "Release") {
+            $configCombo.SelectedItem = "Release"
+            $config = "Release"
+            Add-Log "Package dist uses Release."
+        }
+
+        $target = Get-SelectedPackageTargetName
+    }
+
+    return '"{0}" "{1}"' -f $config.ToLowerInvariant(), $target
+}
+
 function Start-SelectedTarget {
     $config = [string]$configCombo.SelectedItem
     $target = Get-SelectedTargetName
@@ -400,6 +448,27 @@ function Start-SelectedTarget {
 
     Add-Log ("> " + $exePath)
     Set-Status ("Running {0}" -f $target) ([System.Drawing.Color]::FromArgb(30, 90, 160))
+    Start-Process -FilePath $exePath -WorkingDirectory (Split-Path $exePath)
+}
+
+function Start-SelectedDistTarget {
+    $target = Get-SelectedTargetName
+
+    if (-not (Get-SelectedTargetCanRun)) {
+        Add-Log "Select a runnable target before using Run Dist."
+        return
+    }
+
+    $exePath = Get-DistExePath -Target $target
+    if (-not (Test-Path $exePath)) {
+        Add-Log ("Packaged executable not found: {0}" -f $exePath)
+        Add-Log "Package the Release target first."
+        Set-Status "Packaged executable not found" ([System.Drawing.Color]::FromArgb(170, 50, 45))
+        return
+    }
+
+    Add-Log ("> " + $exePath)
+    Set-Status ("Running packaged {0}" -f $target) ([System.Drawing.Color]::FromArgb(30, 90, 160))
     Start-Process -FilePath $exePath -WorkingDirectory (Split-Path $exePath)
 }
 
@@ -459,9 +528,7 @@ $configureButton.Add_Click({
 
 $buildButton.Add_Click({
     try {
-        $config = [string]$configCombo.SelectedItem
-        $target = Get-SelectedTargetName
-        Start-BuildCommand -Arguments ('"{0}" "{1}"' -f $config.ToLowerInvariant(), $target)
+        Start-BuildCommand -Arguments (Get-SelectedBuildArguments)
     } catch {
         Show-LauncherError -Title "Build failed to start" -Exception $_.Exception
     }
@@ -475,23 +542,38 @@ $runButton.Add_Click({
     }
 })
 
+$runDistButton.Add_Click({
+    try {
+        Start-SelectedDistTarget
+    } catch {
+        Show-LauncherError -Title "Run packaged executable failed to start" -Exception $_.Exception
+    }
+})
+
 $buildRunButton.Add_Click({
     try {
-        $config = [string]$configCombo.SelectedItem
-        $target = Get-SelectedTargetName
-
         if (-not (Get-SelectedTargetCanRun)) {
             Add-Log "Select a runnable target before using Build & Run."
             return
         }
 
         $runAfterBuild = {
-            Start-SelectedTarget
+            if ($packageCheck.Checked) {
+                Start-SelectedDistTarget
+            } else {
+                Start-SelectedTarget
+            }
         }.GetNewClosure()
 
-        Start-BuildCommand -Arguments ('"{0}" "{1}"' -f $config.ToLowerInvariant(), $target) -OnSuccess $runAfterBuild
+        Start-BuildCommand -Arguments (Get-SelectedBuildArguments) -OnSuccess $runAfterBuild
     } catch {
         Show-LauncherError -Title "Build and run failed to start" -Exception $_.Exception
+    }
+})
+
+$packageCheck.Add_CheckedChanged({
+    if ($packageCheck.Checked) {
+        $configCombo.SelectedItem = "Release"
     }
 })
 

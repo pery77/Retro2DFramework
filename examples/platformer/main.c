@@ -12,19 +12,6 @@ static const Rectangle PLATFORMER_LEDGE = { 124.0f, 116.0f, 94.0f, 8.0f };
 static const float PLATFORMER_PLAYER_WIDTH = 12.0f;
 static const float PLATFORMER_PLAYER_HEIGHT = 18.0f;
 
-static float Platformer_ClampFloat(float value, float min, float max)
-{
-    if (value < min) {
-        return min;
-    }
-
-    if (value > max) {
-        return max;
-    }
-
-    return value;
-}
-
 static Rectangle Platformer_PlayerBounds(Vector2 position)
 {
     return R2D_Rect(position.x, position.y, PLATFORMER_PLAYER_WIDTH, PLATFORMER_PLAYER_HEIGHT);
@@ -63,7 +50,7 @@ static void Platformer_Update(float dt, void *user_data)
 
     example->position.x += example->velocity.x * dt;
     example->position.y += example->velocity.y * dt;
-    example->position.x = Platformer_ClampFloat(example->position.x, 8.0f, 300.0f);
+    example->position.x = R2D_Clamp(example->position.x, 8.0f, 300.0f);
 
     bounds = Platformer_PlayerBounds(example->position);
     example->grounded = false;

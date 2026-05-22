@@ -84,6 +84,16 @@ Vector2 R2D_CameraWorldToScreen(const R2D_Camera *camera, Vector2 world)
     };
 }
 
+Vector2 R2D_CameraWorldToPixelScreen(const R2D_Camera *camera, Vector2 world)
+{
+    const Vector2 camera_position = R2D_CameraPixelPosition(camera);
+
+    return (Vector2) {
+        floorf(world.x - camera_position.x),
+        floorf(world.y - camera_position.y)
+    };
+}
+
 Vector2 R2D_CameraScreenToWorld(const R2D_Camera *camera, Vector2 screen)
 {
     if (camera == 0) {
@@ -94,6 +104,15 @@ Vector2 R2D_CameraScreenToWorld(const R2D_Camera *camera, Vector2 screen)
         screen.x + camera->position.x,
         screen.y + camera->position.y
     };
+}
+
+Rectangle R2D_CameraRectToPixelScreen(const R2D_Camera *camera, Rectangle rect)
+{
+    const Vector2 position = R2D_CameraWorldToPixelScreen(camera, (Vector2) { rect.x, rect.y });
+
+    rect.x = position.x;
+    rect.y = position.y;
+    return rect;
 }
 
 Rectangle R2D_CameraView(const R2D_Camera *camera)

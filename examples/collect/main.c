@@ -585,11 +585,14 @@ static void Collect_DrawDebugTileCursor(const CollectDemo *demo, Vector2 camera_
     }
 
     DrawRectangleLinesEx(
-        R2D_Rect(
-            (float)(tile_x * demo->tilemap.tile_width) - camera_pixel.x,
-            (float)(tile_y * demo->tilemap.tile_height) - camera_pixel.y,
-            (float)demo->tilemap.tile_width,
-            (float)demo->tilemap.tile_height
+        R2D_CameraRectToPixelScreen(
+            &demo->camera,
+            R2D_Rect(
+                (float)(tile_x * demo->tilemap.tile_width),
+                (float)(tile_y * demo->tilemap.tile_height),
+                (float)demo->tilemap.tile_width,
+                (float)demo->tilemap.tile_height
+            )
         ),
         1.0f,
         R2D_ColorFromHex(0xffd166ff)
@@ -616,7 +619,7 @@ static void Collect_DrawDebugOverlay(const CollectDemo *demo, Vector2 camera_pix
     R2D_DebugDrawOverlay(&info, 6, 36);
 }
 
-static void Collect_DrawDebugPath(const CollectDemo *demo, Vector2 camera_offset)
+static void Collect_DrawDebugPath(const CollectDemo *demo)
 {
     const R2D_TilemapObject *trigger = R2D_TilemapFindObject(&demo->tilemap, "FountainTrigger");
     R2D_GridPoint path[128];
@@ -644,23 +647,37 @@ static void Collect_DrawDebugPath(const CollectDemo *demo, Vector2 camera_offset
     path_color = line_of_sight ? R2D_ColorFromHex(0x06d6a0cc) : R2D_ColorFromHex(0xffd166cc);
 
     for (int i = 0; i < path_count; ++i) {
-        const Rectangle tile = R2D_Rect(
-            camera_offset.x + (float)(path[i].x * demo->tilemap.tile_width) + 5.0f,
-            camera_offset.y + (float)(path[i].y * demo->tilemap.tile_height) + 5.0f,
-            6.0f,
-            6.0f
+        const Rectangle tile = R2D_CameraRectToPixelScreen(
+            &demo->camera,
+            R2D_Rect(
+                (float)(path[i].x * demo->tilemap.tile_width) + 5.0f,
+                (float)(path[i].y * demo->tilemap.tile_height) + 5.0f,
+                6.0f,
+                6.0f
+            )
         );
 
         DrawRectangleRec(tile, path_color);
     }
 
-    DrawLine(
-        (int)(camera_offset.x + (float)(start.x * demo->tilemap.tile_width) + 8.0f),
-        (int)(camera_offset.y + (float)(start.y * demo->tilemap.tile_height) + 8.0f),
-        (int)(camera_offset.x + (float)(goal.x * demo->tilemap.tile_width) + 8.0f),
-        (int)(camera_offset.y + (float)(goal.y * demo->tilemap.tile_height) + 8.0f),
-        path_color
-    );
+    {
+        const Vector2 start_screen = R2D_CameraWorldToPixelScreen(
+            &demo->camera,
+            (Vector2) {
+                (float)(start.x * demo->tilemap.tile_width) + 8.0f,
+                (float)(start.y * demo->tilemap.tile_height) + 8.0f
+            }
+        );
+        const Vector2 goal_screen = R2D_CameraWorldToPixelScreen(
+            &demo->camera,
+            (Vector2) {
+                (float)(goal.x * demo->tilemap.tile_width) + 8.0f,
+                (float)(goal.y * demo->tilemap.tile_height) + 8.0f
+            }
+        );
+
+        DrawLine((int)start_screen.x, (int)start_screen.y, (int)goal_screen.x, (int)goal_screen.y, path_color);
+    }
 }
 
 static void Collect_Draw(void *user_data)
@@ -674,10 +691,7 @@ static void Collect_Draw(void *user_data)
         (float)demo->camera.viewport_width,
         (float)demo->camera.viewport_height
     );
-    const Vector2 player_screen = {
-        floorf(demo->player.x - camera_pixel.x),
-        floorf(demo->player.y - camera_pixel.y)
-    };
+    const Vector2 player_screen = R2D_CameraWorldToPixelScreen(&demo->camera, demo->player);
     const int player_frame =
         Collect_PlayerDirectionRow(demo->player_direction) * 4 +
         (R2D_AnimFrame(&demo->player_anim) % 4);
@@ -694,10 +708,7 @@ static void Collect_Draw(void *user_data)
             continue;
         }
 
-        position = (Vector2) {
-            floorf(coin->bounds.x - camera_pixel.x),
-            floorf(coin->bounds.y - camera_pixel.y)
-        };
+        position = R2D_CameraWorldToPixelScreen(&demo->camera, (Vector2) { coin->bounds.x, coin->bounds.y });
         R2D_DrawAnim(&demo->coin_sheet, &demo->coin_anim, position, false);
     }
 
@@ -733,7 +744,7 @@ static void Collect_Draw(void *user_data)
             demo->collision_debug_color
         );
         R2D_TilemapDrawObjectsDebug(&demo->tilemap, camera_offset, R2D_ColorFromHex(0x8ecae6cc));
-        Collect_DrawDebugPath(demo, camera_offset);
+        Collect_DrawDebugPath(demo);
         Collect_DrawDebugTileCursor(demo, camera_pixel);
         DrawRectangleLines(0, 0, demo->camera.viewport_width, demo->camera.viewport_height, R2D_ColorFromHex(0xf8f8f255));
         DrawRectangleLinesEx(

@@ -17,19 +17,6 @@ typedef struct TemplateGame {
 static const Rectangle TEMPLATE_PLAY_AREA = { 8.0f, 46.0f, 304.0f, 136.0f };
 static const float TEMPLATE_PLAYER_RADIUS = 8.0f;
 
-static float Template_ClampFloat(float value, float min, float max)
-{
-    if (value < min) {
-        return min;
-    }
-
-    if (value > max) {
-        return max;
-    }
-
-    return value;
-}
-
 static void Template_ResetPlayer(TemplateGame *game)
 {
     if (game == 0) {
@@ -97,12 +84,12 @@ static void Template_Update(float dt, void *user_data)
         Vector2 movement = { x * 80.0f * dt, y * 80.0f * dt };
         game->player.x += movement.x;
         game->player.y += movement.y;
-        game->player.x = Template_ClampFloat(
+        game->player.x = R2D_Clamp(
             game->player.x,
             TEMPLATE_PLAY_AREA.x + TEMPLATE_PLAYER_RADIUS,
             TEMPLATE_PLAY_AREA.x + TEMPLATE_PLAY_AREA.width - TEMPLATE_PLAYER_RADIUS
         );
-        game->player.y = Template_ClampFloat(
+        game->player.y = R2D_Clamp(
             game->player.y,
             TEMPLATE_PLAY_AREA.y + TEMPLATE_PLAYER_RADIUS,
             TEMPLATE_PLAY_AREA.y + TEMPLATE_PLAY_AREA.height - TEMPLATE_PLAYER_RADIUS

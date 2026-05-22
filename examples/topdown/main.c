@@ -1,7 +1,5 @@
 #include "r2d/r2d.h"
 
-#include <math.h>
-
 #define TOPDOWN_WALL_COUNT 7
 
 typedef struct TopDownExample {
@@ -18,31 +16,15 @@ static Rectangle TopDown_PlayerBounds(Vector2 position)
     return R2D_Rect(position.x - 6.0f, position.y - 6.0f, 12.0f, 12.0f);
 }
 
-static Vector2 TopDown_WorldToScreen(const R2D_Camera *camera, Vector2 world)
-{
-    const Vector2 camera_position = R2D_CameraPixelPosition(camera);
-
-    return (Vector2) {
-        floorf(world.x - camera_position.x),
-        floorf(world.y - camera_position.y)
-    };
-}
-
 static void TopDown_DrawRectangleCamera(const R2D_Camera *camera, Rectangle rect, Color color)
 {
-    const Vector2 position = TopDown_WorldToScreen(camera, (Vector2) { rect.x, rect.y });
-
-    rect.x = position.x;
-    rect.y = position.y;
+    rect = R2D_CameraRectToPixelScreen(camera, rect);
     DrawRectangleRec(rect, color);
 }
 
 static void TopDown_DrawRectangleLinesCamera(const R2D_Camera *camera, Rectangle rect, Color color)
 {
-    const Vector2 position = TopDown_WorldToScreen(camera, (Vector2) { rect.x, rect.y });
-
-    rect.x = position.x;
-    rect.y = position.y;
+    rect = R2D_CameraRectToPixelScreen(camera, rect);
     DrawRectangleLinesEx(rect, 1.0f, color);
 }
 
@@ -110,7 +92,7 @@ static void TopDown_Draw(void *user_data)
 
     for (int y = 16; y < 384; y += 16) {
         for (int x = 16; x < 624; x += 16) {
-            const Vector2 screen = TopDown_WorldToScreen(&example->camera, (Vector2) { (float)x, (float)y });
+            const Vector2 screen = R2D_CameraWorldToPixelScreen(&example->camera, (Vector2) { (float)x, (float)y });
             const int screen_x = (int)screen.x;
             const int screen_y = (int)screen.y;
 

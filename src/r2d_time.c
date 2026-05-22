@@ -2,17 +2,28 @@
 
 #include <string.h>
 
-float R2D_Clamp01(float value)
+float R2D_Clamp(float value, float min, float max)
 {
-    if (value < 0.0f) {
-        return 0.0f;
+    if (min > max) {
+        const float swap = min;
+        min = max;
+        max = swap;
     }
 
-    if (value > 1.0f) {
-        return 1.0f;
+    if (value < min) {
+        return min;
+    }
+
+    if (value > max) {
+        return max;
     }
 
     return value;
+}
+
+float R2D_Clamp01(float value)
+{
+    return R2D_Clamp(value, 0.0f, 1.0f);
 }
 
 float R2D_Lerp(float a, float b, float t)

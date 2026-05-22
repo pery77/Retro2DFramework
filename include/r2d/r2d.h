@@ -837,7 +837,9 @@ void R2D_CameraFollow(R2D_Camera *camera, Vector2 target);
 void R2D_CameraClampToRect(R2D_Camera *camera, Rectangle bounds);
 Vector2 R2D_CameraPixelPosition(const R2D_Camera *camera);
 Vector2 R2D_CameraWorldToScreen(const R2D_Camera *camera, Vector2 world);
+Vector2 R2D_CameraWorldToPixelScreen(const R2D_Camera *camera, Vector2 world);
 Vector2 R2D_CameraScreenToWorld(const R2D_Camera *camera, Vector2 screen);
+Rectangle R2D_CameraRectToPixelScreen(const R2D_Camera *camera, Rectangle rect);
 Rectangle R2D_CameraView(const R2D_Camera *camera);
 void R2D_InputInit(R2D_InputMap *input);
 void R2D_InputClear(R2D_InputMap *input);
@@ -939,6 +941,7 @@ void R2D_ParticleEmitterUpdate(R2D_ParticleSystem *system, R2D_ParticleEmitter *
 void R2D_ParticleSystemUpdate(R2D_ParticleSystem *system, float dt);
 void R2D_ParticleSystemDraw(const R2D_ParticleSystem *system);
 int R2D_ParticleSystemAliveCount(const R2D_ParticleSystem *system);
+float R2D_Clamp(float value, float min, float max);
 float R2D_Clamp01(float value);
 float R2D_Lerp(float a, float b, float t);
 Color R2D_LerpColor(Color a, Color b, float t);
