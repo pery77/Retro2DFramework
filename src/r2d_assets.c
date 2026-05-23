@@ -68,6 +68,7 @@ static void R2D_AssetNormalize(char *destination, int destination_size, const ch
     char temp[1200];
     char collapsed[1200] = "";
     const char *relative = path;
+    const char *development_asset_dir = R2D_DevelopmentAssetDir();
     int length;
     char *token;
     char *next;
@@ -82,11 +83,11 @@ static void R2D_AssetNormalize(char *destination, int destination_size, const ch
         return;
     }
 
-#ifdef R2D_DEVELOPMENT_ASSET_DIR
-    if (R2D_AssetStartsWithInsensitive(path, R2D_DEVELOPMENT_ASSET_DIR)) {
-        relative = path + strlen(R2D_DEVELOPMENT_ASSET_DIR);
+    if (development_asset_dir != 0 &&
+        development_asset_dir[0] != '\0' &&
+        R2D_AssetStartsWithInsensitive(path, development_asset_dir)) {
+        relative = path + strlen(development_asset_dir);
     }
-#endif
 
     if (relative == path && R2D_AssetPathIsAbsolute(path)) {
         char app_assets[1024];
@@ -346,11 +347,9 @@ bool R2D_AssetExists(const char *path)
         return true;
     }
 
-#ifdef R2D_DEVELOPMENT_ASSET_DIR
     if (FileExists(R2D_AssetPath(path))) {
         return true;
     }
-#endif
 
     if (r2d_asset_pack.mounted && R2D_AssetFindPackEntry(path) >= 0) {
         return true;
@@ -374,11 +373,9 @@ bool R2D_LoadAssetData(const char *path, unsigned char **data, int *size)
         return true;
     }
 
-#ifdef R2D_DEVELOPMENT_ASSET_DIR
     if (R2D_LoadDiskFileData(R2D_AssetPath(path), data, size)) {
         return true;
     }
-#endif
 
     entry_index = r2d_asset_pack.mounted ? R2D_AssetFindPackEntry(path) : -1;
     if (entry_index >= 0) {

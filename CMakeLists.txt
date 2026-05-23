@@ -5,6 +5,7 @@ project(Retro2DFramework VERSION 0.1.0 LANGUAGES C)
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
+set(R2D_FRAMEWORK_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}" CACHE INTERNAL "Retro2DFramework source directory")
 
 option(R2D_BUILD_EXAMPLES "Build Retro2DFramework examples" ON)
 option(R2D_BUILD_TOOLS "Build Retro2DFramework tools" ON)
@@ -58,10 +59,6 @@ target_include_directories(r2d
         ${CMAKE_CURRENT_SOURCE_DIR}/external/tinysoundfont
 )
 
-target_compile_definitions(r2d PRIVATE
-    $<$<CONFIG:Debug>:R2D_DEVELOPMENT_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/">
-)
-
 target_link_libraries(r2d PUBLIC raylib)
 
 if(MSVC)
@@ -71,34 +68,40 @@ else()
 endif()
 
 function(r2d_copy_assets target_name)
-    add_custom_target(${target_name}_assets
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_CURRENT_SOURCE_DIR}/assets
-            $<TARGET_FILE_DIR:${target_name}>/assets
-        COMMENT "Copying assets for ${target_name}"
-        VERBATIM
-    )
-    add_dependencies(${target_name} ${target_name}_assets)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets")
+        add_custom_target(${target_name}_assets
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                ${CMAKE_CURRENT_SOURCE_DIR}/assets
+                $<TARGET_FILE_DIR:${target_name}>/assets
+            COMMENT "Copying assets for ${target_name}"
+            VERBATIM
+        )
+        add_dependencies(${target_name} ${target_name}_assets)
+    endif()
 endfunction()
 
 function(r2d_copy_runtime_config target_name)
-    add_custom_command(TARGET ${target_name} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            ${CMAKE_CURRENT_SOURCE_DIR}/r2d.ini
-            $<TARGET_FILE_DIR:${target_name}>/r2d.ini
-        COMMENT "Copying runtime config for ${target_name}"
-        VERBATIM
-    )
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/r2d.ini")
+        add_custom_command(TARGET ${target_name} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${CMAKE_CURRENT_SOURCE_DIR}/r2d.ini
+                $<TARGET_FILE_DIR:${target_name}>/r2d.ini
+            COMMENT "Copying runtime config for ${target_name}"
+            VERBATIM
+        )
+    endif()
 endfunction()
 
 function(r2d_copy_locale target_name)
-    add_custom_command(TARGET ${target_name} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_CURRENT_SOURCE_DIR}/locale
-            $<TARGET_FILE_DIR:${target_name}>/locale
-        COMMENT "Copying locale files for ${target_name}"
-        VERBATIM
-    )
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/locale")
+        add_custom_command(TARGET ${target_name} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                ${CMAKE_CURRENT_SOURCE_DIR}/locale
+                $<TARGET_FILE_DIR:${target_name}>/locale
+            COMMENT "Copying locale files for ${target_name}"
+            VERBATIM
+        )
+    endif()
 endfunction()
 
 add_executable(r2d_asset_pack tools/r2d_pack/main.c)
@@ -108,16 +111,18 @@ add_custom_target(r2d_pack_game
 )
 
 function(r2d_package_assets target_name source_file)
-    add_custom_command(TARGET ${target_name} POST_BUILD
-        COMMAND $<TARGET_FILE:r2d_asset_pack>
-            $<CONFIG>
-            ${CMAKE_CURRENT_SOURCE_DIR}/assets
-            $<TARGET_FILE_DIR:${target_name}>/${target_name}.assets
-            ${CMAKE_CURRENT_SOURCE_DIR}/${source_file}
-        DEPENDS r2d_asset_pack
-        COMMENT "Packing release assets for ${target_name}"
-        VERBATIM
-    )
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets")
+        add_custom_command(TARGET ${target_name} POST_BUILD
+            COMMAND $<TARGET_FILE:r2d_asset_pack>
+                $<CONFIG>
+                ${CMAKE_CURRENT_SOURCE_DIR}/assets
+                $<TARGET_FILE_DIR:${target_name}>/${target_name}.assets
+                ${CMAKE_CURRENT_SOURCE_DIR}/${source_file}
+            DEPENDS r2d_asset_pack
+            COMMENT "Packing release assets for ${target_name}"
+            VERBATIM
+        )
+    endif()
 endfunction()
 
 function(r2d_add_app target_name source_file)
@@ -133,10 +138,9 @@ function(r2d_add_packaged_app target_name source_file)
     target_link_libraries(${target_name} PRIVATE r2d)
     r2d_copy_runtime_config(${target_name})
     r2d_copy_locale(${target_name})
+    r2d_copy_assets(${target_name})
     if(R2D_PACKAGE_ASSETS)
         r2d_package_assets(${target_name} ${source_file})
-    else()
-        r2d_copy_assets(${target_name})
     endif()
 endfunction()
 
@@ -149,7 +153,7 @@ function(r2d_add_game_package target_name)
             -DR2D_DIST_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}
             -DR2D_DIST_OUTPUT_DIR=${R2D_DIST_DIR}/$<CONFIG>
             -DR2D_DIST_CONFIG=$<CONFIG>
-            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/r2d_pack_game.cmake
+            -P ${R2D_FRAMEWORK_SOURCE_DIR}/cmake/r2d_pack_game.cmake
         DEPENDS ${target_name}
         COMMENT "Packaging final game folder for ${target_name}"
         VERBATIM

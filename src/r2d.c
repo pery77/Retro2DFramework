@@ -9,6 +9,8 @@
 __declspec(dllimport) unsigned long __stdcall GetModuleFileNameA(void *module, char *filename, unsigned long size);
 #endif
 
+static char r2d_development_asset_dir[1024] = "";
+
 static Rectangle R2D_CalculateDestination(int virtual_width, int virtual_height)
 {
     const float screen_width = (float)GetScreenWidth();
@@ -327,20 +329,47 @@ void R2D_TakeScreenshot(void)
 const char *R2D_AssetPath(const char *relative_path)
 {
     static char path[1024];
+    const char *development_asset_dir = R2D_DevelopmentAssetDir();
 
     if (relative_path == 0) {
         relative_path = "";
     }
 
-#ifdef R2D_DEVELOPMENT_ASSET_DIR
-    snprintf(path, sizeof(path), "%s%s", R2D_DEVELOPMENT_ASSET_DIR, relative_path);
-    if (FileExists(path) || DirectoryExists(path)) {
-        return path;
+    if (development_asset_dir != 0 && development_asset_dir[0] != '\0') {
+        snprintf(path, sizeof(path), "%s%s", development_asset_dir, relative_path);
+        if (FileExists(path) || DirectoryExists(path)) {
+            return path;
+        }
     }
-#endif
 
     snprintf(path, sizeof(path), "%sassets/%s", GetApplicationDirectory(), relative_path);
     return path;
+}
+
+void R2D_SetDevelopmentAssetDir(const char *path)
+{
+    size_t length;
+
+    if (path == 0 || path[0] == '\0') {
+        r2d_development_asset_dir[0] = '\0';
+        return;
+    }
+
+    snprintf(r2d_development_asset_dir, sizeof(r2d_development_asset_dir), "%s", path);
+    length = strlen(r2d_development_asset_dir);
+
+    if (length > 0 &&
+        length + 1 < sizeof(r2d_development_asset_dir) &&
+        r2d_development_asset_dir[length - 1] != '/' &&
+        r2d_development_asset_dir[length - 1] != '\\') {
+        r2d_development_asset_dir[length] = '/';
+        r2d_development_asset_dir[length + 1] = '\0';
+    }
+}
+
+const char *R2D_DevelopmentAssetDir(void)
+{
+    return r2d_development_asset_dir;
 }
 
 int R2D_VirtualWidth(const R2D_Context *ctx)

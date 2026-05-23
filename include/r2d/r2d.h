@@ -801,6 +801,8 @@ void R2D_CrtSetEnabled(R2D_Crt *crt, bool enabled);
 void R2D_SetCrt(R2D_Context *ctx, R2D_Crt *crt);
 
 const char *R2D_AssetPath(const char *relative_path);
+void R2D_SetDevelopmentAssetDir(const char *path);
+const char *R2D_DevelopmentAssetDir(void);
 bool R2D_MountAssetPack(const char *path);
 void R2D_UnmountAssetPack(void);
 bool R2D_AssetPackMounted(void);

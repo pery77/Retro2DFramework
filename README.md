@@ -17,6 +17,45 @@ Objetivos iniciales:
 - Un compilador C compatible con C99.
 - raylib instalado, o acceso a red para que CMake descargue raylib 6.0 con `FetchContent`.
 
+## Crear un proyecto
+
+Para crear un juego nuevo fuera del repo del framework:
+
+```powershell
+.\new_project_gui.bat
+```
+
+Esto abre una ventana sencilla para elegir nombre, carpeta destino, inicializar Git y
+crear el proyecto sin escribir comandos.
+
+Tambien puedes usar el generador por consola:
+
+```powershell
+.\tools\new_project.ps1 "My Game"
+```
+
+Por defecto se crea una carpeta hermana de `Retro2DFramework`, con CMake, `build.bat`,
+`r2d.ini`, `assets/`, `.gitignore` y un `src/main.c` minimo. El generador tambien copia
+los assets runtime basicos del framework que necesita el CRT. El proyecto enlaza el
+framework con `add_subdirectory`, asi que puedes mantener el juego en privado y seguir
+mejorando el framework en publico.
+
+Opciones utiles:
+
+```powershell
+.\tools\new_project.ps1 "Beeps Escape" -OutputRoot C:\tmp
+.\tools\new_project.ps1 "Beeps Escape" -OutputRoot C:\_Git -InitGit
+.\tools\new_project.ps1 "Beeps Escape" -OutputRoot C:\_Git -Force
+```
+
+Dentro del proyecto generado:
+
+```powershell
+.\build.bat debug
+.\build.bat release
+.\build.bat dist
+```
+
 ## Compilar
 
 En Windows, usa `build.bat` como punto unico de entrada:
