@@ -85,6 +85,7 @@ typedef enum R2D_LogSubsystem {
     R2D_LOG_SUBSYSTEM_TILEMAP,
     R2D_LOG_SUBSYSTEM_UI,
     R2D_LOG_SUBSYSTEM_GAME,
+    R2D_LOG_SUBSYSTEM_SCRIPT,
     R2D_LOG_SUBSYSTEM_COUNT
 } R2D_LogSubsystem;
 
@@ -158,6 +159,13 @@ typedef struct R2D_Sfx {
 typedef struct R2D_Music {
     void *state;
 } R2D_Music;
+
+typedef struct R2D_Script {
+    void *state;
+    bool loaded;
+} R2D_Script;
+
+typedef int (*R2D_ScriptFunction)(void *state);
 
 typedef struct R2D_MusicCrossfade {
     R2D_Music *from;
@@ -728,6 +736,23 @@ bool R2D_RuntimeConfigLoad(R2D_RuntimeConfig *runtime, const char *path);
 void R2D_RuntimeConfigApplyArgs(R2D_RuntimeConfig *runtime, int argc, char **argv);
 void R2D_RuntimeConfigApplyAudio(const R2D_RuntimeConfig *runtime);
 void R2D_RuntimeConfigApplyCrt(const R2D_RuntimeConfig *runtime, R2D_Crt *crt);
+bool R2D_ScriptAvailable(void);
+bool R2D_ScriptInit(R2D_Script *script);
+void R2D_ScriptClose(R2D_Script *script);
+bool R2D_ScriptIsReady(const R2D_Script *script);
+void *R2D_ScriptState(R2D_Script *script);
+bool R2D_ScriptLoadFile(R2D_Script *script, const char *path);
+bool R2D_ScriptDoString(R2D_Script *script, const char *source);
+bool R2D_ScriptCall(R2D_Script *script, const char *function_name, int argument_count, int result_count);
+bool R2D_ScriptRegister(R2D_Script *script, const char *name, R2D_ScriptFunction function);
+void R2D_ScriptPop(R2D_Script *script, int count);
+int R2D_ScriptStackTop(R2D_Script *script);
+void R2D_ScriptPushNumber(R2D_Script *script, double value);
+void R2D_ScriptPushBoolean(R2D_Script *script, bool value);
+void R2D_ScriptPushString(R2D_Script *script, const char *value);
+double R2D_ScriptToNumber(R2D_Script *script, int index, double fallback);
+bool R2D_ScriptToBoolean(R2D_Script *script, int index, bool fallback);
+const char *R2D_ScriptToString(R2D_Script *script, int index, const char *fallback);
 
 bool R2D_Init(R2D_Context *ctx, R2D_Config config);
 void R2D_Run(R2D_Context *ctx, R2D_App app);

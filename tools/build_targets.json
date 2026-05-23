@@ -56,6 +56,11 @@
       "run": true
     },
     {
+      "name": "r2d_script_example",
+      "label": "LuaJIT script example",
+      "run": true
+    },
+    {
       "name": "r2d_template_game",
       "label": "Template game",
       "run": true

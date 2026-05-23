@@ -10,6 +10,7 @@ set(R2D_FRAMEWORK_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}" CACHE INTERNAL "Retro
 option(R2D_BUILD_EXAMPLES "Build Retro2DFramework examples" ON)
 option(R2D_BUILD_TOOLS "Build Retro2DFramework tools" ON)
 option(R2D_PACKAGE_ASSETS "Package app assets into per-target .assets files" ON)
+option(R2D_ENABLE_LUAJIT "Enable LuaJIT scripting support" OFF)
 set(R2D_DIST_DIR "${CMAKE_BINARY_DIR}/dist" CACHE PATH "Output directory for packaged game distributions")
 
 find_package(raylib CONFIG QUIET)
@@ -22,6 +23,36 @@ if(NOT raylib_FOUND)
         GIT_TAG 6.0
     )
     FetchContent_MakeAvailable(raylib)
+endif()
+
+if(R2D_ENABLE_LUAJIT)
+    set(R2D_VENDORED_LUAJIT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/luajit")
+    set(LUAJIT_ROOT "" CACHE PATH "LuaJIT install root")
+    if("${LUAJIT_ROOT}" STREQUAL "" AND EXISTS "${R2D_VENDORED_LUAJIT_DIR}/src/lua.h")
+        set(LUAJIT_ROOT "${R2D_VENDORED_LUAJIT_DIR}")
+    endif()
+
+    set(R2D_BUILD_VENDORED_LUAJIT OFF)
+    if("${LUAJIT_ROOT}" STREQUAL "${R2D_VENDORED_LUAJIT_DIR}" AND MSVC)
+        set(LUAJIT_INCLUDE_DIR "${R2D_VENDORED_LUAJIT_DIR}/src" CACHE PATH "LuaJIT include directory" FORCE)
+        set(LUAJIT_LIBRARY "${R2D_VENDORED_LUAJIT_DIR}/src/lua51.lib")
+        set(R2D_BUILD_VENDORED_LUAJIT ON)
+    else()
+        find_path(LUAJIT_INCLUDE_DIR
+            NAMES lua.h
+            HINTS ${LUAJIT_ROOT}
+            PATH_SUFFIXES include include/luajit-2.1 include/luajit-2.0 src
+        )
+        find_library(LUAJIT_LIBRARY
+            NAMES luajit-5.1 lua51 lua5.1 luajit
+            HINTS ${LUAJIT_ROOT}
+            PATH_SUFFIXES lib lib64 src
+        )
+    endif()
+
+    if(NOT LUAJIT_INCLUDE_DIR OR NOT LUAJIT_LIBRARY)
+        message(FATAL_ERROR "R2D_ENABLE_LUAJIT is ON, but LuaJIT was not found. Set LUAJIT_ROOT or LUAJIT_INCLUDE_DIR/LUAJIT_LIBRARY.")
+    endif()
 endif()
 
 add_library(r2d STATIC
@@ -45,6 +76,7 @@ add_library(r2d STATIC
     src/r2d_particle.c
     src/r2d_runtime.c
     src/r2d_save.c
+    src/r2d_script.c
     src/r2d_state.c
     src/r2d_sprite.c
     src/r2d_time.c
@@ -60,6 +92,44 @@ target_include_directories(r2d
 )
 
 target_link_libraries(r2d PUBLIC raylib)
+
+if(R2D_ENABLE_LUAJIT)
+    if(R2D_BUILD_VENDORED_LUAJIT)
+        if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+            set(R2D_MSVC_ARCH x64)
+        else()
+            set(R2D_MSVC_ARCH x86)
+        endif()
+
+        set(R2D_VS_DEV_CMD "${CMAKE_GENERATOR_INSTANCE}/Common7/Tools/VsDevCmd.bat")
+        if(NOT EXISTS "${R2D_VS_DEV_CMD}")
+            message(FATAL_ERROR "Vendored LuaJIT needs VsDevCmd.bat to build with MSVC, but it was not found at ${R2D_VS_DEV_CMD}.")
+        endif()
+
+        add_custom_command(
+            OUTPUT ${LUAJIT_LIBRARY}
+            COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/cmake/r2d_build_luajit_msvc.bat"
+                "${R2D_VS_DEV_CMD}"
+                "${R2D_MSVC_ARCH}"
+                "${R2D_VENDORED_LUAJIT_DIR}/src"
+            WORKING_DIRECTORY "${R2D_VENDORED_LUAJIT_DIR}/src"
+            DEPENDS
+                "${CMAKE_CURRENT_SOURCE_DIR}/cmake/r2d_build_luajit_msvc.bat"
+                "${R2D_VENDORED_LUAJIT_DIR}/src/msvcbuild.bat"
+                "${R2D_VENDORED_LUAJIT_DIR}/src/ljamalg.c"
+            COMMENT "Building vendored LuaJIT"
+            VERBATIM
+        )
+        add_custom_target(r2d_luajit_vendor DEPENDS ${LUAJIT_LIBRARY})
+        add_dependencies(r2d r2d_luajit_vendor)
+    endif()
+
+    target_include_directories(r2d PRIVATE ${LUAJIT_INCLUDE_DIR})
+    target_link_libraries(r2d PUBLIC ${LUAJIT_LIBRARY})
+    target_compile_definitions(r2d PUBLIC R2D_HAS_LUAJIT=1)
+else()
+    target_compile_definitions(r2d PUBLIC R2D_HAS_LUAJIT=0)
+endif()
 
 if(MSVC)
     target_compile_options(r2d PRIVATE /W4)
@@ -198,6 +268,7 @@ if(R2D_BUILD_EXAMPLES)
     r2d_add_packaged_app(r2d_palette_example examples/palette/main.c)
     r2d_add_packaged_app(r2d_time_example examples/time/main.c)
     r2d_add_packaged_app(r2d_save_example examples/save/main.c)
+    r2d_add_packaged_app(r2d_script_example examples/script/main.c)
     r2d_add_packaged_app(r2d_template_game examples/template/main.c)
     r2d_add_packaged_app(r2d_platformer_example examples/platformer/main.c)
     r2d_add_packaged_app(r2d_topdown_example examples/topdown/main.c)
@@ -222,6 +293,7 @@ if(R2D_BUILD_EXAMPLES)
     r2d_add_game_package(r2d_palette_example)
     r2d_add_game_package(r2d_time_example)
     r2d_add_game_package(r2d_save_example)
+    r2d_add_game_package(r2d_script_example)
     r2d_add_game_package(r2d_template_game)
     r2d_add_game_package(r2d_platformer_example)
     r2d_add_game_package(r2d_topdown_example)
@@ -239,6 +311,7 @@ if(R2D_BUILD_EXAMPLES)
     r2d_use_windows_subsystem(r2d_palette_example)
     r2d_use_windows_subsystem(r2d_time_example)
     r2d_use_windows_subsystem(r2d_save_example)
+    r2d_use_windows_subsystem(r2d_script_example)
     r2d_use_windows_subsystem(r2d_template_game)
     r2d_use_windows_subsystem(r2d_platformer_example)
     r2d_use_windows_subsystem(r2d_topdown_example)

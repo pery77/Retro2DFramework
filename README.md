@@ -16,6 +16,7 @@ Objetivos iniciales:
 - CMake 3.20 o superior.
 - Un compilador C compatible con C99.
 - raylib instalado, o acceso a red para que CMake descargue raylib 6.0 con `FetchContent`.
+- LuaJIT opcional para scripting, activable con `-DR2D_ENABLE_LUAJIT=ON`.
 
 ## Crear un proyecto
 
@@ -72,6 +73,7 @@ En Windows, usa `build.bat` como punto unico de entrada:
 .\build.bat debug r2d_palette_example
 .\build.bat debug r2d_time_example
 .\build.bat debug r2d_save_example
+.\build.bat debug r2d_script_example
 .\build.bat debug r2d_template_game
 .\build.bat debug r2d_platformer_example
 .\build.bat debug r2d_topdown_example
@@ -87,7 +89,7 @@ opcional: usa `all` por defecto o el nombre de un target CMake. Los ejemplos pri
 son `r2d_hello_index`, `r2d_input_example`, `r2d_ui_example`,
 `r2d_audio_example`, `r2d_state_example`, `r2d_collision_example`,
 `r2d_particle_example`, `r2d_palette_example`, `r2d_time_example`,
-`r2d_save_example`, `r2d_template_game`, `r2d_platformer_example`,
+`r2d_save_example`, `r2d_script_example`, `r2d_template_game`, `r2d_platformer_example`,
 `r2d_topdown_example`, `r2d_collect`, `r2d_relic_run` y
 `r2d_collection_example`.
 Las herramientas son `r2d_sfx_editor` y `r2d_midi_player`. Para solo regenerar el proyecto:
@@ -116,6 +118,20 @@ cmake --build build --config Debug
 cmake --build build --config Release --target r2d_collect
 ```
 
+LuaJIT esta vendorizado en `external/luajit`. Para activar scripting:
+
+```powershell
+cmake -S . -B build -DR2D_ENABLE_LUAJIT=ON
+cmake --build build --config Debug
+```
+
+Tambien puedes usar `-DLUAJIT_ROOT=C:\path\to\luajit` si quieres enlazar una
+instalacion externa en vez de la copia vendorizada.
+
+Con LuaJIT activo, el framework expone `R2D_Script`: puedes inicializar un runtime,
+cargar un `.lua`, registrar funciones C y llamar funciones Lua desde el bucle del juego.
+Si no se activa, la API sigue disponible pero devuelve error de forma limpia.
+
 Si prefieres compilar con una ventana simple de un click:
 
 ```powershell
@@ -123,7 +139,8 @@ Si prefieres compilar con una ventana simple de un click:
 ```
 
 El launcher visual permite elegir `Debug` o `Release`, elegir un target, configurar,
-compilar, y compilar/ejecutar. Marca `Package dist` para que `Build` use el flujo
+compilar, y compilar/ejecutar. Marca `Enable LuaJIT` para usar la copia vendorizada.
+Marca `Package dist` para que `Build` use el flujo
 `dist` del target seleccionado; `Build && Run` ejecuta la carpeta empaquetada cuando
 esa casilla esta marcada. La lista sale de `tools/build_targets.json`; para anadir un
 ejemplo o herramienta nueva, anade el target a CMake y una entrada a ese JSON.
@@ -670,7 +687,9 @@ assets/audio/music      Canciones MIDI
 assets/audio/soundfonts Bancos SoundFont .sf2
 assets/animations       Clips de animacion .r2anim
 assets/atlases          Metadata de sprites .r2atlas
+assets/scripts          Scripts Lua de ejemplo
 external/tinysoundfont  TinySoundFont y TinyMidiLoader
+external/luajit         LuaJIT vendorizado para scripting opcional
 include/r2d/r2d.h       API publica
 src/r2d.c               Implementacion del framework
 src/r2d_asset_cache.c   Cache opt-in de texturas y shaders por grupo
@@ -691,6 +710,7 @@ src/r2d_palette.c       Paletas pequenas, recolor de imagenes, flashes y fades
 src/r2d_particle.c      Pool fijo de particulas y emisores retro
 src/r2d_runtime.c       Configuracion runtime desde r2d.ini y argumentos
 src/r2d_save.c          Save data, config y rutas de usuario
+src/r2d_script.c        Runtime LuaJIT opcional para scripting
 src/r2d_sprite.c        Spritesheets en grid y animacion simple
 src/r2d_time.c          Timers, tweens, shake y efectos temporales
 src/r2d_tilemap.c       Carga y dibujado basico de mapas Tiled JSON
@@ -704,6 +724,7 @@ examples/particles      Ejemplo visual de particulas y presets
 examples/palette        Ejemplo visual de paletas y recolor
 examples/time           Ejemplo visual de timers, tweens y efectos temporales
 examples/save           Ejemplo visual de save data y configuracion
+examples/script         Ejemplo de runtime LuaJIT opcional
 examples/template       Template minimo de juego
 examples/platformer     Ejemplo de patron platformer
 examples/topdown        Ejemplo de patron top-down

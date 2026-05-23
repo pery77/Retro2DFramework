@@ -214,6 +214,8 @@ const char *R2D_LogSubsystemName(R2D_LogSubsystem subsystem)
         return "ui";
     case R2D_LOG_SUBSYSTEM_GAME:
         return "game";
+    case R2D_LOG_SUBSYSTEM_SCRIPT:
+        return "script";
     default:
         return "unknown";
     }

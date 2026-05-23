@@ -179,7 +179,7 @@ $main.Controls.Add($title, 0, 0)
 $controls = [System.Windows.Forms.TableLayoutPanel]::new()
 $controls.Dock = "Top"
 $controls.ColumnCount = 6
-$controls.RowCount = 2
+$controls.RowCount = 3
 $controls.AutoSize = $true
 [void]$controls.ColumnStyles.Add([System.Windows.Forms.ColumnStyle]::new([System.Windows.Forms.SizeType]::AutoSize))
 [void]$controls.ColumnStyles.Add([System.Windows.Forms.ColumnStyle]::new([System.Windows.Forms.SizeType]::Absolute, 140))
@@ -259,13 +259,21 @@ $buildRunButton.Text = "Build && Run"
 $buildRunButton.Width = 100
 $buttonPanel.Controls.Add($buildRunButton)
 
+$luajitCheck = [System.Windows.Forms.CheckBox]::new()
+$luajitCheck.Text = "Enable LuaJIT"
+$luajitCheck.AutoSize = $true
+$luajitCheck.Anchor = "Left"
+$luajitCheck.Margin = [System.Windows.Forms.Padding]::new(0, 8, 0, 0)
+$controls.SetColumnSpan($luajitCheck, 6)
+$controls.Controls.Add($luajitCheck, 0, 1)
+
 $statusLabel = [System.Windows.Forms.Label]::new()
 $statusLabel.Text = "Ready"
 $statusLabel.AutoSize = $true
 $statusLabel.ForeColor = [System.Drawing.Color]::FromArgb(70, 70, 70)
 $statusLabel.Margin = [System.Windows.Forms.Padding]::new(0, 8, 0, 0)
 $controls.SetColumnSpan($statusLabel, 6)
-$controls.Controls.Add($statusLabel, 0, 1)
+$controls.Controls.Add($statusLabel, 0, 2)
 
 $logBox = [System.Windows.Forms.TextBox]::new()
 $logBox.Multiline = $true
@@ -280,7 +288,7 @@ $logBox.Margin = [System.Windows.Forms.Padding]::new(0, 12, 0, 8)
 $main.Controls.Add($logBox, 0, 2)
 
 $footer = [System.Windows.Forms.Label]::new()
-$footer.Text = "Targets are loaded from tools\build_targets.json. Build logic stays in build.bat."
+$footer.Text = "Targets are loaded from tools\build_targets.json. Build logic stays in build.bat. Enable LuaJIT uses external\luajit."
 $footer.AutoSize = $true
 $footer.ForeColor = [System.Drawing.Color]::FromArgb(90, 90, 90)
 $main.Controls.Add($footer, 0, 3)
@@ -319,6 +327,7 @@ function Set-BuildUiEnabled {
         $configCombo.Enabled = $IsEnabled
         $targetCombo.Enabled = $IsEnabled
         $packageCheck.Enabled = $IsEnabled
+        $luajitCheck.Enabled = $IsEnabled
         $configureButton.Enabled = $IsEnabled
         $buildButton.Enabled = $IsEnabled
         $runButton.Enabled = $IsEnabled
@@ -402,9 +411,22 @@ function Get-SelectedTargetCanRun {
     return [bool]$targetCombo.SelectedItem.run
 }
 
+function Get-LuaJitBuildArguments {
+    if (-not $luajitCheck.Checked) {
+        return ""
+    }
+
+    return ' "luajit"'
+}
+
+function Get-ConfigureArguments {
+    return '"configure"{0}' -f (Get-LuaJitBuildArguments)
+}
+
 function Get-SelectedBuildArguments {
     $config = [string]$configCombo.SelectedItem
     $target = Get-SelectedTargetName
+    $luajitArguments = Get-LuaJitBuildArguments
 
     if ($packageCheck.Checked) {
         if ($config -ne "Release") {
@@ -413,10 +435,10 @@ function Get-SelectedBuildArguments {
             Add-Log "Package dist uses Release."
         }
 
-        return '"dist" "{0}"' -f $target
+        return '"dist" "{0}"{1}' -f $target, $luajitArguments
     }
 
-    return '"{0}" "{1}"' -f $config.ToLowerInvariant(), $target
+    return '"{0}" "{1}"{2}' -f $config.ToLowerInvariant(), $target, $luajitArguments
 }
 
 function Start-SelectedTarget {
@@ -510,7 +532,7 @@ $buildTimer.Add_Tick({
 
 $configureButton.Add_Click({
     try {
-        Start-BuildCommand -Arguments "configure"
+        Start-BuildCommand -Arguments (Get-ConfigureArguments)
     } catch {
         Show-LauncherError -Title "Configure failed to start" -Exception $_.Exception
     }
