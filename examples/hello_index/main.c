@@ -34,16 +34,16 @@ static void Hello_Draw(void *user_data)
 
     DrawLine(24, 72, 296, 72, R2D_ColorFromHex(0x3a506bff));
     Hello_DrawLine(76, "Collect game", "r2d_collect", R2D_ColorFromHex(0xf8f8f2ff));
-    Hello_DrawLine(86, "Template", "r2d_template_game", R2D_ColorFromHex(0xf8f8f2ff));
-    Hello_DrawLine(96, "Platformer", "r2d_platformer_example", R2D_ColorFromHex(0xf8f8f2ff));
-    Hello_DrawLine(106, "Top-down", "r2d_topdown_example", R2D_ColorFromHex(0xf8f8f2ff));
-    Hello_DrawLine(116, "Input/UI", "r2d_input_example / r2d_ui_example", R2D_ColorFromHex(0xf8f8f2ff));
-    Hello_DrawLine(126, "Audio/States", "r2d_audio_example / r2d_state_example", R2D_ColorFromHex(0xf8f8f2ff));
-    Hello_DrawLine(136, "Collision", "r2d_collision_example", R2D_ColorFromHex(0xf8f8f2ff));
-    Hello_DrawLine(146, "Particles", "r2d_particle_example", R2D_ColorFromHex(0xf8f8f2ff));
-    Hello_DrawLine(156, "Palettes", "r2d_palette_example", R2D_ColorFromHex(0xf8f8f2ff));
-    Hello_DrawLine(166, "Time effects", "r2d_time_example", R2D_ColorFromHex(0xf8f8f2ff));
-    Hello_DrawLine(176, "Save data", "r2d_save_example", R2D_ColorFromHex(0xf8f8f2ff));
+    Hello_DrawLine(86, "Collection", "r2d_collection_example", R2D_ColorFromHex(0xf8f8f2ff));
+    Hello_DrawLine(96, "Template", "r2d_template_game", R2D_ColorFromHex(0xf8f8f2ff));
+    Hello_DrawLine(106, "Platformer", "r2d_platformer_example", R2D_ColorFromHex(0xf8f8f2ff));
+    Hello_DrawLine(116, "Top-down", "r2d_topdown_example", R2D_ColorFromHex(0xf8f8f2ff));
+    Hello_DrawLine(126, "Input/UI", "r2d_input_example / r2d_ui_example", R2D_ColorFromHex(0xf8f8f2ff));
+    Hello_DrawLine(136, "Audio/States", "r2d_audio_example / r2d_state_example", R2D_ColorFromHex(0xf8f8f2ff));
+    Hello_DrawLine(146, "Collision", "r2d_collision_example", R2D_ColorFromHex(0xf8f8f2ff));
+    Hello_DrawLine(156, "Particles", "r2d_particle_example", R2D_ColorFromHex(0xf8f8f2ff));
+    Hello_DrawLine(166, "Palettes", "r2d_palette_example", R2D_ColorFromHex(0xf8f8f2ff));
+    Hello_DrawLine(176, "Time/Save", "r2d_time_example / r2d_save_example", R2D_ColorFromHex(0xf8f8f2ff));
     // If need more space, we can use scrolling or some other solution, but for now we just need to fit the content.
 
     DrawText("Alt+Enter/F11 fullscreen   F12 screenshot", 54, 191, 8, R2D_ColorFromHex(0x8ecae6ff));

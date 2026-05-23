@@ -38,7 +38,8 @@ if ($Full) {
         "r2d_platformer_example",
         "r2d_topdown_example",
         "r2d_collect",
-        "r2d_relic_run"
+        "r2d_relic_run",
+        "r2d_collection_example"
     )
 }
 

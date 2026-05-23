@@ -76,6 +76,7 @@ En Windows, usa `build.bat` como punto unico de entrada:
 .\build.bat debug r2d_platformer_example
 .\build.bat debug r2d_topdown_example
 .\build.bat debug r2d_relic_run
+.\build.bat debug r2d_collection_example
 .\build.bat debug r2d_input_example
 .\build.bat debug r2d_ui_example
 .\build.bat debug all
@@ -87,7 +88,8 @@ son `r2d_hello_index`, `r2d_input_example`, `r2d_ui_example`,
 `r2d_audio_example`, `r2d_state_example`, `r2d_collision_example`,
 `r2d_particle_example`, `r2d_palette_example`, `r2d_time_example`,
 `r2d_save_example`, `r2d_template_game`, `r2d_platformer_example`,
-`r2d_topdown_example`, `r2d_collect` y `r2d_relic_run`.
+`r2d_topdown_example`, `r2d_collect`, `r2d_relic_run` y
+`r2d_collection_example`.
 Las herramientas son `r2d_sfx_editor` y `r2d_midi_player`. Para solo regenerar el proyecto:
 
 ```powershell
@@ -173,6 +175,7 @@ Cada sistema tiene su propio ejemplo para que el codigo sea documentacion ejecut
 .\build\Debug\r2d_topdown_example.exe
 .\build\Debug\r2d_collect.exe
 .\build\Debug\r2d_relic_run.exe
+.\build\Debug\r2d_collection_example.exe
 ```
 
 Con Visual Studio/MSVC, las builds `Release` equivalentes quedan en `.\build\Release\`.
@@ -190,6 +193,7 @@ Con Visual Studio/MSVC, las builds `Release` equivalentes quedan en `.\build\Rel
 - `r2d_platformer_example`: gravedad, salto, suelo y aterrizaje en plataforma.
 - `r2d_topdown_example`: movimiento top-down, camara y `R2D_MoveAndSlide`.
 - `r2d_collect`: mini demo jugable con tilemap, entidades, colision, camara, SFX y musica.
+- `r2d_collection_example`: launcher de minijuegos en un solo `.exe`, con juegos como modulos C internos.
 
 ## Demo collect
 
@@ -704,6 +708,7 @@ examples/template       Template minimo de juego
 examples/platformer     Ejemplo de patron platformer
 examples/topdown        Ejemplo de patron top-down
 examples/collect        Mini demo jugable de recoger monedas
+examples/collection     Coleccion de minijuegos en un unico ejecutable
 tools/sfx_editor        Editor sencillo de presets de sonido
 tools/midi_player       Reproductor para probar MIDIs con SoundFonts
 tools/build_gui.ps1     Launcher visual simple para builds

@@ -81,6 +81,11 @@
       "run": true
     },
     {
+      "name": "r2d_collection_example",
+      "label": "Collection example",
+      "run": true
+    },
+    {
       "name": "r2d_sfx_editor",
       "label": "SFX editor",
       "run": true

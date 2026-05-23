@@ -110,14 +110,19 @@ add_custom_target(r2d_pack_game
     COMMENT "Packaging Retro2D game distributions"
 )
 
-function(r2d_package_assets target_name source_file)
+function(r2d_package_assets target_name)
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets")
+        set(r2d_package_sources "")
+        foreach(source_file IN LISTS ARGN)
+            list(APPEND r2d_package_sources "${CMAKE_CURRENT_SOURCE_DIR}/${source_file}")
+        endforeach()
+
         add_custom_command(TARGET ${target_name} POST_BUILD
             COMMAND $<TARGET_FILE:r2d_asset_pack>
                 $<CONFIG>
                 ${CMAKE_CURRENT_SOURCE_DIR}/assets
                 $<TARGET_FILE_DIR:${target_name}>/${target_name}.assets
-                ${CMAKE_CURRENT_SOURCE_DIR}/${source_file}
+                ${r2d_package_sources}
             DEPENDS r2d_asset_pack
             COMMENT "Packing release assets for ${target_name}"
             VERBATIM
@@ -141,6 +146,17 @@ function(r2d_add_packaged_app target_name source_file)
     r2d_copy_assets(${target_name})
     if(R2D_PACKAGE_ASSETS)
         r2d_package_assets(${target_name} ${source_file})
+    endif()
+endfunction()
+
+function(r2d_add_packaged_app_sources target_name)
+    add_executable(${target_name} ${ARGN})
+    target_link_libraries(${target_name} PRIVATE r2d)
+    r2d_copy_runtime_config(${target_name})
+    r2d_copy_locale(${target_name})
+    r2d_copy_assets(${target_name})
+    if(R2D_PACKAGE_ASSETS)
+        r2d_package_assets(${target_name} ${ARGN})
     endif()
 endfunction()
 
@@ -187,6 +203,14 @@ if(R2D_BUILD_EXAMPLES)
     r2d_add_packaged_app(r2d_topdown_example examples/topdown/main.c)
     r2d_add_packaged_app(r2d_collect examples/collect/main.c)
     r2d_add_packaged_app(r2d_relic_run examples/relic_run/main.c)
+    r2d_add_packaged_app_sources(r2d_collection_example
+        examples/collection/main.c
+        examples/collection/launcher.c
+        examples/collection/games/pong/pong_game.c
+        examples/collection/games/bomber/bomber_game.c
+        examples/collection/games/bomber/bomber_map.c
+        examples/collection/games/bomber/bomber_player.c
+    )
 
     r2d_add_game_package(r2d_hello_index)
     r2d_add_game_package(r2d_input_example)
@@ -203,6 +227,7 @@ if(R2D_BUILD_EXAMPLES)
     r2d_add_game_package(r2d_topdown_example)
     r2d_add_game_package(r2d_collect)
     r2d_add_game_package(r2d_relic_run)
+    r2d_add_game_package(r2d_collection_example)
 
     r2d_use_windows_subsystem(r2d_hello_index)
     r2d_use_windows_subsystem(r2d_input_example)
@@ -219,6 +244,7 @@ if(R2D_BUILD_EXAMPLES)
     r2d_use_windows_subsystem(r2d_topdown_example)
     r2d_use_windows_subsystem(r2d_collect)
     r2d_use_windows_subsystem(r2d_relic_run)
+    r2d_use_windows_subsystem(r2d_collection_example)
 endif()
 
 if(R2D_BUILD_TOOLS)
