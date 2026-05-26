@@ -74,6 +74,7 @@ En Windows, usa `build.bat` como punto unico de entrada:
 .\build.bat debug r2d_time_example
 .\build.bat debug r2d_save_example
 .\build.bat debug r2d_script_example
+.\build.bat debug r2d_radiance_example
 .\build.bat debug r2d_template_game
 .\build.bat debug r2d_platformer_example
 .\build.bat debug r2d_topdown_example
@@ -89,8 +90,9 @@ opcional: usa `all` por defecto o el nombre de un target CMake. Los ejemplos pri
 son `r2d_hello_index`, `r2d_input_example`, `r2d_ui_example`,
 `r2d_audio_example`, `r2d_state_example`, `r2d_collision_example`,
 `r2d_particle_example`, `r2d_palette_example`, `r2d_time_example`,
-`r2d_save_example`, `r2d_script_example`, `r2d_template_game`, `r2d_platformer_example`,
-`r2d_topdown_example`, `r2d_collect`, `r2d_relic_run` y
+`r2d_save_example`, `r2d_script_example`, `r2d_radiance_example`,
+`r2d_template_game`, `r2d_platformer_example`, `r2d_topdown_example`,
+`r2d_collect`, `r2d_relic_run` y
 `r2d_collection_example`.
 Las herramientas son `r2d_sfx_editor` y `r2d_midi_player`. Para solo regenerar el proyecto:
 
@@ -187,6 +189,7 @@ Cada sistema tiene su propio ejemplo para que el codigo sea documentacion ejecut
 .\build\Debug\r2d_palette_example.exe
 .\build\Debug\r2d_time_example.exe
 .\build\Debug\r2d_save_example.exe
+.\build\Debug\r2d_radiance_example.exe
 .\build\Debug\r2d_template_game.exe
 .\build\Debug\r2d_platformer_example.exe
 .\build\Debug\r2d_topdown_example.exe
@@ -206,11 +209,42 @@ Con Visual Studio/MSVC, las builds `Release` equivalentes quedan en `.\build\Rel
 - `r2d_palette_example`: paletas, recolor de sprite, flash y fade por color.
 - `r2d_time_example`: timers, tweens, shake, hitstop, slow motion, flash y fade.
 - `r2d_save_example`: configuracion, progreso y high score persistidos.
+- `r2d_radiance_example`: primer Radiance Cascades 2D tipo Flatland, con mascara manual.
 - `r2d_template_game`: esqueleto limpio con input, estados, update/draw y shutdown.
 - `r2d_platformer_example`: gravedad, salto, suelo y aterrizaje en plataforma.
 - `r2d_topdown_example`: movimiento top-down, camara y `R2D_MoveAndSlide`.
 - `r2d_collect`: mini demo jugable con tilemap, entidades, colision, camara, SFX y musica.
 - `r2d_collection_example`: launcher de minijuegos en un solo `.exe`, con juegos como modulos C internos.
+
+## Demo collect
+
+## Radiance Cascades 2D
+
+`R2D_Radiance` implementa una primera version nueva de Radiance Cascades 2D para el
+framework. No depende del pipeline Unity: usa una mascara simple donde blanco es aire,
+negro es oclusor y cualquier otro color es emisor. Las cascadas se calculan con raymarch
+por grid tipo DDA y se componen antes del CRT.
+
+```c
+R2D_Radiance radiance = { 0 };
+R2D_RadianceInit(&radiance, config.virtual_width, config.virtual_height);
+R2D_SetRadiance(&context, &radiance);
+
+R2D_RadianceBeginMask(&context, &radiance);
+R2D_RadianceDrawOccluderRect(R2D_Rect(40, 40, 32, 80));
+R2D_RadianceDrawEmitterCircle((Vector2) { 80, 70 }, 10, R2D_ColorFromHex(0xffca5cff));
+R2D_RadianceEndMask(&context, &radiance);
+
+R2D_BeginOverlay(&context);
+DrawText("HUD fuera de radiance", 8, 8, 8, WHITE);
+R2D_EndOverlay(&context);
+```
+
+El ejemplo alterna vistas con `D`: final, mascara y cascada base. `S` activa cielo, `R`
+enciende o apaga radiance, `C` alterna CRT, `Q` cambia el perfil de calidad y `1`/`2`
+ajustan intensidad mientras `3`/`4` ajustan ambiente. El raton actua como una luz dinamica.
+El overlay se compone despues de radiance y antes del CRT, util para HUD/UI que no deba
+iluminarse pero si debe compartir el acabado final de pantalla.
 
 ## Demo collect
 
@@ -708,6 +742,7 @@ src/r2d_audio.c         Sintetizador simple para efectos retro
 src/r2d_music.c         Reproduccion MIDI + SoundFont
 src/r2d_palette.c       Paletas pequenas, recolor de imagenes, flashes y fades
 src/r2d_particle.c      Pool fijo de particulas y emisores retro
+src/r2d_radiance.c      Radiance Cascades 2D tipo Flatland
 src/r2d_runtime.c       Configuracion runtime desde r2d.ini y argumentos
 src/r2d_save.c          Save data, config y rutas de usuario
 src/r2d_script.c        Runtime LuaJIT opcional para scripting
@@ -725,6 +760,7 @@ examples/palette        Ejemplo visual de paletas y recolor
 examples/time           Ejemplo visual de timers, tweens y efectos temporales
 examples/save           Ejemplo visual de save data y configuracion
 examples/script         Ejemplo de runtime LuaJIT opcional
+examples/radiance       Ejemplo de Radiance Cascades 2D
 examples/template       Template minimo de juego
 examples/platformer     Ejemplo de patron platformer
 examples/topdown        Ejemplo de patron top-down

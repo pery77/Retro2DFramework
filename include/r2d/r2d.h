@@ -108,6 +108,55 @@ typedef struct R2D_Crt {
     bool is_ready;
 } R2D_Crt;
 
+typedef enum R2D_RadianceDebugView {
+    R2D_RADIANCE_DEBUG_NONE = 0,
+    R2D_RADIANCE_DEBUG_MASK,
+    R2D_RADIANCE_DEBUG_CASCADE
+} R2D_RadianceDebugView;
+
+typedef struct R2D_Radiance {
+    RenderTexture2D mask;
+    RenderTexture2D cascade_a;
+    RenderTexture2D cascade_b;
+    RenderTexture2D color;
+    Shader cascade_shader;
+    Shader compose_shader;
+    int cascade_scene_loc;
+    int cascade_prev_loc;
+    int cascade_resolution_loc;
+    int cascade_base_spacing_loc;
+    int cascade_base_rays_loc;
+    int cascade_probe_count_loc;
+    int cascade_index_loc;
+    int cascade_count_loc;
+    int cascade_sky_enabled_loc;
+    int cascade_sky_color_loc;
+    int compose_scene_loc;
+    int compose_cascade_loc;
+    int compose_mask_loc;
+    int compose_resolution_loc;
+    int compose_base_spacing_loc;
+    int compose_base_rays_loc;
+    int compose_probe_count_loc;
+    int compose_intensity_loc;
+    int compose_ambient_loc;
+    int width;
+    int height;
+    int cascade_width;
+    int cascade_height;
+    int base_spacing;
+    int base_rays;
+    int cascade_count;
+    float intensity;
+    float ambient;
+    Color sky_color;
+    bool sky_enabled;
+    bool enabled;
+    bool is_ready;
+    bool mask_ready;
+    R2D_RadianceDebugView debug_view;
+} R2D_Radiance;
+
 typedef enum R2D_Waveform {
     R2D_WAVE_SQUARE = 0,
     R2D_WAVE_TRIANGLE,
@@ -707,6 +756,8 @@ typedef struct R2D_DebugInfo {
 typedef struct R2D_Context {
     R2D_Config config;
     RenderTexture2D target;
+    RenderTexture2D overlay;
+    RenderTexture2D composite;
     Rectangle source;
     Rectangle destination;
     Vector2 origin;
@@ -714,6 +765,7 @@ typedef struct R2D_Context {
     int windowed_height;
     Vector2 windowed_position;
     R2D_Crt *crt;
+    R2D_Radiance *radiance;
     bool screenshot_requested;
     bool close_requested;
     bool is_ready;
@@ -761,6 +813,9 @@ void R2D_Close(R2D_Context *ctx);
 
 void R2D_BeginFrame(R2D_Context *ctx);
 void R2D_EndFrame(R2D_Context *ctx);
+void R2D_BeginOverlay(R2D_Context *ctx);
+void R2D_EndOverlay(R2D_Context *ctx);
+void R2D_ClearOverlay(R2D_Context *ctx);
 
 void R2D_ToggleFullscreen(R2D_Context *ctx);
 void R2D_TakeScreenshot(void);
@@ -824,6 +879,23 @@ bool R2D_CrtReload(R2D_Crt *crt);
 void R2D_CrtClose(R2D_Crt *crt);
 void R2D_CrtSetEnabled(R2D_Crt *crt, bool enabled);
 void R2D_SetCrt(R2D_Context *ctx, R2D_Crt *crt);
+
+bool R2D_RadianceInit(R2D_Radiance *radiance, int width, int height);
+void R2D_RadianceClose(R2D_Radiance *radiance);
+bool R2D_RadianceReload(R2D_Radiance *radiance);
+void R2D_RadianceSetEnabled(R2D_Radiance *radiance, bool enabled);
+void R2D_RadianceSetDebugView(R2D_Radiance *radiance, R2D_RadianceDebugView debug_view);
+void R2D_RadianceSetLight(R2D_Radiance *radiance, float intensity, float ambient);
+void R2D_RadianceSetSky(R2D_Radiance *radiance, bool enabled, Color color);
+bool R2D_RadianceSetQuality(R2D_Radiance *radiance, int base_spacing, int base_rays, int cascade_count);
+void R2D_RadianceBeginMask(R2D_Context *ctx, R2D_Radiance *radiance);
+void R2D_RadianceEndMask(R2D_Context *ctx, R2D_Radiance *radiance);
+void R2D_RadianceDrawOccluderRect(Rectangle rect);
+void R2D_RadianceDrawOccluderCircle(Vector2 center, float radius);
+void R2D_RadianceDrawEmitterRect(Rectangle rect, Color color);
+void R2D_RadianceDrawEmitterCircle(Vector2 center, float radius, Color color);
+Texture2D R2D_RadianceRender(R2D_Radiance *radiance, Texture2D color_texture);
+void R2D_SetRadiance(R2D_Context *ctx, R2D_Radiance *radiance);
 
 const char *R2D_AssetPath(const char *relative_path);
 void R2D_SetDevelopmentAssetDir(const char *path);

@@ -74,6 +74,7 @@ add_library(r2d STATIC
     src/r2d_music.c
     src/r2d_palette.c
     src/r2d_particle.c
+    src/r2d_radiance.c
     src/r2d_runtime.c
     src/r2d_save.c
     src/r2d_script.c
@@ -269,6 +270,7 @@ if(R2D_BUILD_EXAMPLES)
     r2d_add_packaged_app(r2d_time_example examples/time/main.c)
     r2d_add_packaged_app(r2d_save_example examples/save/main.c)
     r2d_add_packaged_app(r2d_script_example examples/script/main.c)
+    r2d_add_packaged_app(r2d_radiance_example examples/radiance/main.c)
     r2d_add_packaged_app(r2d_template_game examples/template/main.c)
     r2d_add_packaged_app(r2d_platformer_example examples/platformer/main.c)
     r2d_add_packaged_app(r2d_topdown_example examples/topdown/main.c)
@@ -294,6 +296,7 @@ if(R2D_BUILD_EXAMPLES)
     r2d_add_game_package(r2d_time_example)
     r2d_add_game_package(r2d_save_example)
     r2d_add_game_package(r2d_script_example)
+    r2d_add_game_package(r2d_radiance_example)
     r2d_add_game_package(r2d_template_game)
     r2d_add_game_package(r2d_platformer_example)
     r2d_add_game_package(r2d_topdown_example)
@@ -312,6 +315,7 @@ if(R2D_BUILD_EXAMPLES)
     r2d_use_windows_subsystem(r2d_time_example)
     r2d_use_windows_subsystem(r2d_save_example)
     r2d_use_windows_subsystem(r2d_script_example)
+    r2d_use_windows_subsystem(r2d_radiance_example)
     r2d_use_windows_subsystem(r2d_template_game)
     r2d_use_windows_subsystem(r2d_platformer_example)
     r2d_use_windows_subsystem(r2d_topdown_example)

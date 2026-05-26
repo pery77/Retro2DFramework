@@ -133,6 +133,8 @@ bool R2D_Init(R2D_Context *ctx, R2D_Config config)
 
     ctx->config = config;
     ctx->target = LoadRenderTexture(config.virtual_width, config.virtual_height);
+    ctx->overlay = LoadRenderTexture(config.virtual_width, config.virtual_height);
+    ctx->composite = LoadRenderTexture(config.virtual_width, config.virtual_height);
     ctx->source = (Rectangle) {
         0.0f,
         0.0f,
@@ -145,12 +147,20 @@ bool R2D_Init(R2D_Context *ctx, R2D_Config config)
     ctx->windowed_height = config.virtual_height * config.window_scale;
     ctx->windowed_position = GetWindowPosition();
     ctx->crt = 0;
+    ctx->radiance = 0;
     ctx->screenshot_requested = false;
     ctx->close_requested = false;
-    ctx->is_ready = IsRenderTextureValid(ctx->target);
+    ctx->is_ready = IsRenderTextureValid(ctx->target) &&
+        IsRenderTextureValid(ctx->overlay) &&
+        IsRenderTextureValid(ctx->composite);
 
     SetTextureFilter(ctx->target.texture, TEXTURE_FILTER_POINT);
     SetTextureWrap(ctx->target.texture, TEXTURE_WRAP_MIRROR_REPEAT);
+    SetTextureFilter(ctx->overlay.texture, TEXTURE_FILTER_POINT);
+    SetTextureWrap(ctx->overlay.texture, TEXTURE_WRAP_CLAMP);
+    SetTextureFilter(ctx->composite.texture, TEXTURE_FILTER_POINT);
+    SetTextureWrap(ctx->composite.texture, TEXTURE_WRAP_CLAMP);
+    R2D_ClearOverlay(ctx);
     return ctx->is_ready;
 }
 
@@ -201,6 +211,8 @@ void R2D_Close(R2D_Context *ctx)
     }
 
     UnloadRenderTexture(ctx->target);
+    UnloadRenderTexture(ctx->overlay);
+    UnloadRenderTexture(ctx->composite);
     R2D_UnmountAssetPack();
     CloseWindow();
     ctx->is_ready = false;
@@ -208,13 +220,41 @@ void R2D_Close(R2D_Context *ctx)
 
 void R2D_BeginFrame(R2D_Context *ctx)
 {
+    R2D_ClearOverlay(ctx);
     BeginTextureMode(ctx->target);
     ClearBackground(ctx->config.clear_color);
 }
 
 void R2D_EndFrame(R2D_Context *ctx)
 {
+    Texture2D frame_texture;
+    Rectangle frame_source;
+    Rectangle full_dest;
+
     EndTextureMode();
+
+    frame_texture = ctx->target.texture;
+    frame_source = ctx->source;
+
+    if (ctx->radiance != 0 && ctx->radiance->enabled && ctx->radiance->is_ready) {
+        frame_texture = R2D_RadianceRender(ctx->radiance, ctx->target.texture);
+        frame_source = (Rectangle) { 0.0f, 0.0f, (float)ctx->radiance->width, -(float)ctx->radiance->height };
+    }
+
+    full_dest = (Rectangle) {
+        0.0f,
+        0.0f,
+        (float)ctx->config.virtual_width,
+        (float)ctx->config.virtual_height
+    };
+
+    BeginTextureMode(ctx->composite);
+    ClearBackground(BLANK);
+    DrawTexturePro(frame_texture, frame_source, full_dest, ctx->origin, 0.0f, WHITE);
+    DrawTexturePro(ctx->overlay.texture, ctx->source, full_dest, ctx->origin, 0.0f, WHITE);
+    EndTextureMode();
+    frame_texture = ctx->composite.texture;
+    frame_source = ctx->source;
 
     ctx->destination = R2D_CalculateDestination(
         ctx->config.virtual_width,
@@ -234,10 +274,10 @@ void R2D_EndFrame(R2D_Context *ctx)
         SetShaderValue(ctx->crt->shader, ctx->crt->virtual_resolution_loc, &virtual_resolution, SHADER_UNIFORM_VEC2);
         SetShaderValue(ctx->crt->shader, ctx->crt->random_loc, &random, SHADER_UNIFORM_FLOAT);
         SetShaderValueTexture(ctx->crt->shader, ctx->crt->noise_loc, ctx->crt->noise);
-        DrawTexturePro(ctx->target.texture, ctx->source, ctx->destination, ctx->origin, 0.0f, WHITE);
+        DrawTexturePro(frame_texture, frame_source, ctx->destination, ctx->origin, 0.0f, WHITE);
         EndShaderMode();
     } else {
-        DrawTexturePro(ctx->target.texture, ctx->source, ctx->destination, ctx->origin, 0.0f, WHITE);
+        DrawTexturePro(frame_texture, frame_source, ctx->destination, ctx->origin, 0.0f, WHITE);
     }
 
     EndDrawing();
@@ -246,6 +286,37 @@ void R2D_EndFrame(R2D_Context *ctx)
         R2D_TakeScreenshot();
         ctx->screenshot_requested = false;
     }
+}
+
+void R2D_BeginOverlay(R2D_Context *ctx)
+{
+    if (ctx == 0 || !ctx->is_ready) {
+        return;
+    }
+
+    EndTextureMode();
+    BeginTextureMode(ctx->overlay);
+}
+
+void R2D_EndOverlay(R2D_Context *ctx)
+{
+    if (ctx == 0 || !ctx->is_ready) {
+        return;
+    }
+
+    EndTextureMode();
+    BeginTextureMode(ctx->target);
+}
+
+void R2D_ClearOverlay(R2D_Context *ctx)
+{
+    if (ctx == 0 || !IsRenderTextureValid(ctx->overlay)) {
+        return;
+    }
+
+    BeginTextureMode(ctx->overlay);
+    ClearBackground(BLANK);
+    EndTextureMode();
 }
 
 void R2D_ToggleFullscreen(R2D_Context *ctx)
