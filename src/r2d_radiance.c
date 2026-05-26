@@ -106,6 +106,8 @@ bool R2D_RadianceInit(R2D_Radiance *radiance, int width, int height)
     radiance->cascade_count = 8;
     radiance->intensity = 1.2f;
     radiance->ambient = 0.035f;
+    radiance->falloff = 1.0f;
+    radiance->light_range = 208.0f;
     radiance->sky_color = R2D_ColorFromHex(0x20385fff);
     radiance->sky_enabled = false;
     radiance->enabled = true;
@@ -149,6 +151,8 @@ bool R2D_RadianceReload(R2D_Radiance *radiance)
     radiance->cascade_count_loc = GetShaderLocation(radiance->cascade_shader, "cascadeCount");
     radiance->cascade_sky_enabled_loc = GetShaderLocation(radiance->cascade_shader, "skyEnabled");
     radiance->cascade_sky_color_loc = GetShaderLocation(radiance->cascade_shader, "skyColor");
+    radiance->cascade_falloff_loc = GetShaderLocation(radiance->cascade_shader, "falloff");
+    radiance->cascade_light_range_loc = GetShaderLocation(radiance->cascade_shader, "lightRange");
     radiance->compose_scene_loc = GetShaderLocation(radiance->compose_shader, "sceneTexture");
     radiance->compose_cascade_loc = GetShaderLocation(radiance->compose_shader, "cascadeTexture");
     radiance->compose_mask_loc = GetShaderLocation(radiance->compose_shader, "maskTexture");
@@ -198,6 +202,20 @@ void R2D_RadianceSetLight(R2D_Radiance *radiance, float intensity, float ambient
     if (radiance != 0) {
         radiance->intensity = intensity;
         radiance->ambient = ambient;
+    }
+}
+
+void R2D_RadianceSetFalloff(R2D_Radiance *radiance, float falloff)
+{
+    if (radiance != 0) {
+        radiance->falloff = falloff;
+    }
+}
+
+void R2D_RadianceSetLightRange(R2D_Radiance *radiance, float light_range)
+{
+    if (radiance != 0) {
+        radiance->light_range = light_range;
     }
 }
 
@@ -333,6 +351,8 @@ Texture2D R2D_RadianceRender(R2D_Radiance *radiance, Texture2D color_texture)
         SetShaderValue(radiance->cascade_shader, radiance->cascade_count_loc, &radiance->cascade_count, SHADER_UNIFORM_INT);
         SetShaderValue(radiance->cascade_shader, radiance->cascade_sky_enabled_loc, &sky_enabled, SHADER_UNIFORM_INT);
         SetShaderValue(radiance->cascade_shader, radiance->cascade_sky_color_loc, &sky_color, SHADER_UNIFORM_VEC3);
+        SetShaderValue(radiance->cascade_shader, radiance->cascade_falloff_loc, &radiance->falloff, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(radiance->cascade_shader, radiance->cascade_light_range_loc, &radiance->light_range, SHADER_UNIFORM_FLOAT);
         DrawTexturePro(source.texture, R2D_RadianceSourceRect(source.texture), R2D_RadianceDestRect(radiance->cascade_width, radiance->cascade_height), (Vector2) { 0.0f, 0.0f }, 0.0f, WHITE);
         EndShaderMode();
         EndTextureMode();

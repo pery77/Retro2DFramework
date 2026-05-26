@@ -131,6 +131,8 @@ typedef struct R2D_Radiance {
     int cascade_count_loc;
     int cascade_sky_enabled_loc;
     int cascade_sky_color_loc;
+    int cascade_falloff_loc;
+    int cascade_light_range_loc;
     int compose_scene_loc;
     int compose_cascade_loc;
     int compose_mask_loc;
@@ -149,6 +151,8 @@ typedef struct R2D_Radiance {
     int cascade_count;
     float intensity;
     float ambient;
+    float falloff;
+    float light_range;
     Color sky_color;
     bool sky_enabled;
     bool enabled;
@@ -886,6 +890,8 @@ bool R2D_RadianceReload(R2D_Radiance *radiance);
 void R2D_RadianceSetEnabled(R2D_Radiance *radiance, bool enabled);
 void R2D_RadianceSetDebugView(R2D_Radiance *radiance, R2D_RadianceDebugView debug_view);
 void R2D_RadianceSetLight(R2D_Radiance *radiance, float intensity, float ambient);
+void R2D_RadianceSetFalloff(R2D_Radiance *radiance, float falloff);
+void R2D_RadianceSetLightRange(R2D_Radiance *radiance, float light_range);
 void R2D_RadianceSetSky(R2D_Radiance *radiance, bool enabled, Color color);
 bool R2D_RadianceSetQuality(R2D_Radiance *radiance, int base_spacing, int base_rays, int cascade_count);
 void R2D_RadianceBeginMask(R2D_Context *ctx, R2D_Radiance *radiance);

@@ -229,6 +229,9 @@ por grid tipo DDA y se componen antes del CRT.
 R2D_Radiance radiance = { 0 };
 R2D_RadianceInit(&radiance, config.virtual_width, config.virtual_height);
 R2D_SetRadiance(&context, &radiance);
+R2D_RadianceSetLight(&radiance, 1.3f, 0.06f);
+R2D_RadianceSetFalloff(&radiance, 1.0f);
+R2D_RadianceSetLightRange(&radiance, 208.0f);
 
 R2D_RadianceBeginMask(&context, &radiance);
 R2D_RadianceDrawOccluderRect(R2D_Rect(40, 40, 32, 80));
@@ -241,10 +244,11 @@ R2D_EndOverlay(&context);
 ```
 
 El ejemplo alterna vistas con `D`: final, mascara y cascada base. `S` activa cielo, `R`
-enciende o apaga radiance, `C` alterna CRT, `Q` cambia el perfil de calidad y `1`/`2`
-ajustan intensidad mientras `3`/`4` ajustan ambiente. El raton actua como una luz dinamica.
-El overlay se compone despues de radiance y antes del CRT, util para HUD/UI que no deba
-iluminarse pero si debe compartir el acabado final de pantalla.
+enciende o apaga radiance, `C` alterna CRT y `Q` cambia el perfil de calidad. `1`/`2`
+ajustan intensidad, `3`/`4` ambiente, `5`/`6` la curva de decaimiento y `7`/`8` el
+rango de luz en pixeles. El raton actua como una luz dinamica. El overlay se compone
+despues de radiance y antes del CRT, util para HUD/UI que no deba iluminarse pero si
+debe compartir el acabado final de pantalla.
 
 ## Demo collect
 

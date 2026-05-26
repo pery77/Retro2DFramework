@@ -42,6 +42,10 @@ vec3 sample_probe(vec2 probe)
 {
     vec2 extent = vec2(textureSize(cascadeTexture, 0));
     vec2 clamped_probe = clamp(probe, vec2(0.0), probeCount - vec2(1.0));
+    int atlas_width = int(extent.x);
+    int probe_x = int(clamped_probe.x);
+    int probe_y = int(clamped_probe.y);
+    int probe_index = probe_y * int(probeCount.x) + probe_x;
     vec3 radiance = vec3(0.0);
     float ray_count = float(min(baseRays, MAX_BASE_RAYS));
 
@@ -49,7 +53,8 @@ vec3 sample_probe(vec2 probe)
         if (r >= baseRays) {
             break;
         }
-        vec2 coord = vec2(clamped_probe.x * float(baseRays) + float(r), clamped_probe.y) + 0.5;
+        int linear = probe_index * baseRays + r;
+        vec2 coord = vec2(float(linear - (linear / atlas_width) * atlas_width), float(linear / atlas_width)) + 0.5;
         radiance += texture(cascadeTexture, coord / extent).rgb;
     }
 

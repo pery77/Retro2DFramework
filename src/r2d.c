@@ -7,6 +7,8 @@
 
 #if defined(_WIN32)
 __declspec(dllimport) unsigned long __stdcall GetModuleFileNameA(void *module, char *filename, unsigned long size);
+__declspec(dllexport) unsigned long NvOptimusEnablement = 0x00000001;
+__declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
 #endif
 
 static char r2d_development_asset_dir[1024] = "";

@@ -12,10 +12,23 @@ typedef struct RadianceExample {
     float time;
     float intensity;
     float ambient;
+    float falloff;
+    float light_range;
     int quality;
     bool sky;
     R2D_RadianceDebugView debug;
 } RadianceExample;
+
+static void RadianceExample_ApplyQuality(RadianceExample *example)
+{
+    if (example->quality == 0) {
+        R2D_RadianceSetQuality(example->radiance, 1, 8, 6);
+    } else if (example->quality == 1) {
+        R2D_RadianceSetQuality(example->radiance, 1, 12, 7);
+    } else {
+        R2D_RadianceSetQuality(example->radiance, 1, 16, 8);
+    }
+}
 
 static void RadianceExample_Init(void *user_data)
 {
@@ -30,10 +43,18 @@ static void RadianceExample_Init(void *user_data)
     R2D_InputBindKey(&example->input, "intensity_up", KEY_TWO);
     R2D_InputBindKey(&example->input, "ambient_down", KEY_THREE);
     R2D_InputBindKey(&example->input, "ambient_up", KEY_FOUR);
+    R2D_InputBindKey(&example->input, "falloff_down", KEY_FIVE);
+    R2D_InputBindKey(&example->input, "falloff_up", KEY_SIX);
+    R2D_InputBindKey(&example->input, "range_down", KEY_SEVEN);
+    R2D_InputBindKey(&example->input, "range_up", KEY_EIGHT);
     R2D_InputBindKey(&example->input, "quality", KEY_Q);
     example->intensity = 1.3f;
-    example->ambient = 0.06f;
-    example->quality = 2;
+    example->ambient = 0.03f;
+    example->falloff = 1.0f;
+    example->light_range = 208.0f;
+    example->quality = 1;
+    example->sky = false;
+    RadianceExample_ApplyQuality(example);
 }
 
 static void RadianceExample_Update(float dt, void *user_data)
@@ -57,13 +78,7 @@ static void RadianceExample_Update(float dt, void *user_data)
     }
     if (R2D_InputPressed(&example->input, "quality")) {
         example->quality = (example->quality + 1) % 3;
-        if (example->quality == 0) {
-            R2D_RadianceSetQuality(example->radiance, 2, 8, 4);
-        } else if (example->quality == 1) {
-            R2D_RadianceSetQuality(example->radiance, 1, 16, 8);
-        } else {
-            R2D_RadianceSetQuality(example->radiance, 0.44f, 64, 10);
-        }
+        RadianceExample_ApplyQuality(example);
     }
     if (R2D_InputDown(&example->input, "intensity_down")) {
         example->intensity = fmaxf(0.1f, example->intensity - dt * 1.0f);
@@ -77,9 +92,23 @@ static void RadianceExample_Update(float dt, void *user_data)
     if (R2D_InputDown(&example->input, "ambient_up")) {
         example->ambient = fminf(0.5f, example->ambient + dt * 0.08f);
     }
+    if (R2D_InputDown(&example->input, "falloff_down")) {
+        example->falloff = fmaxf(0.2f, example->falloff - dt * 0.7f);
+    }
+    if (R2D_InputDown(&example->input, "falloff_up")) {
+        example->falloff = fminf(3.0f, example->falloff + dt * 0.7f);
+    }
+    if (R2D_InputDown(&example->input, "range_down")) {
+        example->light_range = fmaxf(24.0f, example->light_range - dt * 96.0f);
+    }
+    if (R2D_InputDown(&example->input, "range_up")) {
+        example->light_range = fminf(512.0f, example->light_range + dt * 96.0f);
+    }
 
     R2D_RadianceSetDebugView(example->radiance, example->debug);
     R2D_RadianceSetLight(example->radiance, example->intensity, example->ambient);
+    R2D_RadianceSetFalloff(example->radiance, example->falloff);
+    R2D_RadianceSetLightRange(example->radiance, example->light_range);
     R2D_RadianceSetSky(example->radiance, example->sky, R2D_ColorFromHex(0x244a7dff));
 }
 
@@ -94,9 +123,9 @@ static void RadianceExample_DrawScene(const RadianceExample *example)
     DrawRectangle(38, 42, 42, 96, R2D_ColorFromHex(0x101217ff));
     DrawRectangle(140, 78, 36, 76, R2D_ColorFromHex(0x101217ff));
     DrawRectangle(224, 48, 52, 108, R2D_ColorFromHex(0x101217ff));
-    DrawRectangleLines(38, 42, 42, 96, R2D_ColorFromHex(0x68758cff));
-    DrawRectangleLines(140, 78, 36, 76, R2D_ColorFromHex(0x68758cff));
-    DrawRectangleLines(224, 48, 52, 108, R2D_ColorFromHex(0x68758cff));
+    DrawRectangleLines(38, 42, 42, 96, R2D_ColorFromHex(0xEFDECDff));
+    DrawRectangleLines(140, 78, 36, 76, R2D_ColorFromHex(0xEFDECDff));
+    DrawRectangleLines(224, 48, 52, 108, R2D_ColorFromHex(0xEFDECDff));
     //DrawCircleV(lamp, 5.0f, R2D_ColorFromHex(0xffca5cff));
     //DrawCircle(296, 88, 5.0f, R2D_ColorFromHex(0x75d7ffff));
     //DrawCircleV(mouse, 4.0f, R2D_ColorFromHex(0xff7ab6ff));
@@ -107,20 +136,33 @@ static void RadianceExample_DrawScene(const RadianceExample *example)
 
 static void RadianceExample_DrawHUD(const RadianceExample *example)
 {
-    char text[96];
+    char status[96];
+    char params[96];
+
     snprintf(
-        text,
-        sizeof(text),
-        "Flatland RC  R:%s C:%s D:%d S:%s Q:%d 1/2 %.1f 3/4 %.2f",
+        status,
+        sizeof(status),
+        "RC R:%s CRT:%s V:%d S:%s Q%d",
         example->radiance->enabled ? "on" : "off",
         example->crt != 0 && example->crt->enabled ? "on" : "off",
         (int)example->debug,
         example->sky ? "on" : "off",
-        example->quality,
-        example->intensity,
-        example->ambient
+        example->quality
     );
-    DrawText(text, 8, 8, 8, R2D_ColorFromHex(0xe6edf3ff));
+    snprintf(
+        params,
+        sizeof(params),
+        "P%d Rays%d Cas%d I%.1f A%.2f F%.1f L%.0f",
+        example->radiance->base_spacing,
+        example->radiance->base_rays,
+        example->radiance->cascade_count,
+        example->intensity,
+        example->ambient,
+        example->falloff,
+        example->light_range
+    );
+    DrawText(status, 4, 4, 5, R2D_ColorFromHex(0xe6edf3ff));
+    DrawText(params, 4, 16, 5, R2D_ColorFromHex(0xe6edf3ff));
 }
 
 static void RadianceExample_DrawMask(R2D_Context *context, R2D_Radiance *radiance, float time)

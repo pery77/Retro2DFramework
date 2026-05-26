@@ -14,6 +14,8 @@ uniform int cascadeIndex;
 uniform int cascadeCount;
 uniform int skyEnabled;
 uniform vec3 skyColor;
+uniform float falloff;
+uniform float lightRange;
 
 out vec4 finalColor;
 
@@ -81,12 +83,30 @@ vec3 sample_sky(float angle, float width)
     return skyColor * horizon * (skyEnabled != 0 ? 1.0 : 0.0);
 }
 
+vec2 atlas_coord(int xi, int yi, int ray, int rn, int n_x, vec2 extent)
+{
+    int atlas_width = int(extent.x);
+    int atlas_height = int(extent.y);
+    int probe_index = yi * n_x + xi;
+    int linear = probe_index * rn + ray;
+    linear = clamp(linear, 0, atlas_width * atlas_height - 1);
+    return vec2(float(linear - (linear / atlas_width) * atlas_width), float(linear / atlas_width)) + 0.5;
+}
+
+vec4 sample_upper_probe(sampler2D tex, int xi, int yi, int ray, int rn, int n_x, int n_y, vec2 extent)
+{
+    int cx = clamp(xi, 0, n_x - 1);
+    int cy = clamp(yi, 0, n_y - 1);
+    int cr = clamp(ray, 0, rn - 1);
+    return texture(tex, atlas_coord(cx, cy, cr, rn, n_x, extent) / extent);
+}
+
 vec4 sample_upper(int xi, int yi, int r, int rn, int n_x, int n_y)
 {
     int xi2 = (xi + 1) / 2;
     int yi2 = (yi + 1) / 2;
-    int r2 = r << 1;
-    int rn2 = rn << 1;
+    int r2 = r << 2;
+    int rn2 = rn << 2;
     int n2x = max(n_x >> 1, 1);
     int n2y = max(n_y >> 1, 1);
     float tx = 0.75 - 0.5 * float(xi & 1);
@@ -94,14 +114,14 @@ vec4 sample_upper(int xi, int yi, int r, int rn, int n_x, int n_y)
     vec2 extent = vec2(textureSize(prevCascade, 0));
     vec4 upper = vec4(0.0);
 
-    for (int ri = 0; ri < 2; ++ri) {
-        vec2 p1 = vec2(float(clamp(xi2 - 1, 0, n2x - 1) * rn2 + r2 + ri) + 0.5, float(clamp(yi2 - 1, 0, n2y - 1)) + 0.5);
-        vec2 p2 = vec2(float(clamp(xi2,     0, n2x - 1) * rn2 + r2 + ri) + 0.5, float(clamp(yi2 - 1, 0, n2y - 1)) + 0.5);
-        vec2 p3 = vec2(float(clamp(xi2 - 1, 0, n2x - 1) * rn2 + r2 + ri) + 0.5, float(clamp(yi2,     0, n2y - 1)) + 0.5);
-        vec2 p4 = vec2(float(clamp(xi2,     0, n2x - 1) * rn2 + r2 + ri) + 0.5, float(clamp(yi2,     0, n2y - 1)) + 0.5);
-        vec4 a = mix(texture(prevCascade, p1 / extent), texture(prevCascade, p2 / extent), tx);
-        vec4 b = mix(texture(prevCascade, p3 / extent), texture(prevCascade, p4 / extent), tx);
-        upper += mix(a, b, ty) * 0.5;
+    for (int ri = 0; ri < 4; ++ri) {
+        vec4 p1 = sample_upper_probe(prevCascade, xi2 - 1, yi2 - 1, r2 + ri, rn2, n2x, n2y, extent);
+        vec4 p2 = sample_upper_probe(prevCascade, xi2,     yi2 - 1, r2 + ri, rn2, n2x, n2y, extent);
+        vec4 p3 = sample_upper_probe(prevCascade, xi2 - 1, yi2,     r2 + ri, rn2, n2x, n2y, extent);
+        vec4 p4 = sample_upper_probe(prevCascade, xi2,     yi2,     r2 + ri, rn2, n2x, n2y, extent);
+        vec4 a = mix(p1, p2, tx);
+        vec4 b = mix(p3, p4, tx);
+        upper += mix(a, b, ty) * 0.25;
     }
 
     return upper;
@@ -111,16 +131,19 @@ void main()
 {
     ivec2 pixel = ivec2(gl_FragCoord.xy);
     int ci = cascadeIndex;
-    int ray_mult = 1 << ci;
+    int ray_mult = 1 << (ci * 2);
     int probe_mult = 1 << ci;
     int n_x = int(probeCount.x) >> ci;
     int n_y = int(probeCount.y) >> ci;
+    int atlas_width = int(textureSize(texture0, 0).x);
+    int linear = pixel.y * atlas_width + pixel.x;
     float d0 = float(baseSpacing);
     float d = d0 * float(probe_mult);
     int rn = baseRays * ray_mult;
-    int xi = pixel.x / rn;
-    int yi = pixel.y;
-    int ray = pixel.x - xi * rn;
+    int ray = linear - (linear / rn) * rn;
+    int probe_index = linear / rn;
+    int xi = probe_index - (probe_index / n_x) * n_x;
+    int yi = probe_index / n_x;
 
     if (xi < 0 || yi < 0 || xi >= n_x || yi >= n_y) {
         finalColor = vec4(0.0);
@@ -138,6 +161,7 @@ void main()
     vec2 b = origin + dir * rb;
     Raymarch2D rm = raymarch_make(a, b);
     vec4 col = vec4(0.0);
+    float hit_distance = rb;
 
     for (int step = 0; step < 512; ++step) {
         if (!raymarch_next(rm)) {
@@ -149,7 +173,10 @@ void main()
 
         vec3 scene = texture(sceneTexture, (vec2(float(rm.x), float(rm.y)) + 0.5) / resolution).rgb;
         if (!is_air(scene)) {
-            col = vec4(scene, 1.0);
+            hit_distance = length(vec2(float(rm.x), float(rm.y)) + 0.5 - origin);
+            float range = max(lightRange, 1.0);
+            float attenuation = exp(-hit_distance * max(falloff, 0.05) / range);
+            col = vec4(scene * attenuation, 1.0);
             break;
         }
     }
