@@ -71,6 +71,11 @@
       "run": true
     },
     {
+      "name": "r2d_radiance_scroll_example",
+      "label": "Radiance scroll padding example",
+      "run": true
+    },
+    {
       "name": "r2d_template_game",
       "label": "Template game",
       "run": true

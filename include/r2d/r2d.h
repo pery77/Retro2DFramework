@@ -142,8 +142,13 @@ typedef struct R2D_Radiance {
     int compose_probe_count_loc;
     int compose_intensity_loc;
     int compose_ambient_loc;
+    int compose_viewport_resolution_loc;
+    int compose_mask_offset_loc;
     int width;
     int height;
+    int mask_width;
+    int mask_height;
+    int viewport_padding;
     int cascade_width;
     int cascade_height;
     int base_spacing;
@@ -893,6 +898,7 @@ void R2D_RadianceSetLight(R2D_Radiance *radiance, float intensity, float ambient
 void R2D_RadianceSetFalloff(R2D_Radiance *radiance, float falloff);
 void R2D_RadianceSetLightRange(R2D_Radiance *radiance, float light_range);
 void R2D_RadianceSetSky(R2D_Radiance *radiance, bool enabled, Color color);
+bool R2D_RadianceSetViewportPadding(R2D_Radiance *radiance, int padding);
 bool R2D_RadianceSetQuality(R2D_Radiance *radiance, int base_spacing, int base_rays, int cascade_count);
 void R2D_RadianceBeginMask(R2D_Context *ctx, R2D_Radiance *radiance);
 void R2D_RadianceEndMask(R2D_Context *ctx, R2D_Radiance *radiance);

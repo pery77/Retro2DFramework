@@ -116,6 +116,8 @@ bool R2D_Init(R2D_Context *ctx, R2D_Config config)
         config.virtual_height * config.window_scale,
         config.title
     );
+    SetWindowMinSize(config.virtual_width, config.virtual_height);
+    SetTargetFPS(60);
     SetExitKey(KEY_NULL);
 
     if (config.fullscreen) {

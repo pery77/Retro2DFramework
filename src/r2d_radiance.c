@@ -12,6 +12,16 @@ static Rectangle R2D_RadianceDestRect(int width, int height)
     return (Rectangle) { 0.0f, 0.0f, (float)width, (float)height };
 }
 
+static Rectangle R2D_RadianceMaskViewportSourceRect(const R2D_Radiance *radiance)
+{
+    return (Rectangle) {
+        (float)radiance->viewport_padding,
+        (float)radiance->viewport_padding,
+        (float)radiance->width,
+        -(float)radiance->height
+    };
+}
+
 static int R2D_RadianceCeilMultiple(int value, int multiple)
 {
     return ((value + multiple - 1) / multiple) * multiple;
@@ -79,12 +89,14 @@ static bool R2D_RadianceAllocTargets(R2D_Radiance *radiance)
 
     multiple = 1 << (radiance->cascade_count - 1);
     ray_groups = R2D_RadianceRayGroups(radiance->base_rays);
-    probe_width = R2D_RadianceCeilMultiple((int)ceilf((float)radiance->width / (float)radiance->base_spacing), multiple);
-    probe_height = R2D_RadianceCeilMultiple((int)ceilf((float)radiance->height / (float)radiance->base_spacing), multiple);
+    radiance->mask_width = radiance->width + radiance->viewport_padding * 2;
+    radiance->mask_height = radiance->height + radiance->viewport_padding * 2;
+    probe_width = R2D_RadianceCeilMultiple((int)ceilf((float)radiance->mask_width / (float)radiance->base_spacing), multiple);
+    probe_height = R2D_RadianceCeilMultiple((int)ceilf((float)radiance->mask_height / (float)radiance->base_spacing), multiple);
     radiance->cascade_width = probe_width * ray_groups;
     radiance->cascade_height = probe_height;
 
-    radiance->mask = LoadRenderTexture(radiance->width, radiance->height);
+    radiance->mask = LoadRenderTexture(radiance->mask_width, radiance->mask_height);
     radiance->cascade_a = LoadRenderTexture(radiance->cascade_width, radiance->cascade_height);
     radiance->cascade_b = LoadRenderTexture(radiance->cascade_width, radiance->cascade_height);
     radiance->color = LoadRenderTexture(radiance->width, radiance->height);
@@ -178,6 +190,8 @@ bool R2D_RadianceReload(R2D_Radiance *radiance)
     radiance->compose_probe_count_loc = GetShaderLocation(radiance->compose_shader, "probeCount");
     radiance->compose_intensity_loc = GetShaderLocation(radiance->compose_shader, "intensity");
     radiance->compose_ambient_loc = GetShaderLocation(radiance->compose_shader, "ambient");
+    radiance->compose_viewport_resolution_loc = GetShaderLocation(radiance->compose_shader, "viewportResolution");
+    radiance->compose_mask_offset_loc = GetShaderLocation(radiance->compose_shader, "maskOffset");
     radiance->is_ready = true;
     return true;
 }
@@ -241,6 +255,27 @@ void R2D_RadianceSetSky(R2D_Radiance *radiance, bool enabled, Color color)
         radiance->sky_enabled = enabled;
         radiance->sky_color = color;
     }
+}
+
+bool R2D_RadianceSetViewportPadding(R2D_Radiance *radiance, int padding)
+{
+    if (radiance == 0 || padding < 0 || padding > 512) {
+        return false;
+    }
+
+    if (radiance->viewport_padding == padding) {
+        return true;
+    }
+
+    R2D_RadianceUnloadTargets(radiance);
+    radiance->viewport_padding = padding;
+
+    if (!R2D_RadianceAllocTargets(radiance)) {
+        radiance->is_ready = false;
+        return false;
+    }
+
+    return true;
 }
 
 bool R2D_RadianceSetQuality(R2D_Radiance *radiance, int base_spacing, int base_rays, int cascade_count)
@@ -323,6 +358,8 @@ void R2D_RadianceDrawEmitterCircle(Vector2 center, float radius, Color color)
 Texture2D R2D_RadianceRender(R2D_Radiance *radiance, Texture2D color_texture)
 {
     Vector2 resolution;
+    Vector2 viewport_resolution;
+    Vector2 mask_offset;
     Vector2 probe_count;
     Vector3 sky_color;
     int ray_groups;
@@ -333,7 +370,9 @@ Texture2D R2D_RadianceRender(R2D_Radiance *radiance, Texture2D color_texture)
         return color_texture;
     }
 
-    resolution = (Vector2) { (float)radiance->width, (float)radiance->height };
+    resolution = (Vector2) { (float)radiance->mask_width, (float)radiance->mask_height };
+    viewport_resolution = (Vector2) { (float)radiance->width, (float)radiance->height };
+    mask_offset = (Vector2) { (float)radiance->viewport_padding, (float)radiance->viewport_padding };
     ray_groups = R2D_RadianceRayGroups(radiance->base_rays);
     probe_count = (Vector2) {
         (float)(radiance->cascade_width / ray_groups),
@@ -347,7 +386,11 @@ Texture2D R2D_RadianceRender(R2D_Radiance *radiance, Texture2D color_texture)
     sky_enabled = radiance->sky_enabled ? 1 : 0;
 
     if (radiance->debug_view == R2D_RADIANCE_DEBUG_MASK) {
-        return radiance->mask.texture;
+        BeginTextureMode(radiance->color);
+        ClearBackground(BLANK);
+        DrawTexturePro(radiance->mask.texture, R2D_RadianceMaskViewportSourceRect(radiance), R2D_RadianceDestRect(radiance->width, radiance->height), (Vector2) { 0.0f, 0.0f }, 0.0f, WHITE);
+        EndTextureMode();
+        return radiance->color.texture;
     }
 
     if ((radiance->cascade_count - 1) % 2 == 0) {
@@ -400,6 +443,8 @@ Texture2D R2D_RadianceRender(R2D_Radiance *radiance, Texture2D color_texture)
     SetShaderValue(radiance->compose_shader, radiance->compose_probe_count_loc, &probe_count, SHADER_UNIFORM_VEC2);
     SetShaderValue(radiance->compose_shader, radiance->compose_intensity_loc, &radiance->intensity, SHADER_UNIFORM_FLOAT);
     SetShaderValue(radiance->compose_shader, radiance->compose_ambient_loc, &radiance->ambient, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(radiance->compose_shader, radiance->compose_viewport_resolution_loc, &viewport_resolution, SHADER_UNIFORM_VEC2);
+    SetShaderValue(radiance->compose_shader, radiance->compose_mask_offset_loc, &mask_offset, SHADER_UNIFORM_VEC2);
     DrawTexturePro(color_texture, R2D_RadianceSourceRect(color_texture), R2D_RadianceDestRect(radiance->width, radiance->height), (Vector2) { 0.0f, 0.0f }, 0.0f, WHITE);
     EndShaderMode();
     EndTextureMode();

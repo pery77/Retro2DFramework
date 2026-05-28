@@ -8,6 +8,8 @@ uniform sampler2D sceneTexture;
 uniform sampler2D cascadeTexture;
 uniform sampler2D maskTexture;
 uniform vec2 resolution;
+uniform vec2 viewportResolution;
+uniform vec2 maskOffset;
 uniform int baseSpacing;
 uniform int baseRays;
 uniform vec2 probeCount;
@@ -89,8 +91,8 @@ void main()
 {
     vec2 uv = fragTexCoord;
     vec4 scene = texture(texture0, uv);
-    vec3 mask = texture(maskTexture, uv).rgb;
-    vec2 pixel = uv * resolution;
+    vec2 pixel = uv * viewportResolution + maskOffset;
+    vec3 mask = texture(maskTexture, pixel / resolution).rgb;
     vec3 radiance = expose_radiance(sample_radiance_at_pixel(pixel));
     vec3 emissive = (!is_air(mask) && !is_occluder(mask)) ? mask : vec3(0.0);
     vec3 lit = scene.rgb * (vec3(ambient) + radiance);
