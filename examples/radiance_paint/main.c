@@ -4,6 +4,9 @@
 #include <stdio.h>
 #include <string.h>
 
+#define PAINT_WORLD_SCALE 2
+#define PAINT_VIEW_PADDING 96
+
 typedef struct PaintColor {
     const char *name;
     unsigned int rgba;
@@ -17,9 +20,11 @@ typedef struct RadiancePaintExample {
     Image visual_image;
     Texture2D mask_texture;
     Texture2D visual_texture;
+    Vector2 camera;
     int selected_color;
     float brush_radius;
     bool sky;
+    bool padding_enabled;
     bool seed_on_init;
     R2D_RadianceDebugView debug;
 } RadiancePaintExample;
@@ -38,13 +43,13 @@ static Rectangle Paint_TextureSource(Texture2D texture)
     return (Rectangle) { 0.0f, 0.0f, (float)texture.width, (float)texture.height };
 }
 
-static Rectangle Paint_FullDest(const RadiancePaintExample *example)
+static Rectangle Paint_WorldDest(const RadiancePaintExample *example, float offset)
 {
     return (Rectangle) {
-        0.0f,
-        0.0f,
-        (float)example->context->config.virtual_width,
-        (float)example->context->config.virtual_height
+        -example->camera.x + offset,
+        -example->camera.y + offset,
+        (float)example->visual_texture.width,
+        (float)example->visual_texture.height
     };
 }
 
@@ -144,6 +149,10 @@ static void Paint_ResetDemo(RadiancePaintExample *example)
     Paint_Stamp(example, (Vector2) { 246.0f, 52.0f }, 7.0f, R2D_ColorFromHex(0x72d7ffff));
     Paint_Stamp(example, (Vector2) { 102.0f, 156.0f }, 9.0f, R2D_ColorFromHex(0xffb34eff));
     Paint_Stamp(example, (Vector2) { 290.0f, 144.0f }, 10.0f, R2D_ColorFromHex(0x6cff9fff));
+    Paint_Stamp(example, (Vector2) { 420.0f, 74.0f }, 8.0f, R2D_ColorFromHex(0xb28cffff));
+    Paint_Stamp(example, (Vector2) { 566.0f, 108.0f }, 11.0f, R2D_ColorFromHex(0xffef7aff));
+    Paint_Stamp(example, (Vector2) { 388.0f, 304.0f }, 9.0f, R2D_ColorFromHex(0x72d7ffff));
+    Paint_Stamp(example, (Vector2) { 568.0f, 330.0f }, 11.0f, R2D_ColorFromHex(0xffb34eff));
 
     Paint_Stamp(example, (Vector2) { 154.0f, 96.0f }, 18.0f, BLACK);
     Paint_Stamp(example, (Vector2) { 184.0f, 96.0f }, 18.0f, BLACK);
@@ -151,14 +160,20 @@ static void Paint_ResetDemo(RadiancePaintExample *example)
     Paint_Stamp(example, (Vector2) { 158.0f, 132.0f }, 6.0f, BLACK);
     Paint_Stamp(example, (Vector2) { 178.0f, 132.0f }, 6.0f, BLACK);
     Paint_Stamp(example, (Vector2) { 198.0f, 132.0f }, 6.0f, BLACK);
+    Paint_Stamp(example, (Vector2) { 418.0f, 210.0f }, 22.0f, BLACK);
+    Paint_Stamp(example, (Vector2) { 456.0f, 210.0f }, 22.0f, BLACK);
+    Paint_Stamp(example, (Vector2) { 494.0f, 210.0f }, 22.0f, BLACK);
+    Paint_Stamp(example, (Vector2) { 392.0f, 252.0f }, 7.0f, BLACK);
+    Paint_Stamp(example, (Vector2) { 424.0f, 252.0f }, 7.0f, BLACK);
+    Paint_Stamp(example, (Vector2) { 456.0f, 252.0f }, 7.0f, BLACK);
 
     Paint_UpdateTextures(example);
 }
 
 static void Paint_CreateCanvas(RadiancePaintExample *example)
 {
-    int width = example->context->config.virtual_width;
-    int height = example->context->config.virtual_height;
+    int width = example->context->config.virtual_width * PAINT_WORLD_SCALE;
+    int height = example->context->config.virtual_height * PAINT_WORLD_SCALE;
 
     example->mask_image = GenImageColor(width, height, WHITE);
     example->visual_image = GenImageColor(width, height, BLANK);
@@ -195,12 +210,42 @@ static void Paint_CloseCanvas(RadiancePaintExample *example)
     }
 }
 
-static bool Paint_MouseInCanvas(const RadiancePaintExample *example, Vector2 mouse)
+static bool Paint_PointInViewport(const RadiancePaintExample *example, Vector2 point)
 {
-    return mouse.x >= 0.0f &&
-        mouse.y >= 0.0f &&
-        mouse.x < (float)example->context->config.virtual_width &&
-        mouse.y < (float)example->context->config.virtual_height;
+    return point.x >= 0.0f &&
+        point.y >= 0.0f &&
+        point.x < (float)example->context->config.virtual_width &&
+        point.y < (float)example->context->config.virtual_height;
+}
+
+static bool Paint_PointInWorld(const RadiancePaintExample *example, Vector2 point)
+{
+    return point.x >= 0.0f &&
+        point.y >= 0.0f &&
+        point.x < (float)example->mask_image.width &&
+        point.y < (float)example->mask_image.height;
+}
+
+static Vector2 Paint_MouseWorldPosition(const RadiancePaintExample *example)
+{
+    Vector2 mouse = R2D_MouseVirtualPosition(example->context);
+    return (Vector2) { mouse.x + example->camera.x, mouse.y + example->camera.y };
+}
+
+static void Paint_ClampCamera(RadiancePaintExample *example)
+{
+    float max_x = (float)example->mask_image.width - (float)example->context->config.virtual_width;
+    float max_y = (float)example->mask_image.height - (float)example->context->config.virtual_height;
+
+    if (example->camera.x < 0.0f) example->camera.x = 0.0f;
+    if (example->camera.y < 0.0f) example->camera.y = 0.0f;
+    if (example->camera.x > max_x) example->camera.x = max_x;
+    if (example->camera.y > max_y) example->camera.y = max_y;
+}
+
+static void Paint_ApplyPadding(RadiancePaintExample *example)
+{
+    R2D_RadianceSetViewportPadding(example->radiance, example->padding_enabled ? PAINT_VIEW_PADDING : 0);
 }
 
 static void Paint_Init(void *user_data)
@@ -215,6 +260,7 @@ static void Paint_Init(void *user_data)
     R2D_RadianceSetLight(example->radiance, 1.8f, 0.045f);
     R2D_RadianceSetFalloff(example->radiance, 1.15f);
     R2D_RadianceSetLightRange(example->radiance, 224.0f);
+    Paint_ApplyPadding(example);
 
     if (example->seed_on_init) {
         Paint_ResetDemo(example);
@@ -227,10 +273,10 @@ static void Paint_Update(float dt, void *user_data)
 {
     RadiancePaintExample *example = (RadiancePaintExample *)user_data;
     Vector2 mouse = R2D_MouseVirtualPosition(example->context);
+    Vector2 world_mouse;
     float wheel = GetMouseWheelMove();
+    float camera_speed = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT) ? 180.0f : 96.0f;
     bool dirty = false;
-
-    (void)dt;
 
     if (IsKeyPressed(KEY_ONE)) example->selected_color = 0;
     if (IsKeyPressed(KEY_TWO)) example->selected_color = 1;
@@ -239,11 +285,21 @@ static void Paint_Update(float dt, void *user_data)
     if (IsKeyPressed(KEY_FIVE)) example->selected_color = 4;
     if (IsKeyPressed(KEY_SIX)) example->selected_color = 5;
 
-    if (IsKeyPressed(KEY_D)) {
+    if (IsKeyDown(KEY_A)) example->camera.x -= camera_speed * dt;
+    if (IsKeyDown(KEY_D)) example->camera.x += camera_speed * dt;
+    if (IsKeyDown(KEY_W)) example->camera.y -= camera_speed * dt;
+    if (IsKeyDown(KEY_S)) example->camera.y += camera_speed * dt;
+    Paint_ClampCamera(example);
+
+    if (IsKeyPressed(KEY_V)) {
         example->debug = (R2D_RadianceDebugView)(((int)example->debug + 1) % 3);
     }
-    if (IsKeyPressed(KEY_S)) {
+    if (IsKeyPressed(KEY_Y)) {
         example->sky = !example->sky;
+    }
+    if (IsKeyPressed(KEY_P)) {
+        example->padding_enabled = !example->padding_enabled;
+        Paint_ApplyPadding(example);
     }
     if (IsKeyPressed(KEY_T) && example->crt != 0) {
         R2D_CrtSetEnabled(example->crt, !example->crt->enabled);
@@ -264,12 +320,13 @@ static void Paint_Update(float dt, void *user_data)
         example->brush_radius = fmaxf(1.0f, fminf(28.0f, example->brush_radius + wheel));
     }
 
-    if (Paint_MouseInCanvas(example, mouse)) {
+    world_mouse = Paint_MouseWorldPosition(example);
+    if (Paint_PointInViewport(example, mouse) && Paint_PointInWorld(example, world_mouse)) {
         if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-            Paint_Stamp(example, mouse, example->brush_radius, R2D_ColorFromHex(PALETTE[example->selected_color].rgba));
+            Paint_Stamp(example, world_mouse, example->brush_radius, R2D_ColorFromHex(PALETTE[example->selected_color].rgba));
             dirty = true;
         } else if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
-            Paint_Stamp(example, mouse, example->brush_radius, WHITE);
+            Paint_Stamp(example, world_mouse, example->brush_radius, WHITE);
             dirty = true;
         }
     }
@@ -285,19 +342,42 @@ static void Paint_Update(float dt, void *user_data)
 static void Paint_DrawScene(const RadiancePaintExample *example)
 {
     Rectangle source = Paint_TextureSource(example->visual_texture);
-    Rectangle dest = Paint_FullDest(example);
+    Rectangle dest = Paint_WorldDest(example, 0.0f);
+    int start_x = ((int)floorf(example->camera.x / 32.0f)) * 32;
+    int start_y = ((int)floorf(example->camera.y / 32.0f)) * 32;
+    int end_x = (int)(example->camera.x + (float)example->context->config.virtual_width) + 32;
+    int end_y = (int)(example->camera.y + (float)example->context->config.virtual_height) + 32;
+    float world_width = (float)example->visual_texture.width;
+    float world_height = (float)example->visual_texture.height;
 
     ClearBackground(R2D_ColorFromHex(0x657080ff));
-    DrawRectangle(0, 0, 320, 28, R2D_ColorFromHex(0x222a38ff));
-    DrawRectangle(0, 166, 320, 34, R2D_ColorFromHex(0x303949ff));
-    DrawRectangle(0, 184, 320, 16, R2D_ColorFromHex(0x202837ff));
+    DrawRectangle(
+        (int)-example->camera.x,
+        (int)(world_height - 34.0f - example->camera.y),
+        (int)world_width,
+        34,
+        R2D_ColorFromHex(0x303949ff)
+    );
+    DrawRectangle(
+        (int)-example->camera.x,
+        (int)(world_height - 16.0f - example->camera.y),
+        (int)world_width,
+        16,
+        R2D_ColorFromHex(0x202837ff)
+    );
 
-    for (int x = 0; x < 320; x += 32) {
-        DrawRectangle(x, 28, 2, 138, R2D_ColorFromHex(0x515b6cff));
+    for (int x = start_x; x <= end_x; x += 32) {
+        DrawRectangle((int)((float)x - example->camera.x), (int)-example->camera.y, 2, (int)world_height, R2D_ColorFromHex(0x515b6cff));
     }
-    for (int y = 40; y < 166; y += 32) {
-        DrawRectangle(0, y, 320, 2, R2D_ColorFromHex(0x515b6cff));
+    for (int y = start_y; y <= end_y; y += 32) {
+        DrawRectangle((int)-example->camera.x, (int)((float)y - example->camera.y), (int)world_width, 2, R2D_ColorFromHex(0x515b6cff));
     }
+
+    DrawRectangleLinesEx(
+        (Rectangle) { -example->camera.x, -example->camera.y, world_width, world_height },
+        1.0f,
+        R2D_ColorFromHex(0x9aa4b8ff)
+    );
 
     DrawTexturePro(example->visual_texture, source, dest, (Vector2) { 0.0f, 0.0f }, 0.0f, WHITE);
 }
@@ -311,17 +391,17 @@ static void Paint_DrawHUD(const RadiancePaintExample *example)
     snprintf(
         line,
         sizeof(line),
-        "LMB paint | RMB erase | 1-6 color | Wheel/QE size"
+        "LMB paint | RMB erase | WASD move | 1-6 color | Wheel/QE size"
     );
     DrawText(line, 4, 4, 4, R2D_ColorFromHex(0xe6edf3ff));
 
     snprintf(
         line,
         sizeof(line),
-        "C clear | R reset | D view | S sky | T CRT | %s %.0fpx | V%d",
+        "C clear | R reset | V view | Y sky | P pad:%s | T CRT | %s %.0fpx",
+        example->padding_enabled ? "on" : "off",
         PALETTE[example->selected_color].name,
-        example->brush_radius,
-        (int)example->debug
+        example->brush_radius
     );
     DrawText(line, 4, 15, 4, R2D_ColorFromHex(0xe6edf3ff));
 
@@ -333,7 +413,19 @@ static void Paint_DrawHUD(const RadiancePaintExample *example)
         DrawRectangleRec(swatch, color);
     }
 
-    if (Paint_MouseInCanvas(example, mouse)) {
+    snprintf(
+        line,
+        sizeof(line),
+        "Cam %.0f %.0f / World %dx%d / V%d",
+        example->camera.x,
+        example->camera.y,
+        example->mask_image.width,
+        example->mask_image.height,
+        (int)example->debug
+    );
+    DrawText(line, 4, 26, 4, R2D_ColorFromHex(0xe6edf3ff));
+
+    if (Paint_PointInViewport(example, mouse)) {
         Color color = R2D_ColorFromHex(PALETTE[example->selected_color].rgba);
         DrawCircleLines((int)mouse.x, (int)mouse.y, example->brush_radius, color.r == 0 && color.g == 0 && color.b == 0 ? WHITE : color);
     }
@@ -342,7 +434,7 @@ static void Paint_DrawHUD(const RadiancePaintExample *example)
 static void Paint_DrawMask(RadiancePaintExample *example)
 {
     Rectangle source = Paint_TextureSource(example->mask_texture);
-    Rectangle dest = Paint_FullDest(example);
+    Rectangle dest = Paint_WorldDest(example, (float)example->radiance->viewport_padding);
 
     R2D_RadianceBeginMask(example->context, example->radiance);
     DrawTexturePro(example->mask_texture, source, dest, (Vector2) { 0.0f, 0.0f }, 0.0f, WHITE);
@@ -377,6 +469,7 @@ int main(int argc, char **argv)
     config.title = "Retro2D Radiance Paint";
     config.clear_color = BLACK;
     example.sky = true;
+    example.padding_enabled = true;
     example.seed_on_init = true;
 
     for (int i = 1; i < argc; ++i) {
@@ -384,6 +477,8 @@ int main(int argc, char **argv)
             example.seed_on_init = false;
         } else if (strcmp(argv[i], "--no-sky") == 0) {
             example.sky = false;
+        } else if (strcmp(argv[i], "--no-padding") == 0) {
+            example.padding_enabled = false;
         }
     }
 
