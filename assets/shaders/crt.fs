@@ -209,7 +209,7 @@ void main()
 
     color *= mix(vec3(1.0), grille(uv), mask);
     color *= vec3(vignette(uv));
-    color += mix(vec3(0.0), blur, border(uv)) * vec3(0.0078, 0.1412, 0.1569);
+    color += mix(vec3(0.0), blur, border(uv)) * vec3(0.5451, 0.6118, 0.6157);
     color = colorMatrix(color);
 
     finalColor = vec4(color, 1.0);

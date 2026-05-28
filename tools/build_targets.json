@@ -66,6 +66,11 @@
       "run": true
     },
     {
+      "name": "r2d_radiance_paint_example",
+      "label": "Radiance paint example",
+      "run": true
+    },
+    {
       "name": "r2d_template_game",
       "label": "Template game",
       "run": true

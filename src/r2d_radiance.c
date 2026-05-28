@@ -17,6 +17,16 @@ static int R2D_RadianceCeilMultiple(int value, int multiple)
     return ((value + multiple - 1) / multiple) * multiple;
 }
 
+static int R2D_RadianceRayGroups(int base_rays)
+{
+    return (base_rays + 3) / 4;
+}
+
+static int R2D_RadianceNormalizeBaseRays(int base_rays)
+{
+    return R2D_RadianceRayGroups(base_rays) * 4;
+}
+
 static void R2D_RadianceConfigureTarget(RenderTexture2D target, int filter)
 {
     if (IsRenderTextureValid(target) && IsTextureValid(target.texture)) {
@@ -59,14 +69,20 @@ static void R2D_RadianceUnloadTargets(R2D_Radiance *radiance)
 static bool R2D_RadianceAllocTargets(R2D_Radiance *radiance)
 {
     int multiple;
+    int probe_width;
+    int probe_height;
+    int ray_groups;
 
     if (radiance == 0) {
         return false;
     }
 
     multiple = 1 << (radiance->cascade_count - 1);
-    radiance->cascade_height = R2D_RadianceCeilMultiple((int)ceilf((float)radiance->height / (float)radiance->base_spacing), multiple);
-    radiance->cascade_width = R2D_RadianceCeilMultiple((int)ceilf((float)radiance->width / (float)radiance->base_spacing), multiple) * radiance->base_rays;
+    ray_groups = R2D_RadianceRayGroups(radiance->base_rays);
+    probe_width = R2D_RadianceCeilMultiple((int)ceilf((float)radiance->width / (float)radiance->base_spacing), multiple);
+    probe_height = R2D_RadianceCeilMultiple((int)ceilf((float)radiance->height / (float)radiance->base_spacing), multiple);
+    radiance->cascade_width = probe_width * ray_groups;
+    radiance->cascade_height = probe_height;
 
     radiance->mask = LoadRenderTexture(radiance->width, radiance->height);
     radiance->cascade_a = LoadRenderTexture(radiance->cascade_width, radiance->cascade_height);
@@ -102,12 +118,12 @@ bool R2D_RadianceInit(R2D_Radiance *radiance, int width, int height)
     radiance->width = width;
     radiance->height = height;
     radiance->base_spacing = 1;
-    radiance->base_rays = 16;
-    radiance->cascade_count = 8;
-    radiance->intensity = 1.2f;
-    radiance->ambient = 0.035f;
-    radiance->falloff = 1.0f;
-    radiance->light_range = 208.0f;
+    radiance->base_rays = 12;
+    radiance->cascade_count = 6;
+    radiance->intensity = 1.8f;
+    radiance->ambient = 0.04f;
+    radiance->falloff = 1.15f;
+    radiance->light_range = 224.0f;
     radiance->sky_color = R2D_ColorFromHex(0x20385fff);
     radiance->sky_enabled = false;
     radiance->enabled = true;
@@ -232,9 +248,13 @@ bool R2D_RadianceSetQuality(R2D_Radiance *radiance, int base_spacing, int base_r
     if (radiance == 0 ||
         base_spacing <= 0 ||
         base_rays <= 0 ||
-        base_rays > 64 ||
         cascade_count <= 0 ||
         cascade_count > 10) {
+        return false;
+    }
+
+    base_rays = R2D_RadianceNormalizeBaseRays(base_rays);
+    if (base_rays > 64) {
         return false;
     }
 
@@ -305,6 +325,7 @@ Texture2D R2D_RadianceRender(R2D_Radiance *radiance, Texture2D color_texture)
     Vector2 resolution;
     Vector2 probe_count;
     Vector3 sky_color;
+    int ray_groups;
     int sky_enabled;
     int i;
 
@@ -313,8 +334,9 @@ Texture2D R2D_RadianceRender(R2D_Radiance *radiance, Texture2D color_texture)
     }
 
     resolution = (Vector2) { (float)radiance->width, (float)radiance->height };
+    ray_groups = R2D_RadianceRayGroups(radiance->base_rays);
     probe_count = (Vector2) {
-        (float)(radiance->cascade_width / radiance->base_rays),
+        (float)(radiance->cascade_width / ray_groups),
         (float)radiance->cascade_height
     };
     sky_color = (Vector3) {
