@@ -17,9 +17,13 @@ static Rectangle R2D_CalculateDestination(int virtual_width, int virtual_height)
 {
     const float screen_width = (float)GetScreenWidth();
     const float screen_height = (float)GetScreenHeight();
-    const float scale_x = floorf(screen_width / (float)virtual_width);
-    const float scale_y = floorf(screen_height / (float)virtual_height);
+    float scale_x = screen_width / (float)virtual_width;
+    float scale_y = screen_height / (float)virtual_height;
     float scale = fminf(scale_x, scale_y);
+
+    if (!IsWindowFullscreen()) {
+        scale = floorf(scale);
+    }
 
     if (scale < 1.0f) {
         scale = 1.0f;
