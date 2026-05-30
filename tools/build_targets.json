@@ -76,6 +76,11 @@
       "run": true
     },
     {
+      "name": "r2d_radiance_tilemap_example",
+      "label": "Radiance tilemap example",
+      "run": true
+    },
+    {
       "name": "r2d_template_game",
       "label": "Template game",
       "run": true
