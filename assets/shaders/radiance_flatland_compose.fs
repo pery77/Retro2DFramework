@@ -15,6 +15,8 @@ uniform int baseRays;
 uniform vec2 probeCount;
 uniform float intensity;
 uniform float ambient;
+uniform float edgeForce;
+uniform float bodyForce;
 
 out vec4 finalColor;
 
@@ -30,9 +32,30 @@ bool is_air(vec3 color)
     return all(greaterThan(color, vec3(0.995)));
 }
 
+float color_luma(vec3 color)
+{
+    return dot(color, vec3(0.2126, 0.7152, 0.0722));
+}
+
+bool is_neutral(vec3 color)
+{
+    float lo = min(min(color.r, color.g), color.b);
+    float hi = max(max(color.r, color.g), color.b);
+    return hi - lo < 0.025;
+}
+
+float occluder_amount(vec3 color)
+{
+    if (!is_neutral(color)) {
+        return 0.0;
+    }
+
+    return clamp(1.0 - color_luma(color), 0.0, 1.0);
+}
+
 bool is_occluder(vec3 color)
 {
-    return dot(color, color) < 0.0001;
+    return occluder_amount(color) > 0.015;
 }
 
 vec2 atlas_coord(int ray_group, int probe_x, int probe_y)
@@ -87,6 +110,49 @@ vec3 expose_radiance(vec3 color)
     return clamp(lit, vec3(0.0), vec3(1.0));
 }
 
+vec3 sample_mask_at_pixel(vec2 pixel)
+{
+    vec2 p = clamp(pixel, vec2(0.5), resolution - vec2(0.5));
+    return texture(maskTexture, p / resolution).rgb;
+}
+
+void accumulate_edge_light(vec2 pixel, vec2 offset, inout vec3 light, inout float weight)
+{
+    vec3 mask = sample_mask_at_pixel(pixel + offset);
+    float open = is_occluder(mask) ? 1.0 - occluder_amount(mask) : 1.0;
+
+    if (open > 0.01) {
+        float falloff = 1.0 / max(length(offset), 1.0);
+        float w = open * falloff;
+        light += sample_radiance_at_pixel(pixel + offset) * w;
+        weight += w;
+    }
+}
+
+vec3 shade_occluder(vec3 scene, vec2 pixel, vec3 mask, vec3 radiance)
+{
+    vec3 edge_light = vec3(0.0);
+    float edge_weight = 0.0;
+
+    accumulate_edge_light(pixel, vec2( 1.0,  0.0), edge_light, edge_weight);
+    accumulate_edge_light(pixel, vec2(-1.0,  0.0), edge_light, edge_weight);
+    accumulate_edge_light(pixel, vec2( 0.0,  1.0), edge_light, edge_weight);
+    accumulate_edge_light(pixel, vec2( 0.0, -1.0), edge_light, edge_weight);
+    accumulate_edge_light(pixel, vec2( 2.0,  0.0), edge_light, edge_weight);
+    accumulate_edge_light(pixel, vec2(-2.0,  0.0), edge_light, edge_weight);
+    accumulate_edge_light(pixel, vec2( 0.0,  2.0), edge_light, edge_weight);
+    accumulate_edge_light(pixel, vec2( 0.0, -2.0), edge_light, edge_weight);
+
+    if (edge_weight > 0.0) {
+        edge_light /= edge_weight;
+    }
+
+    float edge = clamp(edge_weight * 0.45, 0.0, 1.0);
+    vec3 rim_light =  max(edge_light, radiance ) * edge * edgeForce;
+    vec3 body_light = vec3(ambient) * bodyForce;
+    return scene * (body_light + rim_light);
+}
+
 void main()
 {
     vec2 uv = fragTexCoord;
@@ -96,6 +162,10 @@ void main()
     vec3 radiance = expose_radiance(sample_radiance_at_pixel(pixel));
     vec3 emissive = (!is_air(mask) && !is_occluder(mask)) ? mask : vec3(0.0);
     vec3 lit = scene.rgb * (vec3(ambient) + radiance);
+
+    if (is_occluder(mask)) {
+        lit = shade_occluder(scene.rgb, pixel, mask, radiance);
+    }
 
     finalColor = vec4(max(lit, emissive), scene.a);
 }

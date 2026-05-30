@@ -142,6 +142,8 @@ typedef struct R2D_Radiance {
     int compose_probe_count_loc;
     int compose_intensity_loc;
     int compose_ambient_loc;
+    int compose_edge_force_loc;
+    int compose_body_force_loc;
     int compose_viewport_resolution_loc;
     int compose_mask_offset_loc;
     int width;
@@ -158,6 +160,8 @@ typedef struct R2D_Radiance {
     float ambient;
     float falloff;
     float light_range;
+    float edge_force;
+    float body_force;
     Color sky_color;
     bool sky_enabled;
     bool enabled;
@@ -895,6 +899,7 @@ bool R2D_RadianceReload(R2D_Radiance *radiance);
 void R2D_RadianceSetEnabled(R2D_Radiance *radiance, bool enabled);
 void R2D_RadianceSetDebugView(R2D_Radiance *radiance, R2D_RadianceDebugView debug_view);
 void R2D_RadianceSetLight(R2D_Radiance *radiance, float intensity, float ambient);
+void R2D_RadianceSetOccluderLight(R2D_Radiance *radiance, float edge_force, float body_force);
 void R2D_RadianceSetFalloff(R2D_Radiance *radiance, float falloff);
 void R2D_RadianceSetLightRange(R2D_Radiance *radiance, float light_range);
 void R2D_RadianceSetSky(R2D_Radiance *radiance, bool enabled, Color color);

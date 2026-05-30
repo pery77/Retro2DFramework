@@ -51,9 +51,21 @@ bool is_air(vec3 color)
     return all(greaterThan(color, vec3(0.995)));
 }
 
+float color_luma(vec3 color)
+{
+    return dot(color, vec3(0.2126, 0.7152, 0.0722));
+}
+
+bool is_neutral(vec3 color)
+{
+    float lo = min(min(color.r, color.g), color.b);
+    float hi = max(max(color.r, color.g), color.b);
+    return hi - lo < 0.025;
+}
+
 bool is_occluder(vec3 color)
 {
-    return dot(color, color) < 0.0001;
+    return is_neutral(color) && color_luma(color) < 0.985;
 }
 
 vec3 sample_mask_cell(ivec2 cell)

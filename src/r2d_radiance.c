@@ -134,6 +134,8 @@ bool R2D_RadianceInit(R2D_Radiance *radiance, int width, int height)
     radiance->cascade_count = 6;
     radiance->intensity = 1.8f;
     radiance->ambient = 0.04f;
+    radiance->edge_force = 5.0f;
+    radiance->body_force = 1.0f;
     radiance->falloff = 1.15f;
     radiance->light_range = 224.0f;
     radiance->sky_color = R2D_ColorFromHex(0x20385fff);
@@ -190,6 +192,8 @@ bool R2D_RadianceReload(R2D_Radiance *radiance)
     radiance->compose_probe_count_loc = GetShaderLocation(radiance->compose_shader, "probeCount");
     radiance->compose_intensity_loc = GetShaderLocation(radiance->compose_shader, "intensity");
     radiance->compose_ambient_loc = GetShaderLocation(radiance->compose_shader, "ambient");
+    radiance->compose_edge_force_loc = GetShaderLocation(radiance->compose_shader, "edgeForce");
+    radiance->compose_body_force_loc = GetShaderLocation(radiance->compose_shader, "bodyForce");
     radiance->compose_viewport_resolution_loc = GetShaderLocation(radiance->compose_shader, "viewportResolution");
     radiance->compose_mask_offset_loc = GetShaderLocation(radiance->compose_shader, "maskOffset");
     radiance->is_ready = true;
@@ -232,6 +236,14 @@ void R2D_RadianceSetLight(R2D_Radiance *radiance, float intensity, float ambient
     if (radiance != 0) {
         radiance->intensity = intensity;
         radiance->ambient = ambient;
+    }
+}
+
+void R2D_RadianceSetOccluderLight(R2D_Radiance *radiance, float edge_force, float body_force)
+{
+    if (radiance != 0) {
+        radiance->edge_force = edge_force;
+        radiance->body_force = body_force;
     }
 }
 
@@ -443,6 +455,8 @@ Texture2D R2D_RadianceRender(R2D_Radiance *radiance, Texture2D color_texture)
     SetShaderValue(radiance->compose_shader, radiance->compose_probe_count_loc, &probe_count, SHADER_UNIFORM_VEC2);
     SetShaderValue(radiance->compose_shader, radiance->compose_intensity_loc, &radiance->intensity, SHADER_UNIFORM_FLOAT);
     SetShaderValue(radiance->compose_shader, radiance->compose_ambient_loc, &radiance->ambient, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(radiance->compose_shader, radiance->compose_edge_force_loc, &radiance->edge_force, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(radiance->compose_shader, radiance->compose_body_force_loc, &radiance->body_force, SHADER_UNIFORM_FLOAT);
     SetShaderValue(radiance->compose_shader, radiance->compose_viewport_resolution_loc, &viewport_resolution, SHADER_UNIFORM_VEC2);
     SetShaderValue(radiance->compose_shader, radiance->compose_mask_offset_loc, &mask_offset, SHADER_UNIFORM_VEC2);
     DrawTexturePro(color_texture, R2D_RadianceSourceRect(color_texture), R2D_RadianceDestRect(radiance->width, radiance->height), (Vector2) { 0.0f, 0.0f }, 0.0f, WHITE);
