@@ -44,9 +44,9 @@ mejorando el framework en publico.
 Opciones utiles:
 
 ```powershell
-.\tools\new_project.ps1 "Beeps Escape" -OutputRoot C:\tmp
-.\tools\new_project.ps1 "Beeps Escape" -OutputRoot C:\_Git -InitGit
-.\tools\new_project.ps1 "Beeps Escape" -OutputRoot C:\_Git -Force
+.\tools\new_project.ps1 "My Game" -OutputRoot C:\tmp
+.\tools\new_project.ps1 "My Gamee" -OutputRoot C:\_Git -InitGit
+.\tools\new_project.ps1 "My Game" -OutputRoot C:\_Git -Force
 ```
 
 Dentro del proyecto generado:

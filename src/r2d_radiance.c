@@ -134,7 +134,7 @@ bool R2D_RadianceInit(R2D_Radiance *radiance, int width, int height)
     radiance->cascade_count = 6;
     radiance->intensity = 1.8f;
     radiance->ambient = 0.04f;
-    radiance->edge_force = 5.0f;
+    radiance->edge_force = 10.0f;
     radiance->body_force = 1.0f;
     radiance->falloff = 1.15f;
     radiance->light_range = 224.0f;

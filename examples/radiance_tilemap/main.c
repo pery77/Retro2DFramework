@@ -8,10 +8,15 @@
 #define TILEMAP_RADIANCE_MASK_TEXTURE_PATH "tilemaps/radiance_tiles.png"
 #define TILEMAP_RADIANCE_WALL_TEXTURE_PATH "textures/DawnLike/Objects/Wall.png"
 #define TILEMAP_RADIANCE_FLOOR_TEXTURE_PATH "textures/DawnLike/Objects/Floor.png"
+#define TILEMAP_RADIANCE_TILESET_TEXTURE_PATH "textures/tilesTest.png"
 #define TILEMAP_RADIANCE_CASCADE_SHADER_PATH "shaders/radiance_flatland_cascade.fs"
 #define TILEMAP_RADIANCE_COMPOSE_SHADER_PATH "shaders/radiance_flatland_compose.fs"
 #define TILEMAP_RADIANCE_PADDING 96
-#define TILEMAP_RADIANCE_WATCH_COUNT 6
+#define TILEMAP_RADIANCE_WATCH_COUNT 7
+#define TILEMAP_RADIANCE_FLIP_HORIZONTAL 0x80000000u
+#define TILEMAP_RADIANCE_FLIP_VERTICAL 0x40000000u
+#define TILEMAP_RADIANCE_FLIP_DIAGONAL 0x20000000u
+#define TILEMAP_RADIANCE_GID_MASK (~(TILEMAP_RADIANCE_FLIP_HORIZONTAL | TILEMAP_RADIANCE_FLIP_VERTICAL | TILEMAP_RADIANCE_FLIP_DIAGONAL))
 
 typedef struct TilemapRadianceWatch {
     const char *path;
@@ -27,12 +32,11 @@ typedef struct RadianceTilemapExample {
     R2D_Tilemap tilemap;
     Vector2 camera;
     int background_layer;
-    int collision_layer;
-    int lighting_layer;
+    int walls_layer;
+    int emitter_layer;
     bool sky;
     bool padding_enabled;
-    bool show_lighting_layer;
-    bool show_collision_debug;
+    bool show_emitter_layer;
     bool hot_reload_enabled;
     bool pending_tilemap_reload;
     bool pending_radiance_reload;
@@ -48,6 +52,7 @@ static const TilemapRadianceWatch TILEMAP_RADIANCE_WATCHES[TILEMAP_RADIANCE_WATC
     { TILEMAP_RADIANCE_MASK_TEXTURE_PATH, true, false, { 0 } },
     { TILEMAP_RADIANCE_WALL_TEXTURE_PATH, true, false, { 0 } },
     { TILEMAP_RADIANCE_FLOOR_TEXTURE_PATH, true, false, { 0 } },
+    { TILEMAP_RADIANCE_TILESET_TEXTURE_PATH, true, false, { 0 } },
     { TILEMAP_RADIANCE_CASCADE_SHADER_PATH, false, true, { 0 } },
     { TILEMAP_RADIANCE_COMPOSE_SHADER_PATH, false, true, { 0 } }
 };
@@ -150,13 +155,197 @@ static Vector2 TilemapRadiance_PaddedMapPosition(const RadianceTilemapExample *e
     return (Vector2) { -example->camera.x + padding, -example->camera.y + padding };
 }
 
+static float TilemapRadiance_Clamp01(float value)
+{
+    if (value < 0.0f) return 0.0f;
+    if (value > 1.0f) return 1.0f;
+    return value;
+}
+
+static int TilemapRadiance_LayerIndexWithFallback(
+    const R2D_Tilemap *tilemap,
+    const char *name,
+    const char *fallback
+)
+{
+    int layer = R2D_TilemapLayerIndex(tilemap, name);
+
+    if (layer < 0 && fallback != 0) {
+        layer = R2D_TilemapLayerIndex(tilemap, fallback);
+    }
+
+    return layer;
+}
+
+static void TilemapRadiance_VisibleRange(
+    const R2D_Tilemap *tilemap,
+    const R2D_TilemapLayer *layer,
+    Rectangle view,
+    int *start_x,
+    int *start_y,
+    int *end_x,
+    int *end_y
+)
+{
+    int left = (int)floorf(view.x / (float)tilemap->tile_width) - 1;
+    int top = (int)floorf(view.y / (float)tilemap->tile_height) - 1;
+    int right = (int)floorf((view.x + view.width) / (float)tilemap->tile_width) + 1;
+    int bottom = (int)floorf((view.y + view.height) / (float)tilemap->tile_height) + 1;
+
+    if (left < 0) left = 0;
+    if (top < 0) top = 0;
+    if (right >= layer->width) right = layer->width - 1;
+    if (bottom >= layer->height) bottom = layer->height - 1;
+
+    *start_x = left;
+    *start_y = top;
+    *end_x = right;
+    *end_y = bottom;
+}
+
+static const R2D_TilemapTileset *TilemapRadiance_TilesetForGid(
+    const R2D_Tilemap *tilemap,
+    unsigned int gid
+)
+{
+    const R2D_TilemapTileset *match = 0;
+
+    if (tilemap == 0 || gid == 0) {
+        return 0;
+    }
+
+    for (int i = 0; i < tilemap->tileset_count; ++i) {
+        const R2D_TilemapTileset *tileset = &tilemap->tilesets[i];
+        const int tile = (int)gid - tileset->first_gid;
+
+        if (tile >= 0 && tile < tileset->tile_count) {
+            match = tileset;
+        }
+    }
+
+    return match;
+}
+
+static int TilemapRadiance_AnimatedTile(const R2D_TilemapTileset *tileset, int tile)
+{
+    if (tileset == 0 || tile < 0 || tileset->animation_count <= 0) {
+        return tile;
+    }
+
+    for (int i = 0; i < tileset->animation_count; ++i) {
+        const R2D_TilemapTileAnimation *animation = &tileset->animations[i];
+        int cursor = 0;
+        int time_ms;
+
+        if (animation->tile_id != tile || animation->frame_count <= 0 || animation->duration_ms <= 0) {
+            continue;
+        }
+
+        time_ms = (int)(GetTime() * 1000.0) % animation->duration_ms;
+        for (int frame = 0; frame < animation->frame_count; ++frame) {
+            const int duration = animation->frames[frame].duration_ms > 0 ? animation->frames[frame].duration_ms : 1;
+
+            cursor += duration;
+            if (time_ms < cursor) {
+                return animation->frames[frame].tile_id;
+            }
+        }
+
+        return animation->frames[animation->frame_count - 1].tile_id;
+    }
+
+    return tile;
+}
+
+static void TilemapRadiance_DrawLayerVisibleTint(
+    const R2D_Tilemap *tilemap,
+    int layer_index,
+    Rectangle view,
+    Vector2 position,
+    Color tint
+)
+{
+    const R2D_TilemapLayer *layer;
+    int start_x;
+    int start_y;
+    int end_x;
+    int end_y;
+
+    if (!R2D_TilemapIsReady(tilemap) || layer_index < 0 || layer_index >= tilemap->layer_count) {
+        return;
+    }
+
+    layer = &tilemap->layers[layer_index];
+    if (!layer->visible || layer->tiles == 0) {
+        return;
+    }
+
+    TilemapRadiance_VisibleRange(tilemap, layer, view, &start_x, &start_y, &end_x, &end_y);
+    if (start_x > end_x || start_y > end_y) {
+        return;
+    }
+
+    position.x += layer->offset_x;
+    position.y += layer->offset_y;
+    tint.a = (unsigned char)((float)tint.a * TilemapRadiance_Clamp01(layer->opacity));
+
+    for (int y = start_y; y <= end_y; ++y) {
+        for (int x = start_x; x <= end_x; ++x) {
+            const unsigned int raw_gid = layer->tiles[y * layer->width + x];
+            const unsigned int gid = raw_gid & TILEMAP_RADIANCE_GID_MASK;
+            const R2D_TilemapTileset *tileset = TilemapRadiance_TilesetForGid(tilemap, gid);
+            Rectangle source;
+            Rectangle destination;
+            int tile;
+
+            if (tileset == 0) {
+                continue;
+            }
+
+            tile = TilemapRadiance_AnimatedTile(tileset, (int)gid - tileset->first_gid);
+            source = (Rectangle) {
+                (float)(tileset->margin + (tile % tileset->columns) * (tileset->tile_width + tileset->spacing)),
+                (float)(tileset->margin + (tile / tileset->columns) * (tileset->tile_height + tileset->spacing)),
+                (float)tileset->tile_width,
+                (float)tileset->tile_height
+            };
+
+            if ((raw_gid & TILEMAP_RADIANCE_FLIP_HORIZONTAL) != 0) {
+                source.x += source.width;
+                source.width *= -1.0f;
+            }
+
+            if ((raw_gid & TILEMAP_RADIANCE_FLIP_VERTICAL) != 0) {
+                source.y += source.height;
+                source.height *= -1.0f;
+            }
+
+            destination = (Rectangle) {
+                position.x + (float)(x * tilemap->tile_width),
+                position.y + (float)(y * tilemap->tile_height),
+                (float)tilemap->tile_width,
+                (float)tilemap->tile_height
+            };
+
+            DrawTexturePro(
+                tileset->texture,
+                source,
+                destination,
+                (Vector2) { 0.0f, 0.0f },
+                0.0f,
+                tint
+            );
+        }
+    }
+}
+
 static bool TilemapRadiance_LoadTilemap(RadianceTilemapExample *example, const char *ok_status)
 {
     R2D_Tilemap next_tilemap = { 0 };
 
     example->background_layer = -1;
-    example->collision_layer = -1;
-    example->lighting_layer = -1;
+    example->walls_layer = -1;
+    example->emitter_layer = -1;
 
     if (!R2D_TilemapLoadTiledJson(&next_tilemap, R2D_AssetPath(TILEMAP_RADIANCE_PATH))) {
         TilemapRadiance_SetStatus(example, "Tilemap reload failed.");
@@ -164,12 +353,12 @@ static bool TilemapRadiance_LoadTilemap(RadianceTilemapExample *example, const c
     }
 
     example->background_layer = R2D_TilemapLayerIndex(&next_tilemap, "Background");
-    example->collision_layer = R2D_TilemapLayerIndex(&next_tilemap, "Collision");
-    example->lighting_layer = R2D_TilemapLayerIndex(&next_tilemap, "Lighting");
+    example->walls_layer = TilemapRadiance_LayerIndexWithFallback(&next_tilemap, "Walls", "Collision");
+    example->emitter_layer = TilemapRadiance_LayerIndexWithFallback(&next_tilemap, "Emitters", "Lighting");
 
-    if (example->background_layer < 0 || example->collision_layer < 0 || example->lighting_layer < 0) {
+    if (example->background_layer < 0 || example->walls_layer < 0 || example->emitter_layer < 0) {
         R2D_TilemapUnload(&next_tilemap);
-        TilemapRadiance_SetStatus(example, "Tilemap missing Background/Collision/Lighting.");
+        TilemapRadiance_SetStatus(example, "Tilemap missing Background/Walls/Emitters.");
         return false;
     }
 
@@ -284,10 +473,7 @@ static void TilemapRadiance_Update(float dt, void *user_data)
         example->debug = (R2D_RadianceDebugView)(((int)example->debug + 1) % 3);
     }
     if (IsKeyPressed(KEY_L)) {
-        example->show_lighting_layer = !example->show_lighting_layer;
-    }
-    if (IsKeyPressed(KEY_G)) {
-        example->show_collision_debug = !example->show_collision_debug;
+        example->show_emitter_layer = !example->show_emitter_layer;
     }
     if (IsKeyPressed(KEY_Y)) {
         example->sky = !example->sky;
@@ -315,19 +501,9 @@ static void TilemapRadiance_DrawScene(const RadianceTilemapExample *example)
     }
 
     R2D_TilemapDrawLayerVisible(&example->tilemap, example->background_layer, camera_view, map_position);
-    R2D_TilemapDrawLayerVisible(&example->tilemap, example->collision_layer, camera_view, map_position);
-    if (example->show_lighting_layer) {
-        R2D_TilemapDrawLayerVisible(&example->tilemap, example->lighting_layer, camera_view, map_position);
-    }
-
-    if (example->show_collision_debug) {
-        R2D_TilemapDrawCollisionDebugVisible(
-            &example->tilemap,
-            example->collision_layer,
-            camera_view,
-            map_position,
-            R2D_ColorFromHex(0xff4d8dcc)
-        );
+    R2D_TilemapDrawLayerVisible(&example->tilemap, example->walls_layer, camera_view, map_position);
+    if (example->show_emitter_layer) {
+        R2D_TilemapDrawLayerVisible(&example->tilemap, example->emitter_layer, camera_view, map_position);
     }
 }
 
@@ -336,14 +512,14 @@ static void TilemapRadiance_DrawHUD(const RadianceTilemapExample *example)
     char line[128];
 
     DrawText(
-        "Tilemap Lighting layer renders into Radiance mask",
+        "Background receives light | Walls alpha blocks | Emitters add radiance",
         4,
         4,
         4,
         R2D_ColorFromHex(0xf6f8ffff)
     );
     DrawText(
-        "WASD move | P pad | V view | L layer | G coll | H hot | F5 reload",
+        "WASD move | P pad | V view | L emit layer | H hot | F5 reload",
         4,
         14,
         4,
@@ -378,7 +554,14 @@ static void TilemapRadiance_DrawMask(RadianceTilemapExample *example)
     }
 
     R2D_RadianceBeginMask(example->context, example->radiance);
-    R2D_TilemapDrawLayerVisible(&example->tilemap, example->lighting_layer, view, map_position);
+    TilemapRadiance_DrawLayerVisibleTint(
+        &example->tilemap,
+        example->walls_layer,
+        view,
+        map_position,
+        BLACK
+    );
+    R2D_TilemapDrawLayerVisible(&example->tilemap, example->emitter_layer, view, map_position);
     R2D_RadianceEndMask(example->context, example->radiance);
 }
 
@@ -410,7 +593,7 @@ int main(int argc, char **argv)
 
     config.title = "Retro2D Radiance Tilemap";
     config.clear_color = BLACK;
-    example.sky = true;
+    example.sky = false;
     example.padding_enabled = true;
     example.hot_reload_enabled = true;
 
@@ -447,7 +630,7 @@ int main(int argc, char **argv)
 
     R2D_SetRadiance(&context, &radiance);
     R2D_CrtInit(&crt);
-    R2D_CrtSetEnabled(&crt, false);
+    R2D_CrtSetEnabled(&crt, true);
     R2D_SetCrt(&context, &crt);
 
     example.context = &context;
