@@ -1,10 +1,28 @@
 #include "r2d/r2d.h"
 
 #include <ctype.h>
+#include <limits.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4706)
+#endif
+#define SINFL_IMPLEMENTATION
+#define SINFL_NO_SIMD
+#define sinflate R2D_SinflInflate
+#define zsinflate R2D_SinflZInflate
+#include "sinfl.h"
+#undef zsinflate
+#undef sinflate
+#undef SINFL_NO_SIMD
+#undef SINFL_IMPLEMENTATION
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
 
 #define R2D_TILED_FLIP_HORIZONTAL 0x80000000u
 #define R2D_TILED_FLIP_VERTICAL 0x40000000u
@@ -549,14 +567,308 @@ static const char *R2D_TilemapFindFirstObjectInArray(const char *begin, const ch
     return 0;
 }
 
-static bool R2D_TilemapParseTileData(const char *layer_begin, const char *layer_end, R2D_TilemapLayer *layer)
+static bool R2D_TilemapExpectedTileBytes(const R2D_TilemapLayer *layer, size_t *tile_count, size_t *byte_count)
 {
-    const char *data = R2D_TilemapFindKey(layer_begin, layer_end, "data");
+    size_t count;
+
+    if (tile_count != 0) {
+        *tile_count = 0;
+    }
+
+    if (byte_count != 0) {
+        *byte_count = 0;
+    }
+
+    if (layer == 0 || layer->width <= 0 || layer->height <= 0) {
+        return false;
+    }
+
+    if ((size_t)layer->width > ((size_t)-1) / (size_t)layer->height) {
+        return false;
+    }
+
+    count = (size_t)layer->width * (size_t)layer->height;
+    if (count > ((size_t)-1) / sizeof(unsigned int) || count > ((size_t)-1) / 4u) {
+        return false;
+    }
+
+    if (tile_count != 0) {
+        *tile_count = count;
+    }
+
+    if (byte_count != 0) {
+        *byte_count = count * 4u;
+    }
+
+    return true;
+}
+
+static int R2D_TilemapBase64Value(char c)
+{
+    if (c >= 'A' && c <= 'Z') {
+        return c - 'A';
+    }
+
+    if (c >= 'a' && c <= 'z') {
+        return c - 'a' + 26;
+    }
+
+    if (c >= '0' && c <= '9') {
+        return c - '0' + 52;
+    }
+
+    if (c == '+') {
+        return 62;
+    }
+
+    if (c == '/') {
+        return 63;
+    }
+
+    return -1;
+}
+
+static bool R2D_TilemapDecodeBase64JsonString(
+    const char *text,
+    const char *end,
+    unsigned char **out_data,
+    int *out_size
+)
+{
+    unsigned char *output;
+    size_t capacity;
+    size_t output_index = 0;
+    int quartet[4] = { 0 };
+    int quartet_count = 0;
+    bool finished_padding = false;
+    bool found_end = false;
+
+    if (out_data != 0) {
+        *out_data = 0;
+    }
+
+    if (out_size != 0) {
+        *out_size = 0;
+    }
+
+    if (text == 0 || end == 0 || text >= end || *text != '"' || out_data == 0 || out_size == 0) {
+        return false;
+    }
+
+    capacity = ((size_t)(end - text) + 3u) / 4u * 3u;
+    if (capacity == 0u || capacity > (size_t)INT_MAX) {
+        return false;
+    }
+
+    output = (unsigned char *)malloc(capacity);
+    if (output == 0) {
+        return false;
+    }
+
+    ++text;
+    while (text < end && *text != '\0') {
+        unsigned char c = (unsigned char)*text++;
+        int value;
+
+        if (c == '"') {
+            found_end = true;
+            break;
+        }
+
+        if (c == '\\') {
+            if (text >= end || *text == '\0') {
+                free(output);
+                return false;
+            }
+
+            c = (unsigned char)*text++;
+            if (c == 'n' || c == 'r' || c == 't' || c == 'b' || c == 'f') {
+                continue;
+            }
+
+            if (c == 'u') {
+                if (end - text < 4) {
+                    free(output);
+                    return false;
+                }
+
+                text += 4;
+                continue;
+            }
+        }
+
+        if (isspace(c)) {
+            continue;
+        }
+
+        if (finished_padding) {
+            free(output);
+            return false;
+        }
+
+        if (c == '=') {
+            value = -2;
+        } else {
+            value = R2D_TilemapBase64Value((char)c);
+            if (value < 0) {
+                free(output);
+                return false;
+            }
+        }
+
+        quartet[quartet_count++] = value;
+        if (quartet_count == 4) {
+            if (quartet[0] < 0 || quartet[1] < 0 || output_index >= capacity) {
+                free(output);
+                return false;
+            }
+
+            output[output_index++] = (unsigned char)((quartet[0] << 2) | (quartet[1] >> 4));
+
+            if (quartet[2] == -2) {
+                if (quartet[3] != -2) {
+                    free(output);
+                    return false;
+                }
+
+                finished_padding = true;
+            } else {
+                if (output_index >= capacity) {
+                    free(output);
+                    return false;
+                }
+
+                output[output_index++] = (unsigned char)((quartet[1] << 4) | (quartet[2] >> 2));
+                if (quartet[3] == -2) {
+                    finished_padding = true;
+                } else {
+                    if (quartet[3] < 0 || output_index >= capacity) {
+                        free(output);
+                        return false;
+                    }
+
+                    output[output_index++] = (unsigned char)((quartet[2] << 6) | quartet[3]);
+                }
+            }
+
+            quartet_count = 0;
+        }
+    }
+
+    if (!found_end || quartet_count != 0 || output_index > (size_t)INT_MAX) {
+        free(output);
+        return false;
+    }
+
+    *out_data = output;
+    *out_size = (int)output_index;
+    return true;
+}
+
+static unsigned int R2D_TilemapAdler32(const unsigned char *data, size_t size)
+{
+    const unsigned int mod = 65521u;
+    unsigned int s1 = 1u;
+    unsigned int s2 = 0u;
+
+    for (size_t i = 0; i < size; ++i) {
+        s1 = (s1 + data[i]) % mod;
+        s2 = (s2 + s1) % mod;
+    }
+
+    return (s2 << 16) | s1;
+}
+
+static bool R2D_TilemapInflateZlib(
+    const unsigned char *compressed,
+    int compressed_size,
+    size_t expected_size,
+    unsigned char **out_data
+)
+{
+    unsigned char *output;
+    int inflated_size;
+    unsigned int expected_adler;
+    unsigned int actual_adler;
+
+    if (out_data != 0) {
+        *out_data = 0;
+    }
+
+    if (compressed == 0 || compressed_size < 6 || out_data == 0 || expected_size == 0u || expected_size > (size_t)INT_MAX) {
+        return false;
+    }
+
+    if ((compressed[0] & 0x0fu) != 8u ||
+        (((unsigned int)compressed[0] << 8) + compressed[1]) % 31u != 0u ||
+        (compressed[1] & 0x20u) != 0u) {
+        return false;
+    }
+
+    output = (unsigned char *)malloc(expected_size);
+    if (output == 0) {
+        return false;
+    }
+
+    inflated_size = R2D_SinflInflate(output, (int)expected_size, compressed + 2, compressed_size - 6);
+    if (inflated_size != (int)expected_size) {
+        free(output);
+        return false;
+    }
+
+    expected_adler =
+        ((unsigned int)compressed[compressed_size - 4] << 24) |
+        ((unsigned int)compressed[compressed_size - 3] << 16) |
+        ((unsigned int)compressed[compressed_size - 2] << 8) |
+        (unsigned int)compressed[compressed_size - 1];
+    actual_adler = R2D_TilemapAdler32(output, expected_size);
+    if (actual_adler != expected_adler) {
+        free(output);
+        return false;
+    }
+
+    *out_data = output;
+    return true;
+}
+
+static bool R2D_TilemapReadBinaryTileData(
+    R2D_TilemapLayer *layer,
+    const unsigned char *bytes,
+    size_t byte_count
+)
+{
+    size_t tile_count;
+    size_t expected_bytes;
+
+    if (!R2D_TilemapExpectedTileBytes(layer, &tile_count, &expected_bytes) || bytes == 0 || byte_count != expected_bytes) {
+        return false;
+    }
+
+    layer->tiles = (unsigned int *)calloc(tile_count, sizeof(unsigned int));
+    if (layer->tiles == 0) {
+        return false;
+    }
+
+    for (size_t i = 0; i < tile_count; ++i) {
+        const size_t byte_index = i * 4u;
+        layer->tiles[i] =
+            (unsigned int)bytes[byte_index] |
+            ((unsigned int)bytes[byte_index + 1u] << 8) |
+            ((unsigned int)bytes[byte_index + 2u] << 16) |
+            ((unsigned int)bytes[byte_index + 3u] << 24);
+    }
+
+    return true;
+}
+
+static bool R2D_TilemapParseTileDataArray(const char *data, const char *layer_end, R2D_TilemapLayer *layer)
+{
     const char *end;
-    int count;
+    size_t count;
+    size_t ignored_byte_count;
     int index = 0;
 
-    if (data == 0 || *data != '[' || layer == 0 || layer->width <= 0 || layer->height <= 0) {
+    if (data == 0 || *data != '[' || !R2D_TilemapExpectedTileBytes(layer, &count, &ignored_byte_count) || count > (size_t)INT_MAX) {
         return false;
     }
 
@@ -565,14 +877,13 @@ static bool R2D_TilemapParseTileData(const char *layer_begin, const char *layer_
         return false;
     }
 
-    count = layer->width * layer->height;
-    layer->tiles = (unsigned int *)calloc((size_t)count, sizeof(unsigned int));
+    layer->tiles = (unsigned int *)calloc(count, sizeof(unsigned int));
     if (layer->tiles == 0) {
         return false;
     }
 
     ++data;
-    while (data < end && index < count) {
+    while (data < end && index < (int)count) {
         char *next = 0;
         unsigned long parsed;
 
@@ -591,7 +902,60 @@ static bool R2D_TilemapParseTileData(const char *layer_begin, const char *layer_
         data = next;
     }
 
-    return index == count;
+    return index == (int)count;
+}
+
+static bool R2D_TilemapParseTileDataBase64(const char *data, const char *layer_begin, const char *layer_end, R2D_TilemapLayer *layer)
+{
+    char encoding[32] = { 0 };
+    char compression[32] = { 0 };
+    unsigned char *decoded = 0;
+    int decoded_size = 0;
+    unsigned char *tile_bytes = 0;
+    size_t expected_bytes;
+    bool ok = false;
+
+    if (!R2D_TilemapReadTopLevelString(layer_begin, layer_end, "encoding", encoding, sizeof(encoding)) ||
+        strcmp(encoding, "base64") != 0 ||
+        !R2D_TilemapExpectedTileBytes(layer, 0, &expected_bytes)) {
+        return false;
+    }
+
+    if (!R2D_TilemapDecodeBase64JsonString(data, layer_end, &decoded, &decoded_size)) {
+        return false;
+    }
+
+    R2D_TilemapReadTopLevelString(layer_begin, layer_end, "compression", compression, sizeof(compression));
+    if (compression[0] == '\0') {
+        ok = R2D_TilemapReadBinaryTileData(layer, decoded, (size_t)decoded_size);
+    } else if (strcmp(compression, "zlib") == 0) {
+        if (R2D_TilemapInflateZlib(decoded, decoded_size, expected_bytes, &tile_bytes)) {
+            ok = R2D_TilemapReadBinaryTileData(layer, tile_bytes, expected_bytes);
+        }
+    }
+
+    free(tile_bytes);
+    free(decoded);
+    return ok;
+}
+
+static bool R2D_TilemapParseTileData(const char *layer_begin, const char *layer_end, R2D_TilemapLayer *layer)
+{
+    const char *data = R2D_TilemapFindTopLevelKey(layer_begin, layer_end, "data");
+
+    if (data == 0 || layer == 0 || layer->width <= 0 || layer->height <= 0) {
+        return false;
+    }
+
+    if (*data == '[') {
+        return R2D_TilemapParseTileDataArray(data, layer_end, layer);
+    }
+
+    if (*data == '"') {
+        return R2D_TilemapParseTileDataBase64(data, layer_begin, layer_end, layer);
+    }
+
+    return false;
 }
 
 static bool R2D_TilemapAppendAnimation(

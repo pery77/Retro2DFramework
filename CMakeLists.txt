@@ -89,6 +89,7 @@ target_include_directories(r2d
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
     PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/external/sinfl
         ${CMAKE_CURRENT_SOURCE_DIR}/external/tinysoundfont
 )
 

@@ -337,9 +337,23 @@ indicado por el propio MIDI.
 
 ## Tilemaps Tiled
 
-El soporte inicial de Tiled esta pensado para ser pequeno y predecible. Carga mapas JSON
-ortogonales y finitos, con datos de tiles en array JSON sin compresion. Soporta tilesets
-incrustados con imagen unica y tilesets externos `.tsx` simples con `<image source="...">`.
+El soporte de Tiled esta pensado para ser pequeno y predecible. Carga mapas JSON
+ortogonales y finitos. Las capas pueden venir como array JSON clasico (`data: [...]`) o
+como datos binarios de Tiled con `encoding: "base64"` y `compression: "zlib"`. Tambien se
+acepta `base64` sin compresion. Soporta tilesets incrustados con imagen unica y tilesets
+externos `.tsx` simples con `<image source="...">`.
+
+Para mapas grandes, la exportacion recomendada desde Tiled es JSON con compresion zlib:
+
+```json
+"encoding": "base64",
+"compression": "zlib",
+"data": "eJ..."
+```
+
+El loader valida que el bloque descomprimido tenga exactamente `width * height * 4` bytes
+y lee cada GID como `uint32` little-endian, que es el formato que Tiled usa para tiles
+binarios.
 
 Las capas `tilelayer` se guardan como capas de tiles. Una capa llamada `Collision` puede
 usarse para colision por tiles: cualquier valor distinto de cero bloquea. Las capas
@@ -650,14 +664,16 @@ Para Tiled, mantén nombres convencionales: `PlayerStart`, `Collision`, `Pickups
 `Foreground`, `Above` y objetos `type=trigger` para eventos. Las propiedades custom son
 texto/int/float/bool/color y se leen con `R2D_Tilemap*Property*()`. Los tiles animados,
 offset, opacidad, parallax, multiples tilesets y triggers ya estan cubiertos por el loader.
+Para capas grandes, usa export JSON con `encoding=base64` y `compression=zlib`; el array
+JSON simple sigue siendo comodo para mapas pequenos o debug.
 
 Para empaquetar, usa `.\build.bat dist <target>`. El resultado deja el ejecutable,
 `.assets`, `r2d.ini`, `locale` y atribuciones en `build/dist/Release/<target>/`. Los
 archivos que quieras editar despues de distribuir el juego deben vivir fuera de `.assets`.
 
-Quedan fuera a proposito, de momento: mapas infinitos, chunks, base64, compresion e
-isometrico/hexagonal. La idea es usar Tiled como editor potente sin convertir el
-framework en un motor enorme.
+Quedan fuera a proposito, de momento: mapas infinitos, chunks, gzip/zstd, TMX directo e
+isometrico/hexagonal. La idea es usar Tiled como editor potente sin convertir el framework
+en un motor enorme.
 
 ## Editor de efectos
 
@@ -752,7 +768,7 @@ src/r2d_save.c          Save data, config y rutas de usuario
 src/r2d_script.c        Runtime LuaJIT opcional para scripting
 src/r2d_sprite.c        Spritesheets en grid y animacion simple
 src/r2d_time.c          Timers, tweens, shake y efectos temporales
-src/r2d_tilemap.c       Carga y dibujado basico de mapas Tiled JSON
+src/r2d_tilemap.c       Carga y dibujado de mapas Tiled JSON, incluidos base64+zlib
 examples/hello_index    Hello / index del framework
 examples/input          Ejemplo de acciones de entrada
 examples/ui             Ejemplo de UI, texto y CRT

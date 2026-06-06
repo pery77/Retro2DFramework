@@ -47,6 +47,7 @@ cualquier chat o sesion futura pueda entender el proyecto de un vistazo.
 
 - [x] Carga inicial de mapas Tiled JSON ortogonales y finitos.
 - [x] Soporte de capas `tilelayer`.
+- [x] Datos de capas como array JSON o `base64` con `zlib`.
 - [x] Soporte de capas `objectgroup`.
 - [x] Soporte de multiples tilesets incrustados con imagen unica.
 - [x] Soporte de tilesets externos `.tsx` simples.
@@ -437,3 +438,6 @@ cualquier chat o sesion futura pueda entender el proyecto de un vistazo.
   `r2d_topdown_example`.
 - 2026-05-22: README documenta patrones practicos para top-down, pickups, menus,
   convenciones de Tiled y empaquetado final.
+- 2026-06-06: Tilemaps Tiled JSON soportan datos de capas `base64` con `compression=zlib`,
+  ademas del array JSON clasico. El loader valida el tamano descomprimido y lee GIDs como
+  `uint32` little-endian.
