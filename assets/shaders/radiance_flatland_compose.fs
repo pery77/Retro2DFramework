@@ -161,11 +161,20 @@ void main()
     vec3 mask = texture(maskTexture, pixel / resolution).rgb;
     vec3 radiance = expose_radiance(sample_radiance_at_pixel(pixel));
     vec3 emissive = (!is_air(mask) && !is_occluder(mask)) ? mask : vec3(0.0);
-    vec3 lit = scene.rgb * (vec3(ambient) + radiance);
+
+
+    vec3 mult_lit = scene.rgb * (vec3(ambient) + radiance);
+
+    float scene_luma = color_luma(scene.rgb);
+    float shadow_amount = 1.0 - smoothstep(0.15, 0.475, scene_luma);
+    vec3 fog_lift = radiance * shadow_amount * 0.35;
+
+    vec3 lit = mult_lit + fog_lift;
 
     if (is_occluder(mask)) {
         lit = shade_occluder(scene.rgb, pixel, mask, radiance);
     }
 
-    finalColor = vec4(max(lit, emissive), scene.a);
+    finalColor = vec4(clamp(max(lit, emissive), 0.0, 1.0), scene.a);
+
 }

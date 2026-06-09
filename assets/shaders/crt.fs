@@ -23,9 +23,9 @@ float blurBlink = 0.05;
 float blurPower = 0.46;
 float curvature = 0.8;
 float vignetteForce = 0.3;
-float mask = 0.06;
+float mask = 0.08;
 
-float noiseAmount = 0.025;
+float noiseAmount = 0.015;
 float brightness = 0.035;
 float contrast = 1.1;
 float saturation = 1.3;
@@ -143,8 +143,17 @@ vec3 tri(vec2 pos)
 
 vec3 grille(vec2 uv)
 {
-    float dst = dist(uv).x;
-    return mix(vec3(1.0, 0.0, 1.0), vec3(0.0, 1.0, 0.0), gaus(dst, -20.0));
+    float line = floor(uv.y * virtualResolution.y);
+    float odd = mod(line, 2.0);
+    uv.x += odd / virtualResolution.x * 0.5;
+
+    float dst = dist(uv).x;    
+    float t = gaus(dst, -20.0);
+
+    vec3 evenMask = mix(vec3(1.0, 0.0, 0.0), vec3(0.0, 1.0, 1.0), t);
+    vec3 oddMask = mix(vec3(1.0, 0.0, 1.0), vec3(0.0, 1.0, 0.0), t);
+
+    return mix(evenMask, oddMask, odd);
 }
 
 vec3 colorMatrix(vec3 color)
