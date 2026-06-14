@@ -70,6 +70,14 @@ static void R2D_RadianceUnloadTargets(R2D_Radiance *radiance)
         UnloadRenderTexture(radiance->cascade_b);
         radiance->cascade_b = (RenderTexture2D) { 0 };
     }
+    if (IsRenderTextureValid(radiance->light)) {
+        UnloadRenderTexture(radiance->light);
+        radiance->light = (RenderTexture2D) { 0 };
+    }
+    if (IsRenderTextureValid(radiance->body_glow)) {
+        UnloadRenderTexture(radiance->body_glow);
+        radiance->body_glow = (RenderTexture2D) { 0 };
+    }
     if (IsRenderTextureValid(radiance->color)) {
         UnloadRenderTexture(radiance->color);
         radiance->color = (RenderTexture2D) { 0 };
@@ -99,11 +107,15 @@ static bool R2D_RadianceAllocTargets(R2D_Radiance *radiance)
     radiance->mask = LoadRenderTexture(radiance->mask_width, radiance->mask_height);
     radiance->cascade_a = LoadRenderTexture(radiance->cascade_width, radiance->cascade_height);
     radiance->cascade_b = LoadRenderTexture(radiance->cascade_width, radiance->cascade_height);
+    radiance->light = LoadRenderTexture(radiance->width, radiance->height);
+    radiance->body_glow = LoadRenderTexture(radiance->width, radiance->height);
     radiance->color = LoadRenderTexture(radiance->width, radiance->height);
 
     if (!IsRenderTextureValid(radiance->mask) ||
         !IsRenderTextureValid(radiance->cascade_a) ||
         !IsRenderTextureValid(radiance->cascade_b) ||
+        !IsRenderTextureValid(radiance->light) ||
+        !IsRenderTextureValid(radiance->body_glow) ||
         !IsRenderTextureValid(radiance->color)) {
         R2D_RadianceUnloadTargets(radiance);
         return false;
@@ -112,10 +124,14 @@ static bool R2D_RadianceAllocTargets(R2D_Radiance *radiance)
     R2D_RadianceConfigureTarget(radiance->mask, TEXTURE_FILTER_POINT);
     R2D_RadianceConfigureTarget(radiance->cascade_a, TEXTURE_FILTER_POINT);
     R2D_RadianceConfigureTarget(radiance->cascade_b, TEXTURE_FILTER_POINT);
+    R2D_RadianceConfigureTarget(radiance->light, TEXTURE_FILTER_BILINEAR);
+    R2D_RadianceConfigureTarget(radiance->body_glow, TEXTURE_FILTER_BILINEAR);
     R2D_RadianceConfigureTarget(radiance->color, TEXTURE_FILTER_POINT);
     R2D_RadianceClear(radiance->mask, WHITE);
     R2D_RadianceClear(radiance->cascade_a, BLANK);
     R2D_RadianceClear(radiance->cascade_b, BLANK);
+    R2D_RadianceClear(radiance->light, BLANK);
+    R2D_RadianceClear(radiance->body_glow, BLANK);
     radiance->mask_ready = false;
     return true;
 }
@@ -136,6 +152,8 @@ bool R2D_RadianceInit(R2D_Radiance *radiance, int width, int height)
     radiance->ambient = 0.04f;
     radiance->edge_force = 10.0f;
     radiance->body_force = 1.0f;
+    radiance->body_glow_strength = 0.0f;
+    radiance->body_glow_radius = 16.0f;
     radiance->falloff = 1.15f;
     radiance->light_range = 224.0f;
     radiance->sky_color = R2D_ColorFromHex(0x20385fff);
@@ -158,14 +176,25 @@ bool R2D_RadianceReload(R2D_Radiance *radiance)
     if (IsShaderValid(radiance->cascade_shader)) {
         UnloadShader(radiance->cascade_shader);
     }
+    if (IsShaderValid(radiance->resolve_shader)) {
+        UnloadShader(radiance->resolve_shader);
+    }
+    if (IsShaderValid(radiance->body_glow_shader)) {
+        UnloadShader(radiance->body_glow_shader);
+    }
     if (IsShaderValid(radiance->compose_shader)) {
         UnloadShader(radiance->compose_shader);
     }
 
     radiance->cascade_shader = R2D_LoadFragmentShader(R2D_AssetPath("shaders/radiance_flatland_cascade.fs"));
+    radiance->resolve_shader = R2D_LoadFragmentShader(R2D_AssetPath("shaders/radiance_flatland_resolve.fs"));
+    radiance->body_glow_shader = R2D_LoadFragmentShader(R2D_AssetPath("shaders/radiance_body_glow.fs"));
     radiance->compose_shader = R2D_LoadFragmentShader(R2D_AssetPath("shaders/radiance_flatland_compose.fs"));
 
-    if (!IsShaderValid(radiance->cascade_shader) || !IsShaderValid(radiance->compose_shader)) {
+    if (!IsShaderValid(radiance->cascade_shader) ||
+        !IsShaderValid(radiance->resolve_shader) ||
+        !IsShaderValid(radiance->body_glow_shader) ||
+        !IsShaderValid(radiance->compose_shader)) {
         TraceLog(LOG_WARNING, "R2D: Radiance shaders failed to load");
         radiance->is_ready = false;
         return false;
@@ -183,17 +212,26 @@ bool R2D_RadianceReload(R2D_Radiance *radiance)
     radiance->cascade_sky_color_loc = GetShaderLocation(radiance->cascade_shader, "skyColor");
     radiance->cascade_falloff_loc = GetShaderLocation(radiance->cascade_shader, "falloff");
     radiance->cascade_light_range_loc = GetShaderLocation(radiance->cascade_shader, "lightRange");
+    radiance->resolve_cascade_loc = GetShaderLocation(radiance->resolve_shader, "cascadeTexture");
+    radiance->resolve_resolution_loc = GetShaderLocation(radiance->resolve_shader, "resolution");
+    radiance->resolve_viewport_resolution_loc = GetShaderLocation(radiance->resolve_shader, "viewportResolution");
+    radiance->resolve_mask_offset_loc = GetShaderLocation(radiance->resolve_shader, "maskOffset");
+    radiance->resolve_base_spacing_loc = GetShaderLocation(radiance->resolve_shader, "baseSpacing");
+    radiance->resolve_base_rays_loc = GetShaderLocation(radiance->resolve_shader, "baseRays");
+    radiance->resolve_probe_count_loc = GetShaderLocation(radiance->resolve_shader, "probeCount");
+    radiance->resolve_intensity_loc = GetShaderLocation(radiance->resolve_shader, "intensity");
+    radiance->body_glow_texture_loc = GetShaderLocation(radiance->body_glow_shader, "lightTexture");
+    radiance->body_glow_resolution_loc = GetShaderLocation(radiance->body_glow_shader, "resolution");
+    radiance->body_glow_radius_loc = GetShaderLocation(radiance->body_glow_shader, "radius");
     radiance->compose_scene_loc = GetShaderLocation(radiance->compose_shader, "sceneTexture");
-    radiance->compose_cascade_loc = GetShaderLocation(radiance->compose_shader, "cascadeTexture");
+    radiance->compose_light_loc = GetShaderLocation(radiance->compose_shader, "lightTexture");
+    radiance->compose_body_glow_loc = GetShaderLocation(radiance->compose_shader, "bodyGlowTexture");
     radiance->compose_mask_loc = GetShaderLocation(radiance->compose_shader, "maskTexture");
     radiance->compose_resolution_loc = GetShaderLocation(radiance->compose_shader, "resolution");
-    radiance->compose_base_spacing_loc = GetShaderLocation(radiance->compose_shader, "baseSpacing");
-    radiance->compose_base_rays_loc = GetShaderLocation(radiance->compose_shader, "baseRays");
-    radiance->compose_probe_count_loc = GetShaderLocation(radiance->compose_shader, "probeCount");
-    radiance->compose_intensity_loc = GetShaderLocation(radiance->compose_shader, "intensity");
     radiance->compose_ambient_loc = GetShaderLocation(radiance->compose_shader, "ambient");
     radiance->compose_edge_force_loc = GetShaderLocation(radiance->compose_shader, "edgeForce");
     radiance->compose_body_force_loc = GetShaderLocation(radiance->compose_shader, "bodyForce");
+    radiance->compose_body_glow_strength_loc = GetShaderLocation(radiance->compose_shader, "bodyGlowStrength");
     radiance->compose_viewport_resolution_loc = GetShaderLocation(radiance->compose_shader, "viewportResolution");
     radiance->compose_mask_offset_loc = GetShaderLocation(radiance->compose_shader, "maskOffset");
     radiance->is_ready = true;
@@ -209,6 +247,12 @@ void R2D_RadianceClose(R2D_Radiance *radiance)
     R2D_RadianceUnloadTargets(radiance);
     if (IsShaderValid(radiance->cascade_shader)) {
         UnloadShader(radiance->cascade_shader);
+    }
+    if (IsShaderValid(radiance->resolve_shader)) {
+        UnloadShader(radiance->resolve_shader);
+    }
+    if (IsShaderValid(radiance->body_glow_shader)) {
+        UnloadShader(radiance->body_glow_shader);
     }
     if (IsShaderValid(radiance->compose_shader)) {
         UnloadShader(radiance->compose_shader);
@@ -244,6 +288,14 @@ void R2D_RadianceSetOccluderLight(R2D_Radiance *radiance, float edge_force, floa
     if (radiance != 0) {
         radiance->edge_force = edge_force;
         radiance->body_force = body_force;
+    }
+}
+
+void R2D_RadianceSetOccluderBodyGlow(R2D_Radiance *radiance, float strength, float radius)
+{
+    if (radiance != 0) {
+        radiance->body_glow_strength = R2D_Clamp(strength, 0.0f, 4.0f);
+        radiance->body_glow_radius = R2D_Clamp(radius, 0.0f, 512.0f);
     }
 }
 
@@ -443,20 +495,47 @@ Texture2D R2D_RadianceRender(R2D_Radiance *radiance, Texture2D color_texture)
         return radiance->color.texture;
     }
 
+    BeginTextureMode(radiance->light);
+    ClearBackground(BLANK);
+    BeginShaderMode(radiance->resolve_shader);
+    SetShaderValueTexture(radiance->resolve_shader, radiance->resolve_cascade_loc, radiance->cascade_b.texture);
+    SetShaderValue(radiance->resolve_shader, radiance->resolve_resolution_loc, &resolution, SHADER_UNIFORM_VEC2);
+    SetShaderValue(radiance->resolve_shader, radiance->resolve_viewport_resolution_loc, &viewport_resolution, SHADER_UNIFORM_VEC2);
+    SetShaderValue(radiance->resolve_shader, radiance->resolve_mask_offset_loc, &mask_offset, SHADER_UNIFORM_VEC2);
+    SetShaderValue(radiance->resolve_shader, radiance->resolve_base_spacing_loc, &radiance->base_spacing, SHADER_UNIFORM_INT);
+    SetShaderValue(radiance->resolve_shader, radiance->resolve_base_rays_loc, &radiance->base_rays, SHADER_UNIFORM_INT);
+    SetShaderValue(radiance->resolve_shader, radiance->resolve_probe_count_loc, &probe_count, SHADER_UNIFORM_VEC2);
+    SetShaderValue(radiance->resolve_shader, radiance->resolve_intensity_loc, &radiance->intensity, SHADER_UNIFORM_FLOAT);
+    DrawTexturePro(radiance->cascade_b.texture, R2D_RadianceSourceRect(radiance->cascade_b.texture), R2D_RadianceDestRect(radiance->width, radiance->height), (Vector2) { 0.0f, 0.0f }, 0.0f, WHITE);
+    EndShaderMode();
+    EndTextureMode();
+
+    if (radiance->body_glow_strength > 0.0f && radiance->body_glow_radius > 0.0f) {
+        BeginTextureMode(radiance->body_glow);
+        ClearBackground(BLANK);
+        BeginShaderMode(radiance->body_glow_shader);
+        SetShaderValueTexture(radiance->body_glow_shader, radiance->body_glow_texture_loc, radiance->light.texture);
+        SetShaderValue(radiance->body_glow_shader, radiance->body_glow_resolution_loc, &viewport_resolution, SHADER_UNIFORM_VEC2);
+        SetShaderValue(radiance->body_glow_shader, radiance->body_glow_radius_loc, &radiance->body_glow_radius, SHADER_UNIFORM_FLOAT);
+        DrawTexturePro(radiance->light.texture, R2D_RadianceSourceRect(radiance->light.texture), R2D_RadianceDestRect(radiance->width, radiance->height), (Vector2) { 0.0f, 0.0f }, 0.0f, WHITE);
+        EndShaderMode();
+        EndTextureMode();
+    } else {
+        R2D_RadianceClear(radiance->body_glow, BLANK);
+    }
+
     BeginTextureMode(radiance->color);
     ClearBackground(BLANK);
     BeginShaderMode(radiance->compose_shader);
     SetShaderValueTexture(radiance->compose_shader, radiance->compose_scene_loc, color_texture);
-    SetShaderValueTexture(radiance->compose_shader, radiance->compose_cascade_loc, radiance->cascade_b.texture);
+    SetShaderValueTexture(radiance->compose_shader, radiance->compose_light_loc, radiance->light.texture);
+    SetShaderValueTexture(radiance->compose_shader, radiance->compose_body_glow_loc, radiance->body_glow.texture);
     SetShaderValueTexture(radiance->compose_shader, radiance->compose_mask_loc, radiance->mask.texture);
     SetShaderValue(radiance->compose_shader, radiance->compose_resolution_loc, &resolution, SHADER_UNIFORM_VEC2);
-    SetShaderValue(radiance->compose_shader, radiance->compose_base_spacing_loc, &radiance->base_spacing, SHADER_UNIFORM_INT);
-    SetShaderValue(radiance->compose_shader, radiance->compose_base_rays_loc, &radiance->base_rays, SHADER_UNIFORM_INT);
-    SetShaderValue(radiance->compose_shader, radiance->compose_probe_count_loc, &probe_count, SHADER_UNIFORM_VEC2);
-    SetShaderValue(radiance->compose_shader, radiance->compose_intensity_loc, &radiance->intensity, SHADER_UNIFORM_FLOAT);
     SetShaderValue(radiance->compose_shader, radiance->compose_ambient_loc, &radiance->ambient, SHADER_UNIFORM_FLOAT);
     SetShaderValue(radiance->compose_shader, radiance->compose_edge_force_loc, &radiance->edge_force, SHADER_UNIFORM_FLOAT);
     SetShaderValue(radiance->compose_shader, radiance->compose_body_force_loc, &radiance->body_force, SHADER_UNIFORM_FLOAT);
+    SetShaderValue(radiance->compose_shader, radiance->compose_body_glow_strength_loc, &radiance->body_glow_strength, SHADER_UNIFORM_FLOAT);
     SetShaderValue(radiance->compose_shader, radiance->compose_viewport_resolution_loc, &viewport_resolution, SHADER_UNIFORM_VEC2);
     SetShaderValue(radiance->compose_shader, radiance->compose_mask_offset_loc, &mask_offset, SHADER_UNIFORM_VEC2);
     DrawTexturePro(color_texture, R2D_RadianceSourceRect(color_texture), R2D_RadianceDestRect(radiance->width, radiance->height), (Vector2) { 0.0f, 0.0f }, 0.0f, WHITE);
