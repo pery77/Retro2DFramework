@@ -85,9 +85,7 @@ if ((Test-Path $projectDir) -and !$Force) {
 New-Item -ItemType Directory -Force -Path $projectDir | Out-Null
 Copy-Item -Path (Join-Path $templateRoot "*") -Destination $projectDir -Recurse -Force
 
-$runtimeAssets = @(
-    "assets/textures/noise.png"
-)
+$runtimeAssets = @()
 
 foreach ($asset in $runtimeAssets) {
     $sourceAsset = Join-Path $frameworkRoot $asset

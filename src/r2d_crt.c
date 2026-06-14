@@ -1,6 +1,22 @@
 #include "r2d/r2d.h"
 #include "r2d_builtin_shaders.h"
 
+static Texture2D R2D_CrtGenerateNoiseTexture(void)
+{
+    Image noise_image = GenImageWhiteNoise(128, 128, 0.3f);
+    Texture2D noise = LoadTextureFromImage(noise_image);
+
+    UnloadImage(noise_image);
+
+    if (IsTextureValid(noise)) {
+        TraceLog(LOG_INFO, "R2D: CRT noise texture generated: 128x128 id=%u", noise.id);
+    } else {
+        TraceLog(LOG_WARNING, "R2D: Failed to generate CRT noise texture");
+    }
+
+    return noise;
+}
+
 static bool R2D_CrtLoadShader(R2D_Crt *crt)
 {
     const char *shader_name = R2D_BuiltinShaderName(R2D_BUILTIN_SHADER_CRT);
@@ -40,18 +56,7 @@ bool R2D_CrtInit(R2D_Crt *crt)
         return false;
     }
 
-    const char *noise_path = R2D_AssetPath("textures/noise.png");
-    crt->noise = R2D_LoadTexture(noise_path);
-
-    if (!IsTextureValid(crt->noise)) {
-        TraceLog(LOG_WARNING, "R2D: Failed to load CRT noise texture: %s", noise_path);
-        Image noise_image = GenImageWhiteNoise(128, 128, 0.3f);
-        crt->noise = LoadTextureFromImage(noise_image);
-        UnloadImage(noise_image);
-    } else {
-        TraceLog(LOG_INFO, "R2D: CRT noise texture loaded: %s id=%u", noise_path, crt->noise.id);
-    }
-
+    crt->noise = R2D_CrtGenerateNoiseTexture();
     crt->enabled = true;
     crt->is_ready = false;
 

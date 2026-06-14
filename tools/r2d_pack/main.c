@@ -417,10 +417,6 @@ static void ScanSourceForAssets(AssetList *assets, const char *source_path)
         exit(1);
     }
 
-    if (strstr(text, "R2D_CrtInit") != 0) {
-        AddAsset(assets, "textures/noise.png");
-    }
-
     cursor = text;
     while ((cursor = strstr(cursor, "R2D_AssetPath(\"")) != 0) {
         char asset_path[R2D_MAX_PATH];
