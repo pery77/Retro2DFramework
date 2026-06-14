@@ -9,10 +9,8 @@
 #define TILEMAP_RADIANCE_WALL_TEXTURE_PATH "textures/DawnLike/Objects/Wall.png"
 #define TILEMAP_RADIANCE_FLOOR_TEXTURE_PATH "textures/DawnLike/Objects/Floor.png"
 #define TILEMAP_RADIANCE_TILESET_TEXTURE_PATH "textures/tilesTest.png"
-#define TILEMAP_RADIANCE_CASCADE_SHADER_PATH "shaders/radiance_flatland_cascade.fs"
-#define TILEMAP_RADIANCE_COMPOSE_SHADER_PATH "shaders/radiance_flatland_compose.fs"
 #define TILEMAP_RADIANCE_PADDING 96
-#define TILEMAP_RADIANCE_WATCH_COUNT 7
+#define TILEMAP_RADIANCE_WATCH_COUNT 5
 #define TILEMAP_RADIANCE_FLIP_HORIZONTAL 0x80000000u
 #define TILEMAP_RADIANCE_FLIP_VERTICAL 0x40000000u
 #define TILEMAP_RADIANCE_FLIP_DIAGONAL 0x20000000u
@@ -21,7 +19,6 @@
 typedef struct TilemapRadianceWatch {
     const char *path;
     bool reload_tilemap;
-    bool reload_radiance;
     R2D_FileWatch watch;
 } TilemapRadianceWatch;
 
@@ -39,7 +36,6 @@ typedef struct RadianceTilemapExample {
     bool show_emitter_layer;
     bool hot_reload_enabled;
     bool pending_tilemap_reload;
-    bool pending_radiance_reload;
     float reload_delay;
     float status_timer;
     char status[128];
@@ -48,13 +44,11 @@ typedef struct RadianceTilemapExample {
 } RadianceTilemapExample;
 
 static const TilemapRadianceWatch TILEMAP_RADIANCE_WATCHES[TILEMAP_RADIANCE_WATCH_COUNT] = {
-    { TILEMAP_RADIANCE_PATH, true, false, { 0 } },
-    { TILEMAP_RADIANCE_MASK_TEXTURE_PATH, true, false, { 0 } },
-    { TILEMAP_RADIANCE_WALL_TEXTURE_PATH, true, false, { 0 } },
-    { TILEMAP_RADIANCE_FLOOR_TEXTURE_PATH, true, false, { 0 } },
-    { TILEMAP_RADIANCE_TILESET_TEXTURE_PATH, true, false, { 0 } },
-    { TILEMAP_RADIANCE_CASCADE_SHADER_PATH, false, true, { 0 } },
-    { TILEMAP_RADIANCE_COMPOSE_SHADER_PATH, false, true, { 0 } }
+    { TILEMAP_RADIANCE_PATH, true, { 0 } },
+    { TILEMAP_RADIANCE_MASK_TEXTURE_PATH, true, { 0 } },
+    { TILEMAP_RADIANCE_WALL_TEXTURE_PATH, true, { 0 } },
+    { TILEMAP_RADIANCE_FLOOR_TEXTURE_PATH, true, { 0 } },
+    { TILEMAP_RADIANCE_TILESET_TEXTURE_PATH, true, { 0 } }
 };
 
 static const char *TilemapRadiance_DebugName(R2D_RadianceDebugView view)
@@ -388,19 +382,12 @@ static void TilemapRadiance_ReloadPendingAssets(RadianceTilemapExample *example)
     if (example->pending_tilemap_reload) {
         ok = TilemapRadiance_LoadTilemap(example, "Tilemap/textures reloaded.") && ok;
     }
-    if (example->pending_radiance_reload) {
-        ok = R2D_RadianceReload(example->radiance) && ok;
-        TilemapRadiance_SetStatus(example, ok ? "Radiance shaders reloaded." : "Radiance shader reload failed.");
-    }
-
     example->pending_tilemap_reload = false;
-    example->pending_radiance_reload = false;
 }
 
-static void TilemapRadiance_QueueReload(RadianceTilemapExample *example, bool tilemap, bool radiance)
+static void TilemapRadiance_QueueReload(RadianceTilemapExample *example, bool tilemap)
 {
     example->pending_tilemap_reload = example->pending_tilemap_reload || tilemap;
-    example->pending_radiance_reload = example->pending_radiance_reload || radiance;
     example->reload_delay = 0.20f;
 }
 
@@ -415,7 +402,7 @@ static void TilemapRadiance_CheckHotReload(RadianceTilemapExample *example, floa
             TilemapRadianceWatch *watch = &example->watches[i];
 
             if (R2D_FileWatchCheck(&watch->watch)) {
-                TilemapRadiance_QueueReload(example, watch->reload_tilemap, watch->reload_radiance);
+                TilemapRadiance_QueueReload(example, watch->reload_tilemap);
             }
         }
     }
@@ -463,7 +450,7 @@ static void TilemapRadiance_Update(float dt, void *user_data)
         TilemapRadiance_ApplyPadding(example);
     }
     if (IsKeyPressed(KEY_F5)) {
-        TilemapRadiance_QueueReload(example, true, true);
+        TilemapRadiance_QueueReload(example, true);
     }
     if (IsKeyPressed(KEY_H)) {
         example->hot_reload_enabled = !example->hot_reload_enabled;

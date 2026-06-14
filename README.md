@@ -711,10 +711,12 @@ Atajos de ventana incluidos por el framework:
 - `F11` o `Alt+Enter`: alternar pantalla completa.
 - `F12` o `PrintScreen`: guardar captura en `screenshots` junto al ejecutable.
 
-En `Debug`, el codigo resuelve rutas con `R2D_AssetPath("shaders/crt.fs")` y primero
-intenta leer la carpeta `assets` del proyecto, para que editar shaders, mapas o presets
-en runtime sea directo. En `Release`, los ejemplos empaquetan solo los assets que usa
-cada target en un archivo junto al ejecutable: `r2d_collect.assets`,
+Los shaders built-in del framework se guardan como `.fs` en `src/shaders` y se embeben
+en el binario durante el build. Cambiarlos requiere recompilar. En `Debug`, los assets de
+proyecto como mapas, texturas o presets siguen resolviendose con `R2D_AssetPath()` desde
+la carpeta `assets`, para que editarlos en runtime sea directo. En `Release`, los ejemplos
+empaquetan solo los assets que usa cada target en un archivo junto al ejecutable:
+`r2d_collect.assets`,
 `r2d_audio_example.assets`, `r2d_hello_index.assets`, etc. El framework monta
 automaticamente el `.assets` con el mismo nombre que el `.exe` y, si no existe, cae al
 formato clasico `assets` junto al ejecutable.

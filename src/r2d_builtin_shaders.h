@@ -1,0 +1,15 @@
+#ifndef R2D_BUILTIN_SHADERS_H
+#define R2D_BUILTIN_SHADERS_H
+
+typedef enum R2D_BuiltinShader {
+    R2D_BUILTIN_SHADER_CRT = 0,
+    R2D_BUILTIN_SHADER_RADIANCE_FLATLAND_CASCADE,
+    R2D_BUILTIN_SHADER_RADIANCE_FLATLAND_RESOLVE,
+    R2D_BUILTIN_SHADER_RADIANCE_BODY_GLOW,
+    R2D_BUILTIN_SHADER_RADIANCE_FLATLAND_COMPOSE
+} R2D_BuiltinShader;
+
+const char *R2D_BuiltinShaderSource(R2D_BuiltinShader shader);
+const char *R2D_BuiltinShaderName(R2D_BuiltinShader shader);
+
+#endif

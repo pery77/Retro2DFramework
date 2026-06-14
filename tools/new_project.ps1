@@ -86,7 +86,6 @@ New-Item -ItemType Directory -Force -Path $projectDir | Out-Null
 Copy-Item -Path (Join-Path $templateRoot "*") -Destination $projectDir -Recurse -Force
 
 $runtimeAssets = @(
-    "assets/shaders/crt.fs",
     "assets/textures/noise.png"
 )
 

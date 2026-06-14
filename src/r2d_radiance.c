@@ -1,4 +1,5 @@
 #include "r2d/r2d.h"
+#include "r2d_builtin_shaders.h"
 
 #include <math.h>
 
@@ -50,6 +51,17 @@ static void R2D_RadianceClear(RenderTexture2D target, Color color)
     BeginTextureMode(target);
     ClearBackground(color);
     EndTextureMode();
+}
+
+static Shader R2D_RadianceLoadBuiltinShader(R2D_BuiltinShader shader)
+{
+    Shader loaded = LoadShaderFromMemory(0, R2D_BuiltinShaderSource(shader));
+
+    if (!IsShaderValid(loaded)) {
+        TraceLog(LOG_WARNING, "R2D: Failed to load built-in Radiance shader: %s", R2D_BuiltinShaderName(shader));
+    }
+
+    return loaded;
 }
 
 static void R2D_RadianceUnloadTargets(R2D_Radiance *radiance)
@@ -186,10 +198,10 @@ bool R2D_RadianceReload(R2D_Radiance *radiance)
         UnloadShader(radiance->compose_shader);
     }
 
-    radiance->cascade_shader = R2D_LoadFragmentShader(R2D_AssetPath("shaders/radiance_flatland_cascade.fs"));
-    radiance->resolve_shader = R2D_LoadFragmentShader(R2D_AssetPath("shaders/radiance_flatland_resolve.fs"));
-    radiance->body_glow_shader = R2D_LoadFragmentShader(R2D_AssetPath("shaders/radiance_body_glow.fs"));
-    radiance->compose_shader = R2D_LoadFragmentShader(R2D_AssetPath("shaders/radiance_flatland_compose.fs"));
+    radiance->cascade_shader = R2D_RadianceLoadBuiltinShader(R2D_BUILTIN_SHADER_RADIANCE_FLATLAND_CASCADE);
+    radiance->resolve_shader = R2D_RadianceLoadBuiltinShader(R2D_BUILTIN_SHADER_RADIANCE_FLATLAND_RESOLVE);
+    radiance->body_glow_shader = R2D_RadianceLoadBuiltinShader(R2D_BUILTIN_SHADER_RADIANCE_BODY_GLOW);
+    radiance->compose_shader = R2D_RadianceLoadBuiltinShader(R2D_BUILTIN_SHADER_RADIANCE_FLATLAND_COMPOSE);
 
     if (!IsShaderValid(radiance->cascade_shader) ||
         !IsShaderValid(radiance->resolve_shader) ||

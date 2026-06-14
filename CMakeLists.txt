@@ -13,6 +13,33 @@ option(R2D_PACKAGE_ASSETS "Package app assets into per-target .assets files" ON)
 option(R2D_ENABLE_LUAJIT "Enable LuaJIT scripting support" OFF)
 set(R2D_DIST_DIR "${CMAKE_BINARY_DIR}/dist" CACHE PATH "Output directory for packaged game distributions")
 
+set(R2D_BUILTIN_SHADER_FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/shaders/crt.fs"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/shaders/radiance_flatland_cascade.fs"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/shaders/radiance_flatland_resolve.fs"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/shaders/radiance_body_glow.fs"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/shaders/radiance_flatland_compose.fs"
+)
+set(R2D_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
+set(R2D_BUILTIN_SHADER_SOURCE "${R2D_GENERATED_DIR}/r2d_builtin_shaders.c")
+
+add_custom_command(
+    OUTPUT "${R2D_BUILTIN_SHADER_SOURCE}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${R2D_GENERATED_DIR}"
+    COMMAND ${CMAKE_COMMAND}
+        -DR2D_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}
+        -DR2D_BUILTIN_SHADER_OUTPUT=${R2D_BUILTIN_SHADER_SOURCE}
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/r2d_embed_shaders.cmake"
+    DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/r2d_embed_shaders.cmake"
+        ${R2D_BUILTIN_SHADER_FILES}
+    COMMENT "Embedding Retro2D built-in shaders"
+    VERBATIM
+)
+set_source_files_properties("${R2D_BUILTIN_SHADER_SOURCE}" PROPERTIES GENERATED TRUE)
+set_source_files_properties(${R2D_BUILTIN_SHADER_FILES} PROPERTIES HEADER_FILE_ONLY TRUE)
+source_group("Shaders" FILES ${R2D_BUILTIN_SHADER_FILES})
+
 find_package(raylib CONFIG QUIET)
 
 if(NOT raylib_FOUND)
@@ -56,6 +83,8 @@ if(R2D_ENABLE_LUAJIT)
 endif()
 
 add_library(r2d STATIC
+    "${R2D_BUILTIN_SHADER_SOURCE}"
+    ${R2D_BUILTIN_SHADER_FILES}
     src/r2d.c
     src/r2d_asset_cache.c
     src/r2d_assets.c
@@ -89,6 +118,7 @@ target_include_directories(r2d
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
     PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/external/sinfl
         ${CMAKE_CURRENT_SOURCE_DIR}/external/tinysoundfont
 )

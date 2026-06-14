@@ -418,7 +418,6 @@ static void ScanSourceForAssets(AssetList *assets, const char *source_path)
     }
 
     if (strstr(text, "R2D_CrtInit") != 0) {
-        AddAsset(assets, "shaders/crt.fs");
         AddAsset(assets, "textures/noise.png");
     }
 

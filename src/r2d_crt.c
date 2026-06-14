@@ -1,12 +1,13 @@
 #include "r2d/r2d.h"
+#include "r2d_builtin_shaders.h"
 
 static bool R2D_CrtLoadShader(R2D_Crt *crt)
 {
-    const char *shader_path = R2D_AssetPath("shaders/crt.fs");
-    Shader shader = R2D_LoadFragmentShader(shader_path);
+    const char *shader_name = R2D_BuiltinShaderName(R2D_BUILTIN_SHADER_CRT);
+    Shader shader = LoadShaderFromMemory(0, R2D_BuiltinShaderSource(R2D_BUILTIN_SHADER_CRT));
 
     if (!IsShaderValid(shader)) {
-        TraceLog(LOG_WARNING, "R2D: Failed to load CRT shader: %s", shader_path);
+        TraceLog(LOG_WARNING, "R2D: Failed to load built-in CRT shader: %s", shader_name);
         return false;
     }
 
@@ -23,8 +24,8 @@ static bool R2D_CrtLoadShader(R2D_Crt *crt)
 
     TraceLog(
         LOG_INFO,
-        "R2D: CRT shader loaded: %s noiseLoc=%d virtualResolutionLoc=%d textureId=%u",
-        shader_path,
+        "R2D: CRT shader loaded: built-in:%s noiseLoc=%d virtualResolutionLoc=%d textureId=%u",
+        shader_name,
         crt->noise_loc,
         crt->virtual_resolution_loc,
         crt->noise.id
