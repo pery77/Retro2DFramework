@@ -3,7 +3,7 @@
 
 static Texture2D R2D_CrtGenerateNoiseTexture(void)
 {
-    Image noise_image = GenImageWhiteNoise(128, 128, 0.3f);
+    Image noise_image = GenImageWhiteNoise(128, 128, 0.15f);
     Texture2D noise = LoadTextureFromImage(noise_image);
 
     UnloadImage(noise_image);

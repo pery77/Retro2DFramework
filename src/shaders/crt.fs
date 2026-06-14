@@ -25,7 +25,7 @@ float curvature = 0.8;
 float vignetteForce = 0.3;
 float mask = 0.08;
 
-float noiseAmount = 0.015;
+float noiseAmount = 0.02;
 float brightness = 0.035;
 float contrast = 1.1;
 float saturation = 1.3;
